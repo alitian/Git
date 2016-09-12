@@ -1,0 +1,137 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<div>
+			<h1>
+				推荐标签
+			</h1>
+		</div>
+		<hr>
+		<p class="alert alert-warning">排序设置为0，表示撤销推荐。排序越大，越靠前显示</p>
+		<div>
+		<?php 
+		if($top_tag_list){
+			foreach($top_tag_list as $top_tag){
+		?>
+			<ul class="breadcrumb" style="padding-top:0px;padding-bottom:0px;">
+				<li>
+					<?php echo $top_tag['tag_name'] . ' <input type="text" style="width:30px;margin-top:8px;" class="top_sortid" value="' . $top_tag['sortid'] . '" tag_id="' . $top_tag['tag_id'] . '">';
+					?>
+				</li>
+			</ul>
+			<div>
+				<?php 
+				if($top_tag['recommend_tag_list']){
+					foreach($top_tag['recommend_tag_list'] as $recommend_tag){
+						echo '<a href="javascript:;" class="btn btn-info">'.$recommend_tag['tag_name'].'</a> <input class="edit_sortid" style="width:30px;" name="sortid" value="'.$recommend_tag['sortid'].'" tag_id="'.$top_tag['tag_id'].'" recommend_id="'.$recommend_tag['tag_id'].'">';
+						echo '<i style="padding:10px"></i>';
+					}
+				}
+				if($top_tag['norecommend_tag_list']){
+					foreach($top_tag['norecommend_tag_list'] as $norecommend_tag){
+						echo '<a href="javascript:;" class="btn btn-info">'.$norecommend_tag['tag_name'].'</a> <input class="edit_sortid" style="width:30px;" name="sortid" value=" 0" tag_id="'.$top_tag['tag_id'].'" recommend_id="'.$norecommend_tag['tag_id'].'">';
+						echo '<i style="padding:0 10px"></i>';
+					}
+				}
+				?>
+			</div>
+			<p></p>
+		<?php
+			}
+		}
+		?>
+		</div>
+	</div>
+		
+<script>
+	/* 顶级标签的sortid顺序修改 */
+
+	// 用于，每次获得焦点的时候，将value记录到prev_value，以便同失去焦点的时候进行比较
+	$(document).on('focus', '.top_sortid', function(){
+		var value = $(this).val() ? $(this).val() : 0;	
+		$(this).attr({prev_value : value});
+	});
+
+	// 添加排序的js
+	$(document).on('blur', '.top_sortid', function(){
+		var url = '<?= site_url("bbs_tag/edit_top_sortid"); ?>';
+		var prev_value = $(this).attr('prev_value');
+		var value = $(this).val() ? $(this).val() : 0;
+		var tag_id = $(this).attr('tag_id');
+		if(isNaN(value)){
+			alert('只能填写数字');
+			return false;
+		}
+
+		// 前后2次相同，表示，未修改。不相同，我们发起ajax请求
+		if(prev_value == value){
+			return;
+		}else{
+			$.ajax({
+				url : url,
+				type : 'post',
+				data : {
+					tag_id : tag_id,
+					sortid : value
+				},
+				async : false,
+				success : function(return_data){
+					if(return_data == 1){
+						alert('更改顶级tag顺序成功');	
+					}else{
+						alert('更改顶级tag顺序失败');
+					}
+
+				}
+			});
+		}
+	});
+
+	/* 顶级标签下的推荐标签的sortid顺序修改 */
+
+	// 用于，每次获得焦点的时候，将value记录到prev_value，以便同失去焦点的时候进行比较
+	$(document).on('focus', '.edit_sortid', function(){
+		var value = $(this).val() ? $(this).val() : 0;	
+		$(this).attr({prev_value : value});
+	});
+
+	// 添加排序的js
+	$(document).on('blur', '.edit_sortid', function(){
+		var url = '<?= site_url("bbs_tag/edit_recommend_sortid"); ?>';
+		var prev_value = $(this).attr('prev_value');
+		var value = $(this).val() ? $(this).val() : 0;
+		var tag_id = $(this).attr('tag_id');
+		var recommend_id = $(this).attr('recommend_id');
+		if(isNaN(value)){
+			alert('只能填写数字');
+			return false;
+		}
+
+		// 前后2次相同，表示，未修改。不相同，我们发起ajax请求
+		if(prev_value == value){
+			return;
+		}else{
+			$.ajax({
+				url : url,
+				type : 'post',
+				data : {
+					tag_id : tag_id,
+					recommend_id : recommend_id,
+					sortid : value
+				},
+				async : false,
+				success : function(return_data){
+					if(return_data == 1){
+						alert('推荐成功');	
+					}else if(return_data == 2){
+						alert('更改推荐顺序成功');
+					}else if(return_data == 3){
+						alert('删除推荐成功');
+					}else{
+						alert('推荐操作异常');
+					}
+				}
+			});
+		}
+	});
+</script>
+<?php $this->load->view('ckad/footer'); ?>

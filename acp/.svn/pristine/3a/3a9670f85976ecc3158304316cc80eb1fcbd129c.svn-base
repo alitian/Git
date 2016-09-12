@@ -1,0 +1,52 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	/*
+	 *	bbs 中的任务计划
+	 */
+	class Bbs_cron extends CI_Controller
+	{
+
+		public function __construct()
+		{
+			parent::__construct();
+		}
+
+		// 定时检测用户禁言状态，发现禁言时间已到，更改数据
+		public function check_banned()
+		{
+			$banned_user_list = $this->bbs_cron_model->get_banned_user_list();	
+			$enable_user_array = array();
+			foreach($banned_user_list as $user_info){
+				if($user_info['banned_e_time'] <= time()){
+					$enable_uid_array[] = $user_info['uid'];
+				}		
+			}
+
+			// 发现有复合条件的，解除禁言
+			if($enable_uid_array){
+				$this->bbs_cron_model->enable_users($enable_uid_array);
+				$this->bbs_cron_model->add_user_manager_log($enable_uid_array);
+			}
+
+		}
+
+		// 定时检查置顶帖子状态，发现已到置顶时间，取消置顶
+		public function check_stick()
+		{
+			$stick_post_tag_map_list = $this->bbs_cron_model->get_stick_post_tag_map_list();
+			$del_stick_id_array = array();
+			foreach($stick_post_tag_map_list as $stick_row){
+				if($stick_row['stick_e_time'] <= time()){
+					$del_stick_id_array[] = $stick_row['id'];
+				}
+			}
+
+			// 发现有过期的，取消置顶状态
+			if($del_stick_id_array){
+				$this->bbs_cron_model->del_stick_map($del_stick_id_array);
+				$this->bbs_cron_model->add_post_manager_log($del_stick_id_array);
+			}
+		}
+
+	}

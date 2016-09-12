@@ -1,0 +1,303 @@
+<?php               
+
+require("libraries/function.php");
+class Web_data extends Acp_Controller {
+    
+    public $redis;
+
+    public function __construct() {
+        parent::__construct();
+        $init = new Redis();
+        $host = $this->config->item('md_redis');
+        $init->connect("{$host['ip']}", "{$host['port']}");
+        $this->redis=$init;
+    }
+
+    //全站数据查看
+    public function web_data_all() {
+        $str = $this->redis->get("web_data");
+        $arr = unserialize($str);
+        $shuzu = array();
+        $table = array();
+        $data = array();
+        for ($i = time() - 7 * 86400; $i <= time() - 86400; $i+=86400) {
+            $table[] = date("m-d", $i);
+            $key = intval(date("Ymd", $i));
+            $data[] = $arr[$key];
+        }
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case 'week':
+                    $shijian = array('最近七天' => array(), '上周周均' => array(), '上月月均' => array());
+                    $stime = strtotime("-1 week");
+                    $etime = strtotime("-1 day");
+                    $shijian['最近七天'] = avg($stime, $etime, $arr);
+                    $stime = strtotime("-2 week");
+                    $etime = strtotime("-1 week");
+                    $shijian['上周周均'] = avg($stime, $etime, $arr);
+                    $stime = strtotime("-2 month");
+                    $etime = strtotime("-1 month");
+                    $shijian['上月月均'] = avg($stime, $etime, $arr);
+                    break;
+
+                case 'month':
+                    $shijian = array('最近30天' => array(), '上月月均' => array(), '最高月均' => array());
+                    $stime = strtotime("-1 month");
+                    $etime = strtotime("-1 day");
+                    $shijian['最近30天'] = avg($stime, $etime, $arr);
+                    $stime = strtotime("-2 month");
+                    $etime = strtotime("-1 month");
+                    $shijian['上月月均'] = avg($stime, $etime, $arr);
+                    $shijian['最高月均'] = unserialize($this->redis->get("max_month"));
+                    unset($table);unset($data);
+                    $table = array();
+                    $data = array();
+                    for ($i = time() - 31 * 86400; $i <= time() - 86400; $i+=86400) {
+                        $table[] = date("m-d", $i);
+                        $key = intval(date("Ymd", $i));
+                        $data[] = $arr[$key];
+                    }
+                    break;
+
+                case 'yesterday':
+                    $shijian = array('昨天' => array(), '前一天' => array(), '上周周均' => array());
+                    $key = date("Ymd", strtotime("-1 day"));
+                    $key = intval($key);
+                    $shijian['昨天'] = $arr[$key];
+                    $key = date("Ymd", strtotime("-2 day"));
+                    $key = intval($key);
+                    $shijian['前一天'] = $arr[$key];
+                    $stime = strtotime("-2 week");
+                    $etime = strtotime("-1 week");
+                    $shijian['上周周均'] = avg($stime, $etime, $arr);
+                    break;
+
+                case 'tody':
+                    $shijian = array('今天' => array(), '昨天' => array(), '上周周均' => array());
+                    $host = $this->config->item('md_elasticsearch');
+                    $ip = $host['ip'];
+                    $port = $host['port'];
+                    $array_shuzu = tody($ip, $port);
+                    $shijian['今天'] = $array_shuzu;
+                    $key = date("Ymd", strtotime("-1 day"));
+                    $key = intval($key);
+                    $shijian['昨天'] = $arr[$key];
+                    $stime = strtotime("-2 week");
+                    $etime = strtotime("-1 week");
+                    $shijian['上周周均'] = avg($stime, $etime, $arr);
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) OR isset($_GET['end_time'])) {
+            $shijian = array('当前选定' => array());
+            $stime = strtotime($_GET['start_time']);
+            $etime = strtotime($_GET['end_time']);
+            $shijian['当前选定'] = avg($stime, $etime, $arr);
+            unset($table);unset($data);
+            $table = array();
+            $data = array();
+            $now = time();
+            if($etime > $now){
+                $etime = strtotime(date("Y-m-d",time()-86400));
+            }
+            for ($i = $stime; $i <= $etime; $i+=86400) {
+                $table[] = date("m-d", $i);
+                $key = intval(date("Ymd", $i));
+                $data[] = $arr[$key];
+            }
+            $shuzu['start_time'] = $_GET['start_time'];
+            $shuzu['end_time'] = $_GET['end_time'];
+        } else {
+            $shijian = array('昨天' => array(), '前一天' => array(), '上周周均' => array());
+            $key = date("Ymd", strtotime("-1 day"));
+            $key = intval($key);
+            $shijian['昨天'] = $arr[$key];
+            $key = date("Ymd", strtotime("-2 day"));
+            $key = intval($key);
+            $shijian['前一天'] = $arr[$key];
+            $stime = strtotime("-2 week");
+            $etime = strtotime("-1 week");
+            $shijian['上周周均'] = avg($stime, $etime, $arr);
+        }
+        $shuzu['shijian'] = $shijian;
+        $shuzu['table'] = $table;
+        $shuzu['data'] = $data;
+        $this->load->view('web_data/web_data_all', $shuzu);
+    }
+
+
+    //添加ios,andriod的新增活跃用户数据，存入数据库
+    public function add_data() {
+        $str = array("str" => "");
+        if(isset($_GET['time'])){
+            if(empty($_GET['time'])) {
+                $str = array("str" => "请选择日期!");
+            }else{
+                if($_GET['ios_new'] == null && $_GET['ios_old'] == null && $_GET['andriod_new'] == null && $_GET['andriod'] == null){
+                    $str = array("str" => "请填入数据！");
+                }else{
+                    $sql = "update `md_web_data` set ";
+                    if($_GET['ios_new'] === '0' || !empty($_GET['ios_new'])){
+                        $sql .= "`ios_new`='{$_GET['ios_new']}',";
+                    }
+                    if($_GET['ios_old'] === '0' || !empty($_GET['ios_old'])){
+                        $sql .= "`ios_old`='{$_GET['ios_old']}',";
+                    }
+                    if($_GET['andriod_new'] === '0' || !empty($_GET['andriod_new'])){
+                        $sql .= "`andriod_new`='{$_GET['andriod_new']}',";
+                    }
+                    if($_GET['andriod_old'] === '0' || !empty($_GET['andriod_old'])){
+                        $sql .= "`andriod_old`='{$_GET['andriod_old']}',";
+                    }
+                    $sql = rtrim($sql,",");
+                    $sql .= " where `ctime`='{$_GET['time']}'";
+                    $str = $this->db->query($sql);
+                    $redis = new Redis();
+                    $host = $this->config->item('md_redis');
+                    $redis->connect("{$host['ip']}", "{$host['port']}");
+                    $out = $redis->get("web_data");
+                    $arr = unserialize($out);
+                    $key = str_replace("-", "", $_GET['time']);
+                    $key = intval($key);
+                    $arr[$key]['ios_new'] = $_GET['ios_new'];
+                    $arr[$key]['ios_old'] = $_GET['ios_old'];
+                    $arr[$key]['andriod_new'] = $_GET['andriod_new'];
+                    $arr[$key]['andriod_old'] = $_GET['andriod_old'];
+		    Data_statistics($arr, $host['ip'], $host['port']);
+                    $string = serialize($arr);
+                    $redis->set("web_data", $string);
+                    if ($str) {
+                        $str = array("str" => "添加成功!");
+                    } else {
+                        $str = array("str" => "添加失败!");
+                    }
+                }
+            }
+        }
+        $this->load->view('web_data/add_data', $str);
+    }
+    //来路分析  
+    public function path_data() {
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case "tody":
+                    $url = path_tody($ip, $port);
+                    $host = $this->config->item('md_elasticsearch');
+                    $ip = $host['ip'];
+                    $port = $host['port'];
+                    $tody_data = tody($ip, $port);
+                    $uv = $tody_data['uv'];
+                    break;
+
+                case "yesterday":
+                    $log = "log_".date("Ymd", time()-86400);
+                    $str = $this->redis->get($log);
+                    $url = unserialize($str);
+                    $str = $this->redis->get("web_data");
+                    $web_data = unserialize($str);
+                    $k = intval(date("Ymd",time()-86400));
+                    $uv = $web_data[$k]['uv'];
+                    break;
+                
+                case "week":
+                    $a = strtotime("-7 day");
+                    $b = strtotime("-1 day");
+                    $host = $this->config->item('md_redis');
+                    $url = path_num($host['ip'], $host['port'], $a, $b, 0);
+                    $str = $this->redis->get("web_data");
+                    $web_data = unserialize($str);
+                    $data = avg($a, $b, $web_data, 1);
+                    $uv = $data['uv'];
+                    break;
+                
+                case "month":
+                    $a = strtotime("-1 month");
+                    $b = strtotime("-1 day");
+                    $host = $this->config->item('md_redis');
+                    $url = path_num($host['ip'], $host['port'], $a, $b, 0);
+                    $str = $this->redis->get("web_data");
+                    $web_data = unserialize($str);
+                    $data = avg($a, $b, $web_data, 1);
+                    $uv = $data['uv'];
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) OR isset($_GET['end_time'])) {
+            $a = strtotime($_GET['start_time']);
+            $b = strtotime($_GET['end_time']);
+            $host = $this->config->item('md_redis');
+            $url = path_num($host['ip'], $host['port'], $a, $b, 0);
+            $str = $this->redis->get("web_data");
+            $web_data = unserialize($str);
+            $data = avg($a, $b, $web_data, 1);
+            $uv = $data['uv'];
+            $url['start_time'] = $_GET['start_time'];
+            $url['end_time'] = $_GET['end_time'];
+        } else {
+            $log = "log_".date("Ymd",time()-86400);
+            $str = $this->redis->get($log);
+            $url = unserialize($str);
+            $str = $this->redis->get("web_data");
+            $web_data = unserialize($str);
+            $k = intval(date("Ymd",time()-86400));
+            $uv = $web_data[$k]['uv'];
+        }
+        $url['uv'] = $uv;
+        $this->load->view('web_data/path_data', $url);
+    }
+
+    //受访域名
+    public function visit_domain() {
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $host = $this->config->item('md_redis');
+        $url = array();
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case "tody":
+                    $start_time = strtotime(date("Y-m-d"));
+                    $today_data = sort_url($ip, $port, $start_time, $start_time+86400, 2);
+                    $url['visit_domain'] = $today_data;
+                    //error_log(var_export($arr, true)."\nww".rand(10000,99999));
+                    break;
+
+                case "yesterday":
+                    $log = "log_".date("Ymd", time()-86400)."_domain";
+                    $str = $this->redis->get($log);
+                    $url = unserialize($str);
+                    break;
+                
+                case "week":
+                    $a = strtotime("-7 day");
+                    $b = strtotime("-1 day");
+                    $host = $this->config->item('md_redis');
+                    $url = path_num($host['ip'], $host['port'], $a, $b, 1);
+                    break;
+                
+                case "month":
+                    $a = strtotime("-1 month");
+                    $b = strtotime("-1 day");
+                    $url = path_num($host['ip'], $host['port'], $a, $b, 1);
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) OR isset($_GET['end_time'])) {
+            $a = strtotime($_GET['start_time']);
+            $b = strtotime($_GET['end_time']);
+            $url = path_num($host['ip'], $host['port'], $a, $b, 1);
+            $url['start_time'] = $_GET['start_time'];
+            $url['end_time'] = $_GET['end_time'];
+        } else {
+            $log = "log_".date("Ymd",time()-86400)."_domain";
+            $str = $this->redis->get($log);
+            $url = unserialize($str);
+        }
+        $uv = 0;
+        foreach($url['visit_domain'] as $k => $v){
+            $uv += $v[uv];
+        }
+        $url['domain_uv'] = $uv;
+        $this->load->view('web_data/visit_domain', $url);
+    }
+}

@@ -1,0 +1,21 @@
+<ul class="nav nav-tabs">
+    <li <?php
+    if ($type == 'inside') {
+        echo ' class="active"';
+    }
+    ?>>
+        <a href="/user/edm_search/inside">站内用户</a>
+    </li>
+    <li<?php
+    if ($type == 'outside') {
+        echo ' class="active"';
+    }
+    ?>><a href="/user/edm_search/outside">站外用户</a></li>
+    
+    <li<?php
+    if ($type == 'tag') {
+        echo ' class="active"';
+    }
+    ?>><a href="/user/edm_search/tag">标签用户</a></li>
+  
+</ul>

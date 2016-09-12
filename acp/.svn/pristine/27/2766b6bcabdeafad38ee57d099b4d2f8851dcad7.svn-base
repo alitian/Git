@@ -1,0 +1,271 @@
+<?php $this->load->view('ckad/header') ?>
+<link id="bs-css" href="<?= static_url(); ?>css/bootstrap-cerulean.css" rel="stylesheet">
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<style>
+    .smartscroll #table-list-head > tr {
+        position: fixed;
+        top: 0px;
+        background-image: url(http://www.php-internals.com/images/toolbar_bg.png);
+        background-position: bottom left;
+        background-repeat: no-repeat;
+        background-size: 100%;
+        z-index: 999;
+    }
+
+    .table #table-list-head .t1,
+    .table #table-list-content .t1 {
+        width: 32%;
+    }
+    .table #table-list-head .t2,
+    .table #table-list-content .t2,
+    .table #table-list-head .t3,
+    .table #table-list-content .t3,
+    .table #table-list-head .t4,
+    .table #table-list-content .t4,
+    .table #table-list-head .t5,
+    .table #table-list-content .t5,
+    .table #table-list-head .t6,
+    .table #table-list-content .t6 {
+        width: 11%;
+    }
+
+    .table tbody tr.item-separtor:hover td {
+        background-color: #fff;
+    }
+    .table tbody tr.item-bottom td {
+        border-top: none;
+        background-color: #f5f5f5;
+    }
+    .table tbody tr.item-bottom td span {
+        display: inline-block;
+        margin-right: 20px;
+    }
+
+    .tooltip {
+        border-style: none;
+        background-color: transparent;
+    }
+    .tooltip.top .tooltip-arrow {
+        bottom: 0;
+        left: 70%;
+        margin-left: -5px;
+        border-top-color: #000;
+        border-width: 5px 5px 0;
+    }
+    .tooltip-inner {
+        max-width: 200px;
+        padding: 8px;
+        color: #fff;
+        text-align: center;
+        text-decoration: none;
+        background-color: #000;
+        -webkit-border-radius: 4px;
+        -moz-border-radius: 4px;
+        border-radius: 4px;
+    }
+
+    .delivery-info {
+        margin-bottom: 21px;
+    }
+    .delivery-info h4 {
+        background-color: #f8f8f8;
+        color: #000;
+        font-size: 18px;
+        font-weight: bold;
+        padding: 20px;
+        border-top: 1px solid #dfdfdf;
+        border-bottom: 1px solid #dfdfdf;
+    }
+    .delivery-info h4 span {
+        color: red;
+    }
+</style>
+
+<div class="delivery-info">
+    <h4>目前，有<span> <?=$unpost_ords?> 个</span>订单未发货， <span> <?=$posted_ords?> 个</span>订单已发货， <span> <?=$user_recv_ords?> 个</span>订单用户确认收货， <span> <?=$sys_recv_ords?> 个</span>订单系统确认收货</h4>
+</div>
+<div id="debug-info" style="display:none;margin:18px 0;padding:18px;background-color:#f5f5f5;color:red;"></div>
+<form name='form1' action="" method="post">
+    <div class="row-fluid">
+        <div class="span2">项目ID<input class="span12" type="text" name="pro_id" <?=!empty($post['pro_id'])? "value='{$post['pro_id']}'" : ""?> placeholder='输入项目ID'></div>
+        <div class="span2">项目名称<input class="span12" type="text" name="pro_name" <?=!empty($post['pro_name'])? "value='{$post['pro_name']}'" : ""?> placeholder='输入项目名称'></div>
+        <div class="span2">订单ID<input class="span12" type="text" name="back_id" <?=!empty($post['back_id'])? "value='{$post['back_id']}'" : ""?> placeholder='输入订单ID'></div>
+        <div class="span2">收件人姓名<input class="span12" type="text" name="recv_name" <?=!empty($post['recv_name'])? "value='{$post['recv_name']}'" : ""?> placeholder='收件人姓名'></div>
+        <div class="span2">用户手机号<input class="span12" type="text" name="recv_mobile" <?=!empty($post['recv_mobile'])? "value='{$post['recv_mobile']}'" : ""?> placeholder='用户手机号'></div>
+    </div>
+    <div class="row-fluid">
+        <div class="span2">
+            <label>回报方式</label>
+            <select class="span12" name="rew_way">
+                <option value="0" <?php if(0==$post['rew_way']) echo 'selected';?>>全部</option>
+                <option value="1" <?php if(1==$post['rew_way']) echo 'selected';?>>仅邮寄</option>
+                <option value="2" <?php if(2==$post['rew_way']) echo 'selected';?>>仅发码</option>
+                <option value="3" <?php if(3==$post['rew_way']) echo 'selected';?>>发码和邮寄</option>
+                <option value="4" <?php if(4==$post['rew_way']) echo 'selected';?>>不需要回报</option>
+            </select>
+        </div>
+        <div class="span2">
+            <label>订单状态</label>
+            <select class="span12" name="ord_status">
+                <option value="0" <?php if(0==$post['ord_status']) echo 'selected';?>>全部</option>
+                <option value="1" <?php if(1==$post['ord_status']) echo 'selected';?>>已付款</option>
+                <option value="2" <?php if(2==$post['ord_status']) echo 'selected';?>>已发货</option>
+                <option value="3" <?php if(3==$post['ord_status']) echo 'selected';?>>已收货</option>
+                <option value="4" <?php if(4==$post['ord_status']) echo 'selected';?>>退款申请待确认</option>
+                <option value="5" <?php if(5==$post['ord_status']) echo 'selected';?>>退款中</option>
+                <option value="6" <?php if(6==$post['ord_status']) echo 'selected';?>>已退款</option>
+                <option value="7" <?php if(7==$post['ord_status']) echo 'selected';?>>退款申请被拒绝</option>
+            </select>
+        </div>
+    </div>
+    <div class="row-fluid tooltip-export" style="margin-top:11px;">
+        <button type="submit" class="btn btn-primary" onclick="form1.action='/delivery_info/index';form1.submit()"><i class="icon-search"></i> 查找</button>
+        <button type="button" class="btn" onclick="form1.action='/delivery_info/export';form1.submit()" data-toggle="tooltip" data-placement="top" title="仅支持按项目(ID)导出" style="vertical-align: bottom;"><i class="icon-download-alt"></i> 导出Excel</button>
+        <script>
+            $('.tooltip-export').tooltip({
+                selector: "button[data-toggle=tooltip]"
+            });
+        </script>
+    </div>
+</form>
+
+<table class="table table-hover">
+    <thead id="table-list-head">
+        <tr>
+            <th class="t1">回报信息</th>
+            <th class="t2">实付金额</th>
+            <th class="t3">回报方式</th>
+            <th class="t4">收件人信息</th>
+            <th class="t5">订单状态</th>
+            <th class="t6">发货状态</th>
+        </tr>
+    </thead>
+    <tbody id="table-list-content">
+        <?php if(isset($order_list)): ?>
+        <?php foreach ($order_list as $row): ?>
+        <tr class="item-content">
+            <td class="t1">
+                <p><?=str_replace(array("\r\n", "\n", "\r"), "<br />", mb_substr($row['rew_content'], 0, 20, 'utf-8'))?></p>
+            </td>
+            <td class="t2">&yen;<?=$row['back_money']?></td>
+            <td class="t3">
+                <?php if ($row['back_if_rew'] == 'on'):?>
+                    不需要回报
+                <?php elseif ($row['rew_way'] == 1):?>
+                    仅邮寄
+                <?php elseif ($row['rew_way'] == 2):?>
+                    仅发码
+                <?php elseif ($row['rew_way'] == 3):?>
+                    发码和邮寄
+                <?php else:?>
+                    不知道
+                <?php endif;?>
+            </td>
+            <td class="t4">
+                <p><?=$row['back_recv_name']?></p>
+                <p><?=$row['back_recv_mobile']?></p>
+            </td>
+            <td class="t5">
+                <p><?php if($row['back_if_pay']==1 && $row['back_status']==103):?>
+                        已付款
+                    <?php elseif($row['back_if_pay']==1 && $row['back_status']==200):?>
+                        待发货
+                    <?php elseif($row['back_if_pay']==1 && $row['back_status']==201):?>
+                        <?php if($row['if_post']!=1 && $row['post_time']!='0000-00-00 00:00:00'):?>
+                            部分发货
+                        <?php elseif($row['if_post']==1):?>
+                            已发货
+                        <?php else:?>
+                        <?php endif;?>
+                    <?php elseif($row['back_if_pay']==1 && $row['back_status']==202):?>
+                        已收货
+                    <?php elseif($row['back_if_pay']==1 && $row['back_status']==303):?>
+                        退款申请待确认
+                    <?php elseif($row['back_if_pay']==1 && in_array(intval($row['back_status']), array(204,302,402))):?>
+                        退款中
+                    <?php elseif($row['back_if_pay']==3 && in_array(intval($row['back_status']), array(205,300,400))):?>
+                        已退款
+                    <?php elseif($row['back_if_pay']==1 && $row['back_status']==304):?>
+                        退款申请被拒绝
+                    <?php else:?>
+                    <?php endif;?></p>
+                <p><a class="order-btn" href="/delivery_info/order_detail?oid=<?=$row['back_id']?>&pid=<?=$row['pro_id']?>" target="_blank">订单详情</a></p>
+                <?php if($row['post_time']!='0000-00-00 00:00:00'):?>
+                <p><a class="seed-btn" href="/delivery_info/deliver_detail?oid=<?=$row['back_id']?>" oid="<?=$row['back_id']?>" target="_blank">发货详情</a></p>
+                <?php endif;?>
+            </td>
+            <td class="t6">
+                <?php if(in_array(intval($row['back_status']), array(103,200,201,304)) && $row['back_if_rew']!='on'):?>
+                    <?php if($row['if_post']==1 && $row['post_time']=='0000-00-00 00:00:00'):?>
+                        分批发货中
+                    <?php elseif($row['if_post']==1 && $row['post_time']!='0000-00-00 00:00:00'):?>
+                        货已发完
+                    <?php else:?>
+                        未发货
+                    <?php endif;?>
+                <?php elseif ($row['back_if_rew'] == 'on'):?>
+                    不需要回报
+                <?php else:?>
+                <?php endif;?>
+            </td>
+        </tr>
+        <tr class="item-bottom">
+            <td colspan="6">
+                <span><?=date('Y年m月d日 H:i:s', strtotime($row['back_time']))?></span>
+                <span>订单号：<?=$row['back_id']?></span>
+                <span>项目名称：[<?=$row['pro_id']?>] <?=$row['pro_short_title']?$row['pro_short_title']:$row['pro_name'];?></span>
+                <span><?php if($row['rew_id'] != _gc('special_reward')):?>回报档：&yen;<?=$row['rew_money']?><?php endif;?></span>
+            </td>
+        </tr>
+        <tr class="item-separtor"><td colspan="6"></td></tr>
+        <?php endforeach; ?>
+        <?php endif; ?>
+    </tbody>
+</table>
+
+<div style="clear:both">
+    <?php if(isset($pagination)) echo $pagination; ?>
+</div>
+
+
+<script>
+    $(function() {
+        // 设置分页
+        $('#page-nav li a').on('click', function(evt) {
+            evt.preventDefault();
+            var nav_url = $(this).attr('href');
+            var page = nav_url.substring(nav_url.lastIndexOf("/")+1);
+            var page_url = "/delivery_info/index/"+page;
+            $('form[name="form1"]').attr('action', page_url);
+            $('form[name="form1"]').submit();
+        });
+
+        (function() {
+            var toolbar = $("#table-list-head > tr");
+            if(toolbar.length == 0) return;
+
+            var tb_width = toolbar.width();
+            var tb_height = toolbar.height();
+            var tb_top = toolbar.position().top;
+            var org_body_margin = $("#table-list-content").css("margin-top");
+
+            $(window).scroll(function() {
+                if($(window).scrollTop() > tb_top) {
+                    $('body').addClass('smartscroll');
+                    toolbar.css("width", tb_width);
+                    $("#table-list-content").css('margin-top', tb_height);
+                }
+                else {
+                    // restore
+                    $('body').removeClass('smartscroll');
+                    $("#table-list-content").css('margin-top', org_body_margin);
+                }
+            });
+        })();
+
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

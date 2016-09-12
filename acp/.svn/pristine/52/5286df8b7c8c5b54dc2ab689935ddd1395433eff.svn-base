@@ -1,0 +1,100 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="/static/js/bootstrap-switch.min.js"></script>
+<link rel="stylesheet" type="text/css" href="/static/css/bootstrap-switch.min.css">
+<script language="javascript">
+    $(function() {
+        $('input[type="checkbox"],[type="radio"]').not('#create-switch').bootstrapSwitch();
+        $('input[type="checkbox"],[type="radio"]').on('switch-change', function(e, data) {
+            var value = data.value;
+            var swth = $(this);
+            jQuery.post("/edm_ad/update_open", {type: $(this).attr('vtype'), id: $(this).attr('vid'), val: value}, function(data) {
+                if (data.result == 'error')
+                {
+                    alert(data.error);
+                }
+            }, 'json');
+        });
+    });
+</script>
+<div class="row-fluid">
+    <div class="span7">
+        <table id="dg"  title="Edm内容管理" class="easyui-datagrid" data-options="singleSelect:false,collapsible:true" style="width:auto;height:auto;border:1px solid #ccc;">
+            <thead>
+                <tr>
+                    <th data-options="field:'id'">编号</th>
+                    <th data-options="field:'name'">用途描述</th>
+                    <th data-options="field:'is_open_sms',align:'center'" width="100">短信开关</th>
+                    <th data-options="field:'is_open_email',align:'center'" width="100">邮件开关</th>
+                    <th data-options="field:'is_open_msg',align:'center'" width="100">站内信开关</th>
+                    <th data-options="field:'attr1'">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($configs as $config): ?>
+                    <?php
+                    if (isset($edit_id) && $edit_id == $config['id']) {
+                        $edit = $config;
+                    }
+                    ?>
+                    <tr>
+                        <td><?= $config['id']; ?></td>
+                        <td><?= $config['name']; ?></td>
+                        <td><?php if ($config['sms'] != ''): ?><input type="checkbox" <?php echo $config['is_open_sms'] == 1 ? 'checked' : ''; ?> key='1' class="switch-mini" name="is_open_sms<?= $config['id'] ?>" vtype="is_open_sms" vid="<?= $config['id'] ?>" /><?php else: ?>无<?php endif; ?></td>
+                        <td><?php if ($config['email'] != ''): ?><input type="checkbox" <?php echo $config['is_open_email'] == 1 ? 'checked' : ''; ?> key='1' class="switch-mini" name="is_open_email<?= $config['id'] ?>" vtype="is_open_email" vid="<?= $config['id'] ?>" /><?php else: ?>无<?php endif; ?></td>
+                        <td><?php if ($config['message'] != ''): ?><input type="checkbox" <?php echo $config['is_open_msg'] == 1 ? 'checked' : ''; ?> key='1' class="switch-mini" name="is_open_msg<?= $config['id'] ?>" vtype="is_open_msg" vid="<?= $config['id'] ?>" /><?php else: ?>无<?php endif; ?></td>
+                        <td><a href="/edm_ad/index/?edit=<?= $config['id']; ?>">编辑</a></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <div class="span5">
+        <?php if (isset($edit_id) || isset($_GET['new'])): ?>
+            <div class="easyui-panel" title="编辑内容" style="width:auto;">
+                <div style="padding:10px">
+                    <form id="ff" method="post">
+                        <table cellpadding="5">
+                            <?php if (isset($_GET['new'])): ?>
+                                <tr>
+                                    <td>功能描述:</td>
+                                    <td><input type="text" name="name" id="name" value="<?= $edit['name']; ?>" /></td>
+                                </tr>
+                            <?php endif; ?>
+                            <tr>
+                                <td>邮件与站内信标题:</td>
+                                <td><input type="text" name="edm_title" id="edm_title" value="<?= $edit['edm_title']; ?>" /></td>
+                            </tr>
+                            <tr>
+                                <td>邮件内容:</td>
+                                <td><textarea class="easyui-textbox" name="email" data-options="multiline:true" style="height:60px;"><?= $edit['email']; ?></textarea></td>
+                            </tr>
+                            <tr>
+                                <td>短信内容:</td>
+                                <td><textarea class="easyui-textbox" name="sms" data-options="multiline:true" style="height:60px"><?= $edit['sms']; ?></textarea></td>
+                            </tr>
+                            <tr>
+                                <td>站内信内容:</td>
+                                <td><textarea class="easyui-textbox" name="message" data-options="multiline:true" style="height:60px"><?= $edit['message']; ?></textarea></td>
+                            </tr>
+                            <tr><td>可替换标签</td><td><span class="label">#pro_name#</span> <span class="label">#nickname#</span> <span class="label">购买链接:#pay_link#</span> <span class="label">项目更新内容:#update_content#</span></td></tr>
+                        </table>
+                    </form>
+                    <div style="text-align:center;padding:5px">
+                        <a href="javascript:void(0)" class="easyui-linkbutton" onclick="submitForm()">Submit</a>
+                        <a href="javascript:void(0)" class="easyui-linkbutton" onclick="clearForm()">Clear</a>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+
+    </div>
+</div>
+<script>
+    function submitForm() {
+        $('#ff').submit();
+    }
+    function clearForm() {
+        $('#ff').form('clear');
+    }
+</script>
+<?php $this->load->view('ckad/footer') ?>

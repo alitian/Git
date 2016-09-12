@@ -1,0 +1,6 @@
+<ul class="nav nav-tabs" role="tablist">
+    <li role="presentation"<?php if ($show_type == 0):?> class="active"<?php endif;?>><a href="/activity/addnew">新增活动</a></li>
+	<li role="presentation"<?php if ($show_type == 1):?> class="active"<?php endif;?>><a href="/activity/editor">活动编辑</a></li>
+	<li role="presentation"<?php if ($show_type == 2):?> class="active"<?php endif;?>><a href="/activity/prize">中奖查询</a></li>
+    <li role="presentation"<?php if ($show_type == 3):?> class="active"<?php endif;?>><a href="/activity/lottery_tools">开奖工具</a></li>
+</ul>

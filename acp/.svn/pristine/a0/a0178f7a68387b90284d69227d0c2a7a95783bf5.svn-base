@@ -1,0 +1,25 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Bbs_test extends CI_Controller {
+
+	public function __construct()
+	{
+		parent::__construct();
+	}
+
+	public function nopage()
+	{
+		exit('404 page');
+	}
+
+	// ---------------------------------------------------------------------
+	/**
+	 * 	BBS首页
+	 */
+	public function index()
+	{
+		$this->load->model('comment_model');
+		$this->comment_model->acp_add_thread(1,'test','测试', 'uploads/icons/99999.jpg', '', '', 1);
+		exit;
+	}
+}

@@ -1,0 +1,66 @@
+<?php $this->load->view('ckad/header') ?>
+<div class="easyui-panel" title="权限组管理" style="width:auto;height:500px;padding:10px;">
+    <div class="easyui-layout" data-options="fit:true">
+        <div data-options="region:'west',split:true" style="width:500px;padding:10px">
+            <table id="dg" class="easyui-datagrid" style="width:auto;height:auto;border:1px solid #ccc;">
+                <thead>
+                    <tr>
+                        <th data-options="field:'itemid'">ID</th>
+                        <th data-options="field:'productid'">名称</th>
+                        <th data-options="field:'listprice',align:'right'">成员数</th>
+                        <th data-options="field:'attr1'">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($list as $item): ?>
+                        <tr>
+                            <td><?= $item['id']; ?></td><td><?= $item['group_name']; ?></td><td><?= $item['usr_count']; ?></td>
+                            <td><a href="/admin_user/group?edit=<?= $item['id']; ?>">编辑</a> | <a href="/admin_user/group?del=<?= $item['id']; ?>">删除</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <div data-options="region:'center'" style="width:50%;padding:10px">
+            <form id="ff" class="easyui-form" method="post" action="" data-options="novalidate:true">
+                <div class="easyui-panel" style="padding:5px;height:auto;width:auto;">
+                    <div style="padding:10px">
+                        <table cellpadding="5">
+                            <tr>
+                                <td>权限组名称:</td>
+                                <td><input class="easyui-textbox" type="text" name="name" value="<?php echo isset($edit_data) ? $edit_data['group_name'] : '' ?>" data-options="required:true"></input></td>
+                            </tr>
+                        </table>
+                        <div style="text-align:center;padding:5px">
+                            <a href="javascript:void(0)" class="easyui-linkbutton" onclick="submitForm()">保存</a>
+                        </div>
+                    </div>
+                    <input type="hidden" name="item_ids" id='item_ids' />
+                    <div class="easyui-panel" title="设置权限" style="width:auto;height:300px;">
+                        <ul id="tt" class="easyui-tree" data-options="url:'/admin_user/ajax_pw_tree<?php echo isset($edit_data) ? "?edit=" . $edit_data['id'] : '' ?>',method:'get',animate:true,checkbox:true,cascadeCheck:false"></ul>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+    function submitForm() {
+        $("#item_ids").val(getChecked());
+        $('#ff').submit();
+    }
+    function clearForm() {
+        $('#ff').form('clear');
+    }
+    function getChecked() {
+        var nodes = $('#tt').tree('getChecked');
+        var s = '';
+        for (var i = 0; i < nodes.length; i++) {
+            if (s != '')
+                s += ',';
+            s += nodes[i].id;
+        }
+        return s;
+    }
+</script>
+<?php $this->load->view('ckad/footer') ?>

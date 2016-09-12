@@ -1,0 +1,176 @@
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<h3>生成上周统计数据</h3>
+<form ation="<?php echo site_url('web_data/firday'); ?>" method="get">
+    <div class="span3">
+        <div id="datetimepicker1" class="input-append">
+            <input data-format="yyyy-MM-dd" type="text" placeholder="开始时间" id='start_time' name='start' value="<?php echo $start; ?>" style="width:165px;"></input>
+            <span class="add-on">
+                <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                </i>
+            </span>
+        </div>
+    </div>
+    <div class="span3">
+        <div id="datetimepicker2" class="input-append">
+            <input data-format="yyyy-MM-dd" type="text" placeholder="截止时间" id='end_time' name='end' value="<?php echo $end; ?>" style="width:165px;"></input>
+            <span class="add-on">
+                <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                </i>
+            </span>
+        </div>
+    </div>
+    <input type="submit" value="显示" class="btn"/>
+</form>
+<?php if(isset($data)){ ?>
+<h3 style="float:left;">数据统计表</h3>
+<a href="<?php  echo site_url("web_data/friday")."?type=0&start={$start}&end={$end}";?>" class="btn" style="float: right;margin: 0 auto 20px;">下载统计表</a>
+<div style="overflow-x: scroll;width:100%"> 
+<table class="table table-bordered" style="width:1850px;max-width: 1850px;">
+    <tr>
+        <td width="50px">ID</td>
+        <td width="200px">名称</td>
+        <td width="80px">类别</td>
+        <td width="80px">PV</td>
+        <td width="80px">UV</td>
+        <td width="80px">下单</td>
+        <td width="80px">支付</td>
+        <td width="80px">IOS支付</td>
+        <td width="80px">安卓支付</td>
+        <td width="80px">APP支付占比</td>
+        <td width="80px">周流水</td>
+        <td width="80px">IOS金额</td>
+        <td width="80px">安卓金额</td>
+        <td width="80px">APP金额占比</td>
+        <td width="80px">总流水</td>
+        <td width="80px">独立支持人数</td>
+        <td width="80px">新用户</td>
+        <td width="80px">老用户占比</td>
+        <td width="80px">订单成功率</td>
+        <td width="80px">转化率</td>
+        <td width="80px">平均客单价</td>
+        <td width="80px">完成进度</td>
+    </tr>
+    <?php 
+        foreach($data as $val){
+            echo "<tr>";
+            echo "<td>{$val['id']}</td><td>{$val['name']}</td><td>{$val['type']}</td><td>{$val['pv']}</td><td>{$val['uv']}</td><td>{$val['all_form']}</td><td>{$val['form']}</td>"
+            . "<td>{$val['ios_form']}</td><td>{$val['android_form']}</td><td>{$val['per_app_form']}</td><td>".number_format($val['money'], 2)."</td><td>".number_format($val['ios_money'], 2)."</td>"
+            . "<td>".number_format($val['android_money'], 2)."</td><td>{$val['per_app_money']}</td><td>".number_format($val['all_money'], 2)."</td><td>{$val['independent']}</td><td>{$val['new_user']}</td>"
+            . "<td>{$val['per_old_user']}</td><td>{$val['per_form']}</td><td>{$val['per_user']}</td><td>".number_format($val['avg_form'], 2)."</td><td>{$val['jindu']}</td>";
+            echo "</tr>";
+        }
+    ?>
+</table>
+</div>
+<?php } if(isset($data_group)){ ?>
+<br/>
+<h3 style="float:left;">数据汇总表</h3>
+<a href="<?php  echo site_url("web_data/friday")."?type=1&start={$start}&end={$end}";?>" class="btn" style="float: right;margin: 0 auto 20px;">下载汇总表</a>
+<br/><br/>
+<table class="table table-bordered" style="width:1100px;max-width: 1100px">
+    <tr>
+        <td width="100px">类别</td>
+        <td width="100px">UV</td>
+        <td width="100px">下单</td>
+        <td width="100px">支付</td>
+        <td width="100px">周流水</td>
+        <td width="100px">总流水</td>
+        <td width="100px">独立支持人数</td>
+        <td width="100px">新用户</td>
+        <td width="100px">订单成功率</td>
+        <td width="100px">转化率</td>
+        <td width="100px">平均客单价</td>
+    </tr>
+    <?php 
+        $data_map = array();
+        foreach($data_group as $key => $val){
+            echo "<tr>";
+            echo "<td>{$val['type']}</td>";
+            echo "<td>{$val['uv']}</td>";
+            echo "<td>{$val['all_form']}</td>";
+            echo "<td>{$val['form']}</td>";
+            echo "<td>".number_format($val['money'], 2)."</td>";
+            echo "<td>".number_format($val['all_money'], 2)."</td>";
+            echo "<td>{$val['independent']}</td>";
+            echo "<td>{$val['new_user']}</td>";
+            echo "<td>{$val['per_form']}</td>";
+            echo "<td>{$val['per_user']}</td>";
+            echo "<td>".number_format($val['avg_form'], 2)."</td>";
+            echo "</tr>";
+        }
+        unset($data_group['总和']);
+    ?>
+</table>
+<div id="main_uv" style="width: 400px;height: 400px;border:1px #888 solid;float: left;margin: 3px"><h4>UV</h4></div>
+<div id="main_money" style="width: 400px;height: 400px;border:1px #888 solid;float: left;margin: 3px"></div>
+<div id="main_independent" style="width: 400px;height: 400px;border:1px #888 solid;float: left;margin: 3px"></div>
+<div id="main_new_user" style="width: 400px;height: 400px;border:1px #888 solid;float: left;margin: 3px"></div>
+<?php } ?>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script src="/static/js/echarts.min.js"></script>
+<script type="text/javascript">
+    $('#myTab a').click(function (e) {
+        e.preventDefault();
+        $(this).tab('show');
+      });
+    $(function () {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        });
+    });
+    <?php
+        $map = array("uv" => "UV", "money" => "周流水", "independent" => "独立支持人数", "new_user" => "新用户");
+        foreach($map as $k => $v){
+            foreach($data_group as $kk => $vv){
+                if(!isset($str)){
+                    $str = "{value:{$vv[$k]}, name: '{$kk}'}";
+                }else{
+                    $str .= ",{value:{$vv[$k]}, name: '{$kk}'}";
+                }
+            }
+            echo "make_map('main_{$k}', '{$v}', '{$v}', [{$str}]);";
+            unset($str);
+        }
+        ?>
+    function make_map(map_id, title, map_name, map_data){
+        var myChart = echarts.init(document.getElementById(map_id));
+        var option = {
+            title: {
+                show: true,
+                text: title,
+                x: 'center',
+                y: 'top'
+            },
+            tooltip : {
+                trigger: 'item',
+                formatter: "{a} <br/>{b} : {c} ({d}%)"
+            },
+            series : [
+                {
+                    name: map_name,
+                    type: 'pie',
+                    radius : '65%',
+                    center: ['50%', '50%'],
+                    data: map_data,
+                    itemStyle: {
+                        emphasis: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    }
+                }
+            ]
+        };
+        myChart.setOption(option);
+    }
+</script>
+
+<?php $this->load->view('ckad/footer'); ?>
+
+

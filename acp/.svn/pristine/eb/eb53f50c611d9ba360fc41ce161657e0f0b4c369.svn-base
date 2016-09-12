@@ -1,0 +1,109 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_main extends Acp_Controller 
+	{
+
+		public $site_url;
+		public $base_url;
+		public $uid;
+		public $perpage = 20;
+
+		public function __construct()
+		{
+			parent::__construct();	
+			$this->load->helper('url');
+			$this->load->model('bbs_main_model');
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+		}
+
+		/**
+		 *	帖子推荐页面
+		 */
+		public function post_recommend()
+		{
+
+			// 方案改变 - 之前的推荐的帖子，必须是精华帖，现在通过帖子列表里，"加推荐"
+			// $digest_post_list = $this->bbs_main_model->get_digest_post_list();
+			$recommend_post_list = $this->bbs_main_model->get_recommend_post_list();
+			$vars = array(
+						// 'digest_post_list' => $digest_post_list,
+						'recommend_post_list' => $recommend_post_list
+					);
+			$this->load->view('bbs_main/post_recommend', $vars);
+		}
+
+		/**
+		 * 	回复推荐页面
+		 */
+		public function reply_recommend()
+		{
+			$recommend_reply_list = $this->bbs_main_model->get_recommend_reply_list();
+			$vars = array(
+						'recommend_reply_list' => $recommend_reply_list
+					);
+			$this->load->view('bbs_main/reply_recommend', $vars);
+		}
+
+		/*
+		 * 	更改帖子的推荐状态和推荐权重 -------------- 改为一次性提交
+		 * 	
+		public function change_weight()
+		{
+			$post_id = $this->input->post('post_id', true);		
+			$sortid = $this->input->post('sortid', true);		
+			$bool = $this->bbs_main_model->change_recommend_weight($post_id, $sortid);
+			echo ($bool ? 1 : 0);
+		}
+		 */
+		public function change_weight()
+		{
+			$post_id_array = (string) $this->input->post('post_id_array', true);
+			$post_sortid_array = (string) $this->input->post('post_sortid_array', true);
+			$post_id_array = json_decode($post_id_array);
+			$post_sortid_array = json_decode($post_sortid_array);
+
+			// 拼接更新数据
+			foreach($post_id_array as $key => $post_id){
+				$bool = $this->bbs_main_model->change_recommend_weight($post_id, $post_sortid_array[$key], $this->uid);
+				if(!$bool){
+					echo '更新第 ' . ($key+1) . ' 条帖子推荐排序失败！';
+					exit;
+				}
+				if($bool == -1){
+					echo '记录第 ' . ($key+1) . ' 条帖子的管理操作记录失败！';
+					exit;
+				}
+			}
+			md_common::display_javascript('', site_url('bbs_main/post_recommend'));
+			exit;
+		}
+
+		/**
+		 *
+		 * 	更改回复的推荐权重
+		 * 	
+		 */
+		public function change_reply_recommend_weight()
+		{
+			$recommend_id_array = (string) $this->input->post('recommend_id_array', true);
+			$recommend_sortid_array = (string) $this->input->post('recommend_sortid_array', true);
+			$recommend_id_array = json_decode($recommend_id_array);
+			$recommend_sortid_array = json_decode($recommend_sortid_array);
+
+			// 拼接更新数据
+			foreach($recommend_id_array as $key => $recommend_id){
+				$bool = $this->bbs_main_model->change_reply_recommend_weight($recommend_id, $recommend_sortid_array[$key], $this->uid);
+				if(!$bool){
+					echo '更新第 ' . ($key+1) . ' 条回复推荐排序失败！';
+					exit;
+				}
+				if($bool == -1){
+					echo '记录第 ' . ($key+1) . ' 条回复的管理操作记录失败！';
+					exit;
+				}
+			}
+			md_common::display_javascript('', site_url('bbs_main/reply_recommend'));
+			exit;
+		}
+	}

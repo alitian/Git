@@ -1,0 +1,9 @@
+<ul class="breadcrumb">
+    <li><a href="/special_subj/ssubj_management">返回</a></li>
+    <li class="<?= ($page_d['editor']=='basic') ? 'active' : ''; ?>"><span class="divider">||</span> <a href="/special_subj/ssubj_editor?ssid=<?=intval($page_d['ssid'])?>">基本信息</a></li>
+    <?php if(!empty($page_d['ssid'])): ?>
+    <li class="<?= ($page_d['editor']=='layer') ? 'active' : ''; ?>"><span class="divider">·····</span> <a href="/special_subj/ssubj_editor_layer?ssid=<?=intval($page_d['ssid'])?>">版式选择</a></li>
+    <li class="<?= ($page_d['editor']=='model') ? 'active' : ''; ?>"><span class="divider">·····</span> <a href="/special_subj/ssubj_editor_model?ssid=<?=intval($page_d['ssid'])?>">模板配置</a></li>
+    <li class="<?= ($page_d['editor']=='preview') ? 'active' : ''; ?>"><span class="divider">·····</span> <a href="/special_subj/ssubj_editor_preview?ssid=<?=intval($page_d['ssid'])?>">预览</a></li>
+    <?php endif; ?>
+</ul>

@@ -1,0 +1,9 @@
+<div class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">评论模块</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="6">
+  </div>
+  <p></p>
+  <div class="module-detail"></div>
+</div>

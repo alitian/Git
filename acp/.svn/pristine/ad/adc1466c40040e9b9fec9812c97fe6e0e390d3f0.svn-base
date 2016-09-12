@@ -1,0 +1,200 @@
+<?php
+
+set_time_limit(0);
+/**
+ * 跑数据脚本
+ */
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Trans_data extends MD_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        set_time_limit(0);
+        $this->load->helper('url');
+        $this->load->model("feed_model");
+        $this->load->library("md_feed");
+        $this->load->model("score_model");
+    }
+
+    /**
+     * 初始化产品feed命令行脚本(只须初始化时从命令行执行一次)
+     */
+    public function run_init_pro_data() {
+        $file = "run_init_pro_data.txt";
+        $start = (int) file_get_contents($file);
+        $limit = 15;
+        for ($i = 0; $i < 21; $i++) {
+            $this->db = $this->load->database("default", true);
+            $sql = "SELECT u.ctime, u.id, u.pro_id FROM md_product_update u inner join md_product p on u.pro_id = p.id WHERE p.if_show=1 ORDER BY u.id DESC LIMIT {$start},{$limit}";
+            $update_list = $this->db->query($sql)->result_array();
+            echo $sql . "\n";
+            foreach ($update_list as $pro) {
+                $this->db->reconnect();
+                unset($buyers);
+                $buyers = $this->md_feed->get_fav_and_back_ids($pro['pro_id']);
+                foreach ($buyers as $key => $user) {
+                    if ($key % 100 == 0) {
+                        sleep(1);
+                    }
+                    $feed_arr = array();
+                    $feed_arr['action_item_id'] = $pro['pro_id'];
+                    $feed_arr['source_id'] = $pro['id'];
+                    $feed_arr['type'] = FEED_PROJECT_UPDATE;
+                    $feed_arr['ctime'] = $pro['ctime'];
+                    $this->feed_model->set_user_id($user)->add_feed($feed_arr);
+                }
+            }
+            $start = $start + $limit;
+            file_put_contents($file, $start);
+            exit();
+        }
+
+        return true;
+    }
+
+    function run_init_pro_suc_data() {
+        $file = "run_init_pro_suc_data.txt";
+        $start = (int) file_get_contents($file);
+        $limit = 12;
+        for ($i = 0; $i < 20; $i++) {
+            $sql = "SELECT mp.id,mp.ctime,mp.install_money,mpa.amount_total as back_amount FROM md_product mp
+INNER JOIN md_product_archive mpa ON mp.id=mpa.pro_id  ORDER BY mp.id DESC LIMIT {$start},{$limit} ";
+            $pro_list = $this->db->query($sql)->result_array();
+            echo $sql . "\n";
+            foreach ($pro_list as $item) {
+                if ($item['back_amount'] >= $item['install_money']) {
+                    $buyers = $this->md_feed->get_fav_and_back_ids($item['id']);
+                    foreach ($buyers as $key => $user) {
+                        if ($key % 100 == 0) {
+                            sleep(1);
+                        }
+                        $feed_arr = array();
+                        $feed_arr['action_item_id'] = $item['id'];
+                        $feed_arr['source_id'] = $item['id'];
+                        $feed_arr['type'] = FEED_PROJECT_TO_SUCC;
+                        $feed_arr['ctime'] = $item['ctime'];
+                        $this->feed_model->set_user_id($user)->add_feed($feed_arr);
+                    }
+                }
+            }
+            $start = $start + $limit;
+            file_put_contents($file, $start);
+            exit();
+        }
+    }
+
+    /**
+     * 初始化项目产生的feed,命令行脚本. 只需执行一次
+     */
+    public function run_init_user_source_data() {
+        $file = "run_init_user_source_data.txt";
+        $start = (int) file_get_contents($file);
+        $limit = 10000;
+        for ($i = 0; $i < 10; $i++) {
+            $sql = "SELECT id FROM md_users ORDER BY id ASC LIMIT {$start},{$limit} ";
+            echo $sql . "\n";
+            $users = $this->db->query($sql)->result_array();
+            foreach ($users as $key => $val) {
+//                $mm = memory_get_usage();
+//                echo $mm;
+//                echo "\n";
+                $this->md_feed->add_user_feed($val['id'], $val['id'], 1);
+            }
+            $start = $start + $limit;
+            file_put_contents($file, $start);
+            exit();
+        }
+        return true;
+    }
+
+    /**
+     * 导入用户feed脚本(只须初始化时从命令行执行一次)
+     */
+    public function run_init_user_data() {
+        $file = "run_init_user_data.txt";
+        $start = (int) file_get_contents($file);
+        $limit = 10000;
+        for ($i = 0; $i < 10; $i++) {
+            $sql = "SELECT * FROM md_users_friendships ORDER BY id DESC LIMIT {$start},{$limit} ";
+            echo $sql . "\n";
+            $friends = $this->db->query($sql)->result_array();
+            if (count($friends) > 0 && is_array($friends)) {
+                foreach ($friends as $key => $val) {
+                    $this->md_feed->add_user_feed($val['friend_id'], $val['user_id']);
+                }
+            }
+            $start = $start + $limit;
+            file_put_contents($file, $start);
+            exit();
+        }
+        return true;
+    }
+
+    /**
+     * 建表脚本,本地不分表
+     */
+    public function run_init_table() {
+        $cfg = _gc("feed_db_cfg", "database");
+        if ($cfg['hostname'] == "10.173.3.224:16888") {
+            $feed_table_num = 256;
+            $feed_source_table_num = 51;
+        } else {
+            $feed_table_num = 1;
+            $feed_source_table_num = 1;
+        }
+
+        for ($i = 1; $i <= $feed_table_num; $i++) {
+            $this->feed_model->_create_table($i);
+        }
+
+        for ($j = 1; $j <= $feed_source_table_num; $j++) {
+            $this->feed_model->_create_source_table($j);
+        }
+    }
+
+    public function run_init_default_guanzhu() {
+        $feed_type_list = $this->md_feed->get_feed_type_list();
+        $def_friends = $this->md_feed->get_default_friends();
+        $this->load->model("user_m");
+
+        $sql = "SELECT id FROM md_users WHERE ctime>'2015-05-03' ORDER BY id ASC";
+        $userlist = $this->db->query($sql)->result_array();
+        foreach ($userlist as $user) {
+            foreach ($def_friends as $key => $friend) {
+                if (is_friend($user['id'], $friend) < 0) {
+                    $data = array();
+                    $data = array("user_id" => $user['id'], "friend_id" => $friend);
+                    $this->user_m->add_friend_info($data);
+                    foreach ($feed_type_list as $feed_type) {
+                        $feed_lists = $this->md_feed->get_user_feed_list($feed_type, "", $friend);
+                        foreach ($feed_lists as $feed_arr) {
+                            $this->feed_model->set_user_id($user['id'])->add_feed($feed_arr);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public function trans_binding() {
+        $sql = "SELECT id,openid,platform FROM md_users WHERE platform!='' AND openid!=''";
+        $list = $this->db->query($sql)->result_array();
+        foreach ($list as $key => $val) {
+            $user_id = $val['id'];
+            $platform = $val['platform'];
+            $openid = $val['openid'];
+            $sql_1 = "SELECT * FROM md_weixin_binding WHERE platform = '{$platform}' AND user_id='{$user_id}'";
+            $bind_info = $this->db->query($sql_1)->result_array();
+            if (!empty($user_id) && !empty($openid) && !empty($platform) && $platform != "jsg" && empty($bind_info)) {
+                echo $sql_1;
+                print_r($bind_info);
+                echo "\n";
+             $this->db->insert("md_weixin_binding", array("user_id" => $user_id, "openid" => $openid, "platform" => $platform));
+            }
+        }
+    }
+
+}

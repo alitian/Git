@@ -1,0 +1,320 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<ul class="nav nav-tabs">
+		  	<li role="presentation"><a href="<?php echo $site_url . 'bbs_verify/post'; ?>">帖子</a></li>
+		  	<li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_verify/reply'; ?>">回复</a></li>
+		</ul>
+		<div>
+			<h2>	
+				回复审核
+			</h2>
+		</div>
+		<hr>
+		<div>
+			<div>
+				<form name="filter" action="/bbs_verify/reply" method="post" class="form-inline">
+					<input type="text" name="post_id" id="post_id" class="form-control input-sm" placeholder="请输入原帖ID">
+					<input type="text" name="nickname" id="nickname" class="form-control input-sm" placeholder="请输入用户昵称">
+					<span>
+						<select name="reply_status" id="reply_status">
+							<option value="0">未审核</option>	
+							<option value="1">已审核</option>	
+							<option value="2">已删除</option>	
+						</select>
+					</span>
+					<span>
+						<select name="time" id="time_sort" class="form-control input-sm">
+							<option value="1">按时间倒序</option>		
+							<option value="2">按时间正序</option>		
+						</select>
+					</span>
+					<input type="hidden" value="1" name="submit">
+					<p></p>	
+					<span>
+						<button type="submit" class="btn btn-primary btn-sm">查询</button>
+					</span>
+				</form>
+			</div>
+			<p></p>
+			<div>
+				<table class="table table-bordered">
+					<tr>
+						<th width="15%">回复人</th>
+						<th width="30%">贴子</th>
+						<th width="30%">回复内容</th>
+						<th width="15%">回复时间</th>
+						<th width="10%">操作</th>
+					</tr>
+			<?php
+				foreach($reply_list as $reply)
+				{
+					if(empty($reply['content'])){
+						$reply['content'] = '<span style="color:red;">图</span>';
+					}
+					echo "
+					<tr>
+						<td>{$reply['user_info']['nickname']}</td>
+						<td><a class='view_post' style='cursor:pointer;' url='{$site_url}bbs_view/post/{$reply['post_info']['post_id']}'>{$reply['post_info']['subject']}</a></td>
+						<td><a class='view_reply' style='cursor:pointer;' url='{$site_url}bbs_view/reply/{$reply['post_info']['post_id']}/{$reply['reply_id']}'>{$reply['content']}</a></td>
+						<td>{$reply['time']}</td>
+						<td>";
+						if($reply_status == 2){
+							echo '已删除';
+						}elseif($reply_status == 1){
+							echo "<p class='text-center'><a style='cursor:pointer' post_id='{$reply['post_info']['post_id']}' reply_id='{$reply['reply_id']}' class='verify_failed'>删除</a></p>";
+							if($reply['isrecommend']){
+								// echo "<p class='text-center'><a style='cursor:pointer' post_id='{$reply['post_info']['post_id']}' reply_id='{$reply['reply_id']}' type='del_recommend' class='recommend'>取消推荐</a></p>";
+								echo "<p class='text-center'>已推荐</p>";
+							}else{
+								echo "<p class='text-center'><a style='cursor:pointer' post_id='{$reply['post_info']['post_id']}' reply_id='{$reply['reply_id']}' type='add_recommend' class='recommend'>推荐</a></p>";
+							}
+						}else{
+							echo "
+								<p class='text-center'><a style='cursor:pointer' post_id='{$reply['post_info']['post_id']}' reply_id='{$reply['reply_id']}' reply_rid='{$reply['reply_rid']}' class='verify_successed'>审核通过</a></p>
+								<p class='text-center'><a style='cursor:pointer' post_id='{$reply['post_info']['post_id']}' reply_id='{$reply['reply_id']}' class='verify_failed'>删除</a></p>";
+						}
+					echo "
+						</td>
+					</tr>
+					";
+				}
+			?>
+				</table>
+			</div>
+		</div>
+		<hr>
+		<div class="text-center">
+			<?php echo $pagination; ?>
+		</div>
+	</div>
+	<div id="verify_failed" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							删除回复
+						</h4>
+					</div>
+					<div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="no_reason">删除理由</label>
+						    <p style="clear:both;"></p>
+						    <hr>
+						    <div class="col-sm-8">
+								<?php
+								foreach($pass_reason as $key => $reason):
+								if($key == 0){
+									echo "<div style='margin-left:100px'><input type='radio' checked name='no_reason' style='margin-right:10px'> <span>$reason</span></div>";
+								}else{
+									echo "<div style='margin-left:100px'><input type='radio' name='no_reason' style='margin-right:10px'> <span>$reason</span></div>";
+								}
+								endforeach;
+								?>
+						    	<input type="hidden" name="post_id" value="">
+						    	<input type="hidden" name="reply_id" value="">
+						    </div>
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="button" class="btn btn-primary" id="failed_btn">Save changes</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- 显示帖子内容模态框 -->
+	<div id="view_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+	<!-- 显示帖子回复模态框 -->
+	<div id="view_reply" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+
+<script>
+	var url_successed = '<?php echo $site_url; ?>'+'bbs_verify/verify_reply_successed';
+	var url_failed = '<?php echo $site_url; ?>'+'bbs_verify/verify_reply_failed/' + '<?php if($reply_status){ echo "delete";}else{echo "fail";} ?>';
+
+	// 加载模审核通过
+	$('.verify_successed').click(function(){
+		var obj = $(this);
+		var post_id = $(this).attr('post_id');
+		var reply_id = $(this).attr('reply_id');
+		var reply_rid = $(this).attr('reply_rid');
+		$.ajax({
+			url : url_successed,
+			type : 'post',
+			async : false,
+			dataType : 'json',
+			data : {
+				post_id : post_id,
+				reply_id : reply_id,
+				reply_rid : reply_rid
+			},
+			success : function(return_data){
+				switch(return_data.status){
+					case -3:
+					case -2:
+					case -1:
+					case 0:
+						alert(return_data.content);
+						break;
+					case 1:
+						alert(return_data.content);
+						obj.parents('td').text('审核通过');
+						break;
+				}
+			}
+		});
+	});
+
+	// 模态框审核未通过
+	$("#verify_failed").on("hidden.bs.modal", function() {
+		var obj = $(this).find('[name=no_reason]').first();
+
+		// 使用prop()可能更有效
+		obj.siblings().prop('checked', null);
+		obj.prop('checked', 'checked');
+	});
+
+	// 加载模审核未通过
+	$('.verify_failed').click(function(){
+
+		var post_id = $(this).attr('post_id');
+		var reply_id = $(this).attr('reply_id');
+		// 我们让被点击的回复，追加一个 'select_reply = "post_id-reply_id"' 属性，方便我们再次捕捉
+		$(this).attr('select_reply', post_id + '-' + reply_id);
+		$('#verify_failed').modal();
+		$('#verify_failed').find('[name=post_id]').val(post_id);
+		$('#verify_failed').find('[name=reply_id]').val(reply_id);
+	});
+
+	$('.recommend').click(function(){
+		var obj = $(this);
+		var post_id = obj.attr('post_id');
+		var reply_id = obj.attr('reply_id');
+		var type = obj.attr('type');
+		$.ajax({
+			url : '/bbs_verify/recommend_reply',
+			type : 'post',
+			dataType : 'json',
+			data : {
+				post_id : post_id,
+				reply_id : reply_id,
+				type  : type
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -4:
+					case -3:
+					case -2:
+					case -1:
+						alert(return_data.content);
+						break;
+					case 1:
+						alert(return_data.content);
+						// obj.attr('type', 'del_recommend');
+						// obj.text('取消推荐');
+						obj.parent('p').text('已推荐');
+						break;
+					case 2:
+						alert(return_data.content);
+						obj.attr('type', 'add_recommend');
+						obj.text('推荐');
+						break;
+				}
+			}
+		});
+
+	});
+
+	$("#failed_btn").click(function(){
+		var reason = $.trim($('#verify_failed').find('[name=no_reason]:checked').next().text());
+		var post_id = $('#verify_failed').find('[name=post_id]').val();
+		var reply_id = $('#verify_failed').find('[name=reply_id]').val();
+		var select_reply = post_id + '-' + reply_id;
+		var reply_click_obj = $('[select_reply='+select_reply+']');
+		$.ajax({
+			url : url_failed,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				reason : reason,
+				post_id : post_id,
+				reply_id : reply_id
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case 0:
+						alert(return_data.content);
+						$('#verify_failed').modal('hide');
+						break;
+					case 1:
+						alert(return_data.content);
+						$('#verify_failed').modal('hide');
+						reply_click_obj.parents('td').text('已删除');
+						break;
+				}
+			}
+		});
+	});
+	
+	<!-- 通过js来控制select被选中 -->
+	$("#time_sort").val("<?php echo ($time ? $time : ''); ?>")	;
+	$("#post_id").val("<?php echo ($post_id ? $post_id : ''); ?>");
+	$('#reply_status').val('<?php echo ($reply_status ? $reply_status : 0); ?>');
+	// 这里的判断条件也改为null
+	<?php 
+	if($nickname == 'null'){
+		echo '$("#nickname").val("")';
+	}else{
+		echo "$('#nickname').val('$nickname')";
+	}
+	?>
+
+    // 展示帖子内容
+    $("#view_post").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$('.view_post').click(function(){
+		var url = $(this).attr('url');
+		$('#view_post').modal();
+		$('#view_post .modal-content').load(url);
+	});
+
+
+    // 展示帖子内容
+    $("#view_reply").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$('.view_reply').click(function(){
+		var url = $(this).attr('url');
+		$('#view_reply').modal();
+		$('#view_reply .modal-content').load(url);
+	});
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

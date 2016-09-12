@@ -1,0 +1,222 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('md_app_manager/sub_menu') ?>
+<div class="containers">
+    <div>
+        <div style="margin-top: 10px">
+            <form action="/md_app_manager/show_video_list" class="form-inline" id="item_form" method="post">
+                <span style="font-size: 1.2rem">输入项目ID&nbsp;&nbsp;</span><input type="text" name="pro_id" style="width: 150px;height: 30px;" value="<?=$pro_id?>">
+                <a href="javascript:;" class="btn btn-primary btn-sm" id="add_item" style="margin-left: 10px; padding: 10px 15px;">搜索</a>
+            </form>
+        </div>
+        <hr>
+        <?php if($rcmd_lists): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>权重</th>
+                        <th width="20%">视频</th>
+                        <th>视频文字</th>
+                        <th>链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($rcmd_lists as $rcmd_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $rcmd_info['weight'] ?>" subid="<?= $rcmd_info['id'] ?>" type="text" class="sortid" value="<?= $rcmd_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td>
+                                <embed style="width:200px;height:100px;" class="player"  id="otherplayer" src="<?= $rcmd_info['swf_url'] ?>" allowfullscreen="false" quality="high"  align="middle" allowscriptaccess="always" type="application/x-shockwave-flash"></embed>
+                            </td>
+                            <td><?= $rcmd_info['content'] ?></td>
+                            <td><?= $rcmd_info['link']?></td>
+                            <td>
+                                <a class="del" href="javascript:;" data-id="<?=$rcmd_info['id']?>">删除</a>
+                                |   <a href="javascript:;" class="edit" data-id="<?=$rcmd_info['id']?>" data-media="<?=$rcmd_info['media']?>" data-title="<?=$rcmd_info['content']?>" data-media_src="<?=cdn_url($rcmd_info['media'])?>">编辑</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php elseif(empty($rcmd_lists) && $video_list):?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="20%">视频属性</th>
+                        <th>视频</th>
+                        <th>视频文字</th>
+                        <th>时间</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($video_list as $video_info): ?>
+                        <tr>
+                            <td><?= ($video_info['pro_id']==$pro_id) ? '项目' : '其他'?>视频</td>
+                            <td>
+                                <embed style="width:200px;height:100px;" class="player"  id="otherplayer" src="<?=$video_info['swf_url']?>" allowfullscreen="false" quality="high"  align="middle" allowscriptaccess="always" type="application/x-shockwave-flash"></embed>
+                            </td>
+                            <td><?= $video_info['vedio_desc'] ?></td>
+                            <td><?= $video_info['upload_time']?></td>
+                            <td>
+                                <?php if(!in_array($video_info['id'],$origin_ids)){?>
+                                    <a class="recommend btn btn-success" type="button" href="javascript:;" data-id="<?=$video_info['id']?>"><i class=" icon-thumbs-up"></i> 推荐</a>
+                                <?php }else{?>
+                                    <a class="btn" type="button" href="javascript:;" data-id="<?=$video_info['id']?>" disabled="true"><i class=" icon-thumbs-up"></i>已推荐</a>
+                                <?php }?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<iframe src="" style="display:none" name="winupload"></iframe>
+<input type="hidden" name="check_upload" id="check_upload" value="0">
+<!--modal start -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">项目编辑</h4>
+            </div>
+            <div class="modal-body">
+                <label for="pro_id">推荐说明:</label>
+                <textarea type="text" id="pro_title" name="title" style="width:100%"  placeholder="请输入推荐说明,建议不超过280个字"></textarea>
+                <label for="pro_id">推荐图片:</label>
+                <img src="" alt="" id="preview_cover">
+                <input type="hidden" id="pro_media" name="media">
+                <input type="hidden" id="rcmd_id"   name="rcmd_id">
+                <form id="up_form" action="md_app_manager/upload/1" method="post" enctype="multipart/form-data" target="winupload">
+                    <input class="form-control" type="file" id="upfile" name="upfile">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="edit_rcmd_item">保存</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+<!--modal end-->
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    $("#upfile").change(function(){
+        $("#up_form").submit();
+    });
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('subid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_app_manager/change_weight')?>",
+            data : {'id':id,'weight':value}, //这儿type1表示专题列表权重
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_app_manager/del_rcmd_by_id')?>",
+            data:{'id':id},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+    $(".edit").click(function(){
+        var title = $(this).data("title");
+        var media = $(this).data("media");
+        var rcmd_id   = $(this).data("id");
+        var media_src = $(this).data("media_src");
+        $("#pro_title").val(title);
+        $("#pro_media").val(media);
+        $("#rcmd_id").val(rcmd_id);
+        $("#preview_cover").attr({'src':media_src});
+        $("#myModal").modal("show");
+    });
+    $("#edit_rcmd_item").click(function(){
+        var title = $("#pro_title").val();
+        var media = $("#pro_media").val();
+        var id    = $("#rcmd_id").val();
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        if( ! $.trim(media)){
+            alert('推荐图片不能为空！');
+            return false;
+        }
+        $.ajax({
+            type : 'post',
+            url  : '/md_app_manager/edit_rcmd_item',
+            data : {'title':title,'media':media,'id':id,'type':3},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    $("#myModal").modal("hide");
+                    window.location.reload();
+                }
+            }
+
+        })
+    });
+    //type 3表示video
+    $(".recommend").click(function(){
+        var id = $(this).data('id');
+        var pro_id = "<?=$pro_id?>";
+        $.ajax({
+            type : 'post',
+            url  : '/md_app_manager/add_rcmd_item',
+            data : {'id':id,'type':3,'pro_id':pro_id},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    window.location.href='/md_app_manager/video_list';
+                }
+            }
+
+        })
+    })
+</script>
+<?php $this->load->view('ckad/footer'); ?>

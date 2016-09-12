@@ -1,0 +1,25 @@
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="/main/site">主页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/project_manager/index">项目管理</a>
+        </li>
+    </ul>
+</div>
+<div class="btn-toolbar">
+    <div class="btn-group">
+        <a class="btn btn-large <?php if($this->uri->segment(2) == 'edit'){ echo 'active'; }?>" href="/project_manager/edit/<?= $pro_id; ?>" >基本资料编辑</a>
+        <a class="btn btn-large <?php if($this->uri->segment(2) == 'edit_reward'){ echo 'active'; }?>" href="/project_manager/edit_reward/<?= $pro_id; ?>">回报编辑</a>
+        <a class="btn btn-large <?php if($this->uri->segment(2) == 'edit_detail'){ echo 'active'; }?>" href="/project_manager/edit_detail/<?= $pro_id; ?>">项目详情页编辑</a>
+        <a class="btn btn-large <?php if($this->uri->segment(2) == 'check'){ echo 'active'; }?>" href="/project_manager/check/<?= $pro_id; ?>">项目审核</a>
+        <a class="btn btn-large <?php if($this->uri->segment(2) == 'advert'){ echo 'active'; }?>" href="/project_manager/advert/<?= $pro_id; ?>">购买入口</a>
+    </div>
+</div>
+
+<div id="prompt_box" style="display: none">
+    <ul class="breadcrumb" width="80%" style="background: #ffffff">
+        <h3 style="font-family: italic;color: #aae87b"><i class="icon icon-ok"></i>&nbsp;修改成功</h3>
+    </ul>
+</div>

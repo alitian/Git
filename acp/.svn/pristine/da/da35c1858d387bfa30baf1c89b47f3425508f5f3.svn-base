@@ -1,0 +1,32 @@
+<div id="module-subpro-info" class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">子项目众筹详情</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="8">
+  </div>
+  <p></p>
+  <div class="module-detail">
+  <?php if (isset($SSM_8['subpro_info'])): ?>
+  <table class="table table-bordered table-hover table-condensed">
+    <thead>
+      <tr>
+        <th>排序权重</th>
+        <th>分类</th>
+        <th>项目ID</th>
+        <th>项目名</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($SSM_8['subpro_info'] as $row): ?>
+      <tr data-cpid='<?=$row['pro_id']?>' data-row='<?=json_encode($row)?>'>
+        <td><a href="#"><?=empty($row['weight']) ? 0 : $row['weight']?></a></td>
+        <td><?=empty($row['category']) ? '无' : $row['category']?></td>
+        <td><?=$row['pro_id']?></td>
+        <td><?=$row['pro_name']?></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  <?php endif; ?>
+  </div>
+</div>

@@ -1,0 +1,114 @@
+<?php $this->load->view('special_subj/ssubj_editor_head'); ?>
+
+<link rel="stylesheet" href="css/module.css">
+<script src="js/respond.min.js"></script>
+<style>
+    /** 模块条幅 */
+    .module-item .item-banner {
+        margin-bottom: 21px;
+        background-color: #242424;
+    }
+    .module-item .item-banner h4 {
+        display: inline-block;
+        padding: 10px 15px;
+        font-weight: bold;
+        font-size: 14px;
+        color: #fff;
+    }
+
+    /** 模块类型区块 */
+    .module-item .item-type {
+        padding-top: 11px;
+        border-top: 1px solid #eee;
+    }
+    .module-item .item-type .type-info {
+        display: inline-block;
+        margin: 0 7px 7px 0;
+        padding: 7px 11px;
+        width: 400px;
+        min-height: 320px;
+        border: 1px solid #eee;
+        transition: all 0.2s ease-in-out 0s;
+        cursor: pointer;
+        vertical-align: top;
+    }
+    .module-item .item-type .type-info:hover {
+        background-color: #eee;
+    }
+    .module-item .item-type .type-info .type-info-cnt {
+        min-height: 300px;
+        padding-bottom: 7px;
+    }
+    .module-item .item-type .type-info .type-info-meta {
+        text-align: center;
+    }
+
+    .display-none {
+        display: none;
+    }
+</style>
+
+
+<!-- module list -->
+<?php include 'ssubj_editor_model_nav.php'; ?>
+
+
+<!-- end of module list -->
+
+
+<script>
+    $('.module-item .item-banner .eye-colse').on('click', function(e) {
+        e.preventDefault();
+        if ((typeof sessionStorage.isshow == 'undefined') || (parseInt(sessionStorage.isshow) === 1)) {
+            $('.module-item .item-type').hide(320);
+            $('.module-item .item-preview').hide(320);
+            $('.module-item .item-banner .eye-colse .icon-white').addClass('icon-eye-open');
+            $('.module-item .item-banner .eye-colse .icon-white').removeClass('icon-eye-close');
+            sessionStorage.isshow = '0';
+        } else {
+            $('.module-item .item-type').show(320);
+            $('.module-item .item-preview').show(320);
+            $('.module-item .item-banner .eye-colse .icon-white').addClass('icon-eye-close');
+            $('.module-item .item-banner .eye-colse .icon-white').removeClass('icon-eye-open');
+            sessionStorage.isshow = '1';
+        }
+    });
+</script>
+
+
+<!-- up-image -->
+<form id="upload-comp-form" enctype="multipart/form-data" method="POST" style="display:none;">
+    <input type="file" name="upfile">
+</form>
+<script>
+    $('form#upload-comp-form > input[type="file"]').on('change', function(e) {
+        e.preventDefault();
+        var url = '';
+        var formdata = new FormData($('form#upload-comp-form')[0]);
+        formdata.append('filetype', 'image');
+        formdata.append('folder', 'test_special_module');
+        console.log(formdata);
+        // $.ajax({
+        //     type: "POST",
+        //     url: url,
+        //     data: formdata,
+        //     cache: false,
+        //     contentType: false,
+        //     processData: false,
+        //     dataType: "json",
+        //     beforeSend: function() {
+        //     },
+        //     error : function() {
+        //         alert('上传出错');
+        //     },
+        //     success: function(res) {
+        //         console.log(res);
+        //     },
+        //     complete: function() {
+        //     }
+        // });
+    });
+</script>
+<!-- end up-image -->
+
+<?php $this->load->view('special_subj/ssubj_editor_foot'); ?>

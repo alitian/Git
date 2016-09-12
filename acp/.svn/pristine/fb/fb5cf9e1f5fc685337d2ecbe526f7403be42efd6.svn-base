@@ -1,0 +1,330 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Ext extends MD_Controller {
+
+    private $_config = array(
+        '378' => array(
+            'from' => 'imbatv',
+            "-2" => array('user_id' => "14904", 'money' => '1'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '1'), //摩点账号 處理支持+1元
+        ),
+        '543' => array(
+            "from" => 'dianjing_543',
+            "-2" => array('user_id' => "14904", 'money' => '1'), //摩点账号 處理微信綁定+1元
+        ),
+        '514' => array(
+            'from' => 'akb48',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '566' => array(
+            "from" => 'moshou_566',
+            "-2" => array('user_id' => "14904", 'money' => '1'), //摩点账号 處理微信綁定+1元
+        ),
+        '588' => array(
+            "-1" => array('user_id' => "14904", 'money' => '1'), //摩点账号 處理支持+1元
+        ),
+        '594' => array(
+            "-1" => array('user_id' => "14904", 'money' => '1'), //摩点账号 處理支持+1元
+        ),
+        '782' => array(
+            'from' => 'SNH_782',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '794' => array(
+            'from' => 'SNH_794',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '796' => array(
+            'from' => 'SNH_796',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '821' => array(
+            'from' => 'SNH_821',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '803' => array(
+            'from' => 'SNH_803',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '883' => array(
+            'from' => 'SNH_883',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '884' => array(
+            'from' => 'SNH_884',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '887' => array(
+            'from' => 'SNH_887',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '877' => array(
+            'from' => 'SNH_877',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '901' => array(
+            'from' => 'SNH_901',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '918' => array(
+            'from' => 'SNH_918',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '926' => array(
+            'from' => 'SNH_926',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '924' => array(
+            'from' => 'SNH_924',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '927' => array(
+            'from' => 'SNH_927',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '975' => array(
+            'from' => 'SNH_975',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+        '943' => array(
+            'from' => 'SNH_943',
+            "-2" => array('user_id' => "14904", 'money' => '2'), //摩点账号 處理微信綁定+1元
+            "-1" => array('user_id' => "14904", 'money' => '3'), //摩点账号 處理支持+1元
+        ),
+    );
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('Common');
+        $this->load->model('Product_m');
+        $this->load->helper('md_admin');
+    }
+
+    /**
+     * 计算支持+1 绑定+1 的订单
+     */
+    public function index() {
+        foreach ($this->_config as $pro_id => $item) {
+            $bind_count = $buy_count = 0;
+            if (isset($this->_config[$pro_id])) {
+                echo "处理项目ID:{$pro_id}\n";
+                $sql = "SELECT * FROM md_product WHERE id='{$pro_id}'";
+                $pro_info = $this->db->query($sql)->row_array();
+                if (!$pro_info) {
+                    echo "project {$pro_id} is not exist.";
+                    continue;
+                }
+                if ($pro_info['if_show'] != '1') {
+                    echo "project {$pro_id} is not start.";
+                    continue;
+                }
+                //處理微信綁定+的+1元 回报ID:-2
+                $rew_id = '-2';
+                $sql = "SELECT count(1) as c FROM `md_weixin_binding` WHERE `user_from`='{$this->_config[$pro_id]['from']}' AND binding_time>='{$pro_info['start_time']}' AND binding_time<='{$pro_info['end_time']}'";
+                $res = $this->db->query($sql)->row_array();
+                $bind_count = $res['c'];
+                $sql = "SELECT bak.* FROM md_product_back bak INNER JOIN md_product_rewards rew ON bak.rew_id=rew.id WHERE bak.pro_id={$pro_id} AND bak.rew_id='{$rew_id}'";
+                $res = $this->db->query($sql)->row_array();
+                if ($bind_count && isset($this->_config[$pro_id][$rew_id]['user_id'])) {
+                    $user_id = $this->_config[$pro_id][$rew_id]['user_id'];
+                    $base_money = $this->_config[$pro_id][$rew_id]['money'];
+                    if (count($res) > 0) {
+                        $update['amount'] = $bind_count * $base_money;
+                        $updata['user_id'] = $user_id;
+                        $this->Common->update('md_product_back', array('id' => $res['id']), $update);
+                    } else {
+                        $insert['user_id'] = $user_id;
+                        $insert['pro_id'] = $pro_id;
+                        $insert['rew_id'] = $rew_id;
+                        $insert['amount'] = $bind_count * $base_money;
+                        $insert['if_pay'] = '1';
+                        $insert['status'] = '103';
+                        $insert['md_plan'] = 'web';
+                        $insert['check_support'] = 'on';
+                        $insert['status_debt'] = '1';
+                        $this->Common->add("md_product_back", $insert);
+                    }
+                    echo '微信绑定人数:' . $bind_count . "\n";
+                }
+                //处理支持+1元 回报ID:-1
+                $rew_id = '-1';
+                //查询项目支持人数
+                $sql = "SELECT user_id FROM `md_product_back` WHERE pro_id={$pro_id} AND if_pay=1 GROUP BY user_id";
+                $res = $this->db->query($sql)->result_array();
+                $buy_count = count($res);
+                //查询记录是否存在
+                $sql = "SELECT bak.* FROM md_product_back bak INNER JOIN md_product_rewards rew ON bak.rew_id=rew.id WHERE bak.pro_id={$pro_id} AND bak.rew_id='{$rew_id}'";
+                $res = $this->db->query($sql)->row_array();
+                if ($buy_count && isset($this->_config[$pro_id][$rew_id]['user_id'])) {
+                    $user_id = $this->_config[$pro_id][$rew_id]['user_id'];
+                    $base_money = $this->_config[$pro_id][$rew_id]['money'];
+                    if (count($res) > 0) {
+                        $update['amount'] = $buy_count * $base_money;
+                        $updata['user_id'] = $user_id;
+                        $this->Common->update('md_product_back', array('id' => $res['id']), $update);
+                    } else {
+                        $insert['user_id'] = $user_id;
+                        $insert['pro_id'] = $pro_id;
+                        $insert['rew_id'] = $rew_id;
+                        $insert['amount'] = ($buy_count + 1) * $base_money;
+                        $insert['if_pay'] = '1';
+                        $insert['status'] = '103';
+                        $insert['md_plan'] = 'web';
+                        $insert['check_support'] = 'on';
+                        $insert['status_debt'] = '1';
+                        $this->Common->add("md_product_back", $insert);
+                    }
+                    echo '订单支持人数:' . $buy_count . "\n";
+                }
+                md_common::refresh_memcache('md_product', array('id' => $pro_id));
+                echo 'ok';
+            } else {
+                echo 'no have a config';
+                exit;
+            }
+        }
+    }
+
+    public function virtual_order($pro_id = 0) {
+        $sql = "select id,name,end_time from md_product where if_show=1 AND end_time>'" . date("Y-m-d H:i:s") . "'";
+        $data['pro_list'] = $this->db->query($sql)->result_array();
+
+        if (!$pro_id) {
+            $pro = $data['pro_list'][0];
+            $pro_id = $pro['id'];
+        }
+        $this->load->model('Common');
+
+        $data['pro_info'] = $this->Product_m->get_product_info($pro_id);
+        $cur_time = date("Y-m-d H:i:s");
+        $sql = "SELECT rew.*,(select count(1) from md_product_back WHERE if_pay=1 AND rew_id=rew.id) as back_count FROM md_product_rewards rew WHERE if_show=1 AND pro_id={$pro_id}";
+        $list = $this->db->query($sql)->result_array();
+        $rewinfo = array();
+        foreach ($list as $item) {
+            $rewinfo[$item['id']] = $item;
+        }
+        $data['rewinfo'] = $rewinfo;
+
+        if ($_POST) {
+
+            if ($data['pro_info']['end_time'] < $cur_time) {
+                $data['error'] = '项目已经结束了';
+            }
+
+            if ($_POST['start_time'] && $_POST['end_time'] && $data['error'] == '') {
+                $data['start_time'] = $_POST['start_time'];
+                $data['end_time'] = $_POST['end_time'];
+                $start_time = $cur_time > $_POST['start_time'] ? $_POST['start_time'] : $cur_time;
+                $end_time = $cur_time > $_POST['end_time'] ? $_POST['end_time'] : $cur_time;
+//                echo $start_time . "==" . $end_time ."<br />";
+
+                $start_time = $data['pro_info']['start_time'] > $start_time || $data['pro_info']['end_time'] < $start_time ? $data['pro_info']['start_time'] : $start_time;
+                $end_time = $data['pro_info']['end_time'] < $end_time || $data['pro_info']['start_time'] > $end_time ? $data['pro_info']['end_time'] : $end_time;
+
+                $end_time = $cur_time > $end_time ? $end_time : $cur_time;
+
+
+//                echo $start_time . "==" . $end_time;
+//                exit;
+
+                $sql = "SELECT usr.*,bak.id as oid FROM `md_users` usr
+LEFT JOIN `md_product_back` bak ON usr.id=bak.user_id AND bak.if_pay=1 AND bak.pro_id={$pro_id}
+WHERE usr.platform='system' AND usr.ctime<'$start_time'
+HAVING ISNULL(oid)";
+                $use_list = $this->db->query($sql)->result_array();
+                $data['ok'] = '可用用户：' . count($use_list) . '个';
+                if ($use_list) {
+
+                    $i = 0; //用户生成的索引
+                    foreach ($_POST as $key => $val) {
+                        //查找每个回报需要生成的订单数
+                        if (stripos($key, 'rewuser_') !== false && $val && is_numeric($val)) {
+                            $rew_id = str_replace('rewuser_', '', $key);
+                            for ($i = 1; $i <= $val; $i++) {
+                                $user_info = array_pop($use_list);
+                                if ($user_info) {
+                                    $idata['user_id'] = $user_info['id'];
+                                    $idata['pro_id'] = $pro_id;
+                                    $idata['rew_id'] = $rew_id;
+                                    $idata['amount'] = $rewinfo[$rew_id]['money'];
+                                    $octime = rand(strtotime($start_time), strtotime($end_time));
+                                    $idata['ctime'] = date("Y-m-d H:i:s", $octime);
+                                    $idata['if_pay'] = 1;
+                                    $idata['status'] = '103';
+                                    $idata['status_debt'] = '1';
+                                    $idata['md_plan'] = 'system';
+                                    $idata['address_email'] = $user_info['email'];
+                                    $this->Common->add('md_product_back', $idata);
+                                    $this->Common->update("md_users", array('id' => $user_info['id']), array('last_login' => date("Y-m-d H:i:s", $octime - 300)));
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    $data['error'] = '没有可用用户，开始时间不能小于用户注册时间！';
+                }
+            } else {
+                $data['error'] = '请选择起止时间';
+            }
+        }
+
+        $sql = "SELECT bak.rew_id,left(bak.ctime,10) as ctime,count(1) as c FROM md_product_back bak
+INNER JOIN md_users usr ON bak.user_id=usr.id
+WHERE usr.platform='system' AND bak.pro_id={$pro_id}
+GROUP BY rew_id,ctime
+ORDER BY ctime";
+
+        $data['list'] = $list = $this->db->query($sql)->result_array();
+        $data['user_sum'] = 0;
+        $sql = "SELECT count(1) c FROM md_users WHERE platform='system'";
+        $data['user_sum'] = $this->db->query($sql)->row_array();
+        $data['user_sum'] = $data['user_sum']['c'];
+        $data['user_use_money'] = $data['user_use_sum'] = 0;
+        $rew = array();
+        $sql = "SELECT rew.*,(select count(1) from md_product_back WHERE if_pay=1 AND rew_id=rew.id) as back_count FROM md_product_rewards rew WHERE if_show=1 AND pro_id={$pro_id}";
+        $data['rewards'] = $this->db->query($sql)->result_array();
+        foreach ($data['rewards'] as $item) {
+            $rew[$item['id']] = 0;
+        }
+        foreach ($list as $item) {
+            if (isset($rew[$item['rew_id']])) {
+                $rew[$item['rew_id']] += $item['c'];
+            } else {
+                $rew[$item['rew_id']] = $item['c'];
+            }
+            $data['user_use_sum'] += $item['c'];
+            $data['user_use_money'] += $item['c'] * $rewinfo[$item['rew_id']]['money'];
+        }
+        $data['rew_user_sum'] = $rew;
+        $data['logs'] = array();
+        $data['date'] = array();
+        foreach ($list as $item) {
+            $data['logs'][$item['rew_id']][$item['ctime']] = $item['c'];
+            $data['date'][] = $item['ctime'];
+        }
+        $data['date'] = array_unique($data['date']);
+        $this->load->view('ext/virtual_order', $data);
+    }
+
+}

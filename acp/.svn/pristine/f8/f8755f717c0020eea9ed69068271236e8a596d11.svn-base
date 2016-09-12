@@ -1,0 +1,717 @@
+<?php               
+
+require("libraries/function.php");
+class Web_data extends Acp_Controller {
+    
+    public $redis;
+
+    public function __construct() {
+        parent::__construct();
+        $init = new Redis();
+        $host = $this->config->item('md_redis');
+        $init->connect("{$host['ip']}", "{$host['port']}");
+        $this->redis=$init;
+    }
+
+    //全站数据查看
+    public function web_data_all() {
+        $str = "SELECT AVG(`pv`) pv,AVG(`uv`) uv,AVG(`p_u`) p_u,AVG(`login_user`) login_user,AVG(`new_user`) new_user,AVG(`form`) form,AVG(`independent`) independent,"
+                . "AVG(`money`) money,AVG(`refund`) refund,AVG(`ios_new`) ios_new,AVG(`ios_old`) ios_old,AVG(`ios_start`) ios_start,AVG(`andriod_new`) andriod_new,AVG(`andriod_old`) andriod_old,"
+                . "AVG(`andriod_start`) andriod_start FROM `md_web_data`";
+        $sql = "SELECT DATE_FORMAT(`ctime`,'%m-%d') time,`pv`,`uv`,`p_u` FROM `md_web_data` WHERE `ctime` >= '".date("Y-m-d",strtotime("-1 week"))."' AND `ctime` < '".date("Y-m-d")."' GROUP BY `ctime`,`type`";
+        $reslut = $this->db->query($sql);
+        unset($sql);
+        $row = $reslut->result_array();
+        $sql_avg = "SELECT `type`,AVG(`pv`) pv,AVG(`uv`) uv,AVG(`p_u`) p_u,AVG(`login_user`) login_user,AVG(`new_user`) new_user,AVG(`form`) form,AVG(`independent`) independent,AVG(`money`) money,"
+            ."AVG(`refund`) refund,AVG(`ios_new`) ios_new,AVG(`ios_old`) ios_old,AVG(`ios_start`) ios_start,AVG(`andriod_new`) andriod_new,AVG(`andriod_old`) andriod_old,AVG(`andriod_start`) andriod_start "
+            ."FROM `md_web_data` ";
+        $sql_sum = "SELECT `type`,SUM(`pv`) pv,SUM(`uv`) uv,SUM(`p_u`) p_u,SUM(`login_user`) login_user,SUM(`new_user`) new_user,SUM(`form`) form,SUM(`independent`) independent,SUM(`money`) money,"
+            ."SUM(`refund`) refund,SUM(`ios_new`) ios_new,SUM(`ios_old`) ios_old,SUM(`ios_start`) ios_start,SUM(`andriod_new`) andriod_new,SUM(`andriod_old`) andriod_old,SUM(`andriod_start`) andriod_start "
+            ."FROM `md_web_data` ";
+        $shuzu = array();
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case 'tody':
+                    $shijian = array('今天' => array(), '昨天' => array(), '上周周均' => array());
+                    $host = $this->config->item('md_elasticsearch');
+                    $ip = $host['ip'];
+                    $port = $host['port'];
+                    $table = tody($ip, $port);
+                    foreach($table as $k => $v){
+                        $table[$k]['type'] = $k;
+                        $table[$k]['ctime'] = date("Y-m-d");
+                    }
+                    $shijian['今天'] = $table;
+                    $table_avg = $table;
+                    $table_sum = $table;
+                    $stime = date("Y-m-d", strtotime("-1 day"));
+                    $sql = "SELECT * FROM `md_web_data` WHERE `ctime` = '{$stime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['昨天'] = $reslut->result_array();
+                    $stime = date("Y-m-d",strtotime("-2 week"));
+                    $etime = date("Y-m-d",strtotime("-1 week"));
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['上周周均'] = $reslut->result_array();
+                    $map = $row;
+                    break;
+                
+                case 'yesterday':
+                    $shijian = array('昨天' => array(), '前一天' => array(), '上周周均' => array());
+                    $stime = date("Y-m-d", strtotime("-1 day"));
+                    $sql = "SELECT * FROM `md_web_data` WHERE `ctime` = '{$stime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['昨天'] = $reslut->result_array();
+                    $table = $shijian['昨天'];
+                    $table_avg = $table;
+                    $table_sum = $table;
+                    unset($sql);
+                    $stime = date("Y-m-d", strtotime("-2 day"));
+                    $sql = "SELECT * FROM `md_web_data` WHERE `ctime` = '{$stime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['前一天'] = $reslut->result_array();
+                    $stime = date("Y-m-d",strtotime("-2 week"));
+                    $etime = date("Y-m-d",strtotime("-1 week"));
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['上周周均'] = $reslut->result_array();
+                    $map = $row;
+                    break;
+                
+                case 'week':
+                    $shijian = array('最近七天' => array(), '上周周均' => array(), '上月月均' => array());
+                    $stime = date("Y-m-d",strtotime("-1 week"));
+                    $etime = date("Y-m-d");
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['最近七天'] =  $reslut->result_array();
+                    $sql = "SELECT * FROM `md_web_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`,`ctime`";
+                    $reslut = $this->db->query($sql);
+                    $table = $reslut->result_array();
+                    unset($sql);
+                    $sql = $sql_avg."WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    $table_avg = $reslut->result_array();
+                    unset($sql);
+                    $sql = $sql_sum."WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    $table_sum = $reslut->result_array();
+                    unset($sql);
+                    $stime = date("Y-m-d",strtotime("-2 week"));
+                    $etime = date("Y-m-d",strtotime("-1 week"));
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['上周周均'] = $reslut->result_array();
+                    $stime = date("Y-m",strtotime("-1 month"))."-1";
+                    $etime = date("Y-m")."-1";
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['上月月均'] = $reslut->result_array();
+                    $map = $row;
+                    break;
+
+                case 'month':
+                    $shijian = array('最近30天' => array(), '上月月均' => array(), '最高月均' => array());
+                    $stime = date("Y-m-d",strtotime("-30 day"));
+                    $etime = date("Y-m-d");
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['最近30天'] = $reslut->result_array();
+                    $sql = "SELECT * FROM `md_web_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`,`ctime`";
+                    $reslut = $this->db->query($sql);
+                    $table = $reslut->result_array();
+                    unset($sql);
+                    $sql = $sql_avg."WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    $table_avg = $reslut->result_array();
+                    unset($sql);
+                    $sql = $sql_sum."WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    $table_sum = $reslut->result_array();
+                    unset($sql);
+                    $stime = date("Y-m",strtotime("-1 month"))."-1";
+                    $etime = date("Y-m")."-1";
+                    $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['上月月均'] = $reslut->result_array();
+                    $sql = "SELECT type,MAX(pv) pv,MAX(uv) uv,MAX(p_u) p_u,MAX(login_user) login_user,MAX(new_user) new_user,MAX(form) form,MAX(independent) independent,MAX(money) money,MAX(refund) refund,"
+                        . "MAX(ios_new) ios_new,MAX(ios_old) ios_old,MAX(ios_start) ios_start,MAX(andriod_new) andriod_new,MAX(andriod_old) andriod_old,MAX(andriod_start) andriod_start FROM "
+                        . "(SELECT `type`,DATE_FORMAT(`ctime`, '%Y%m') months,AVG(`pv`) pv,AVG(`uv`) uv,AVG(`p_u`) p_u,AVG(`login_user`) login_user,AVG(`new_user`) new_user,AVG(`form`) form,AVG(`independent`) independent,"
+			. "AVG(`money`) money,AVG(`refund`) refund,AVG(`ios_new`) ios_new,AVG(`ios_old`) ios_old,AVG(`ios_start`) ios_start,AVG(`andriod_new`) andriod_new,AVG(`andriod_old`) andriod_old,AVG(`andriod_start`) andriod_start "
+                        . "FROM `md_web_data` GROUP BY type,months) months GROUP BY type";
+                    $reslut = $this->db->query($sql);
+                    unset($sql);
+                    $shijian['最高月均'] = $reslut->result_array();
+                    $sql = "SELECT DATE_FORMAT(`ctime`,'%m-%d') time,`pv`,`uv`,`p_u` FROM `md_web_data` WHERE `ctime` >= '".date("Y-m-d",strtotime("-30 day"))."' AND `ctime` < '".date("Y-m-d")."' GROUP BY `ctime`,`type`";
+                    $reslut = $this->db->query($sql);
+                    $map = $reslut->result_array();
+                    unset($sql);
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) AND isset($_GET['end_time'])) {
+            $shijian = array('当前选定' => array());
+            $stime = $_GET['start_time'];
+            $etime = date("Y-m-d",strtotime($_GET['end_time'])+86400);
+            $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+            $reslut = $this->db->query($sql);
+            unset($sql);
+            $shijian['当前选定'] = $reslut->result_array();
+            $sql = "SELECT * FROM `md_web_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`,`ctime`";
+            $reslut = $this->db->query($sql);
+            $table = $reslut->result_array();
+            unset($sql);
+            $sql = $sql_avg."WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+            $reslut = $this->db->query($sql);
+            $table_avg = $reslut->result_array();
+            unset($sql);
+            $sql = $sql_sum."WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+            $reslut = $this->db->query($sql);
+            $table_sum = $reslut->result_array();
+            unset($sql);
+            $sql = "SELECT DATE_FORMAT(`ctime`,'%m-%d') time,`pv`,`uv`,`p_u` FROM `md_web_data` WHERE `ctime` >= '".$stime."' AND `ctime` < '".$etime."' GROUP BY `ctime`,`type`";
+            $reslut = $this->db->query($sql);
+            $map = $reslut->result_array();
+            unset($sql);
+            $shuzu['start_time'] = $_GET['start_time'];
+            $shuzu['end_time'] = $_GET['end_time'];
+        } else {
+            $shijian = array('昨天' => array(), '前一天' => array(), '上周周均' => array());
+            $stime = date("Y-m-d", strtotime("-1 day"));
+            $sql = "SELECT * FROM `md_web_data` WHERE `ctime` = '{$stime}' GROUP BY `type`";
+            $reslut = $this->db->query($sql);
+            unset($sql);
+            $shijian['昨天'] = $reslut->result_array();
+            $table = $shijian['昨天'];
+            $table_avg = $table;
+            $table_sum = $table;
+            unset($sql);
+            $stime = date("Y-m-d", strtotime("-2 day"));
+            $sql = "SELECT * FROM `md_web_data` WHERE `ctime` = '{$stime}' GROUP BY `type`";
+            $reslut = $this->db->query($sql);
+            unset($sql);
+            $shijian['前一天'] = $reslut->result_array();;
+            $stime = date("Y-m-d",strtotime("-2 week"));
+            $etime = date("Y-m-d",strtotime("-1 week"));
+            $sql .= $str." WHERE `ctime` >='{$stime}' AND `ctime` < '{$etime}' GROUP BY `type`";
+            $reslut = $this->db->query($sql);
+            unset($sql);
+            $shijian['上周周均'] = $reslut->result_array();
+            $map = $row;
+        }
+        unset($row);
+        $data = array();
+        for($i=0; $i<4; $i++){
+            for($j = $i; $j < count($map); $j += 4){
+                switch($i){
+                    case 0: 
+                        $map_time .= "'".$map[$j]['time']."',";
+                        $data['data_all_pv'] .= $map[$j]['pv'].",";
+                        $data['data_all_uv'] .= $map[$j]['uv'].",";
+                        $data['data_all_p_u'] .= $map[$j]['p_u'].",";
+                        break;
+                    case 1:
+                        $data['data_wds_pv'] .= $map[$j]['pv'].",";
+                        $data['data_wds_uv'] .= $map[$j]['uv'].",";
+                        $data['data_wds_p_u'] .= $map[$j]['p_u'].",";
+                        break;
+                    case 2:
+                        $data['data_project_pv'] .= $map[$j]['pv'].",";
+                        $data['data_project_uv'] .= $map[$j]['uv'].",";
+                        $data['data_project_p_u'] .= $map[$j]['p_u'].",";
+                        break;
+                    case 3:
+                        $data['data_moxi_pv'] .= $map[$j]['pv'].",";
+                        $data['data_moxi_uv'] .= $map[$j]['uv'].",";
+                        $data['data_moxi_p_u'] .= $map[$j]['p_u'].",";
+                        break;
+                }
+            }
+        }
+        unset($map);
+        foreach($data as $k => $v){
+            $data[$k] = rtrim($v, ",");
+        }
+        $table_data = array();
+        foreach($table as $k => $v){
+            switch($v['type']){
+                case 0: $table_data[0][] = $v; break;
+                case 1: $table_data[1][] = $v; break;
+                case 2: $table_data[2][] = $v; break;
+                case 3: $table_data[3][] = $v; break;
+            }
+        }
+        unset($table);
+        $map_time = rtrim($map_time, ",");
+        $shuzu['map_time'] = $map_time;
+        $shuzu['data'] = $data;
+        $shuzu['shijian'] = $shijian;
+        $shuzu['table_data'] = $table_data;
+        $shuzu['table_avg'] = $table_avg;
+        $shuzu['table_sum'] = $table_sum;
+        $excel = array("table_data" => $table_data, "table_sum" => $table_sum, "table_avg" => $table_avg, "shijian" => $shijian);
+        $str = serialize($excel);
+        unset($excel);
+        $this->redis->set("web_data_excel",$str);
+        unset($str);
+        $this->load->view('web_data/web_data_all', $shuzu);
+    }
+
+    //全站数据下载
+    public function download_excel(){
+        $this->load->helper('excel');
+        switch ($_GET['action']){
+            case "web_data_all":
+                $str = $this->redis->get("web_data_excel");
+                $arr = unserialize($str);
+                $arr_title = array( "ctime" => "时间", "pv" => "浏览", "uv" => "独立访客", "p_u" => "人均访问", "login_user" => "注册用户日活",
+                    "new_user" => "新增注册", "form" => "订单",	"independent" => "独立支持人数", "money" => "筹资额", "refund" => "退款", 
+                    "ios_new" => "ios新增", "ios_old" => "ios活跃", "ios_start" => "ios启动次数", "andriod_new" => "andriod新增",
+                    "andriod_old" => "andriod活跃", "andriod_start" => "andriod启动次数");
+                switch ($_GET['type']) {
+                    case "data_all":
+                        $num = 0;
+                        $path_file = "全站数据";
+                        break;
+                    case "data_wds":
+                        $num = 1;
+                        $path_file = "微打赏数据";
+                        break;
+                    case "data_project":
+                        $num = 2;
+                        $path_file = "众筹项目数据";
+                        break;
+                    case "data_moxi":
+                        $num = 3;
+                        $path_file = "摩西社区数据";
+                        break;
+                    default:
+                        echo "出错了！";
+                        break;
+                }
+                if(isset($num)){
+                    $rows = array();
+                    foreach($arr['table_data'][$num] as $k => $v){
+                        $rows[] = $v;
+                    }
+                    $arr['table_sum'][$num]['ctime'] = "总和";
+                    $rows[] = $arr['table_sum'][$num];
+                    $arr['table_avg'][$num]['ctime'] = "平均";
+                    $rows[] = $arr['table_avg'][$num];
+                    foreach($arr['shijian'] as $k => $v){
+                        $arr['shijian'][$k][$num]['ctime'] = $k;
+                        $rows[] = $arr['shijian'][$k][$num];
+                    }
+                    export_to_csv($arr_title, $rows, $path_file);
+                }
+                break;
+            case "path_data":
+                $str = $this->redis->get("web_path_excel");
+                $arr = unserialize($str);
+                $arr_title = array( "domain" => "来源", "pv" => "浏览次数", "uv" => "独立访客", "per" => "UV占比", "p_u" => "人均访问", "out" => "跳出人数", "per_out" => "跳出率");
+                $rows = array();
+                foreach($arr as $k => $v){
+                    foreach($v as $kk => $vv){
+                        $rows[] = $vv;
+                    }
+                }
+                $path_file = "访问来源分析数据";
+                export_to_csv($arr_title, $rows, $path_file);
+                break;
+            case "visit_domain":
+                $str = $this->redis->get("web_visit_excel");
+                $arr = unserialize($str);
+                $arr_title = array( "domain" => "受访域名", "pv" => "浏览次数", "uv" => "独立访客", "per" => "UV占比", "p_u" => "人均访问");
+                $rows = array();
+                $uv = $arr['uv'];
+                unset($arr['uv']);
+                foreach($arr as $k => $v){
+                    $rows[$k] = $v;
+                    $rows[$k]['per'] = round(($v['uv']/$uv)*100,3)."%";
+                    $rows[$k]['p_u'] = round($v['pv']/$v['uv'],2);
+                }
+                $path_file = "受访域名分析数据";
+                export_to_csv($arr_title, $rows, $path_file);
+                break;
+            case "analyze_login":
+                $str = $this->redis->get("web_login_excel");
+                $arr = unserialize($str);
+                $arr_title = array( "ctime" => "日期", "login_sum" => "登录总数", "pc" => "PC端", "android" => "android", "iphone" => "iphone", "ipad" => "ipad");
+                $rows = $arr;
+                $path_file = "登录用户来源分析数据";
+                export_to_csv($arr_title, $rows, $path_file);
+                break;
+            case "analyze_users":
+                $str = $this->redis->get("web_register_excel");
+                $arr = unserialize($str);
+                $arr_title = array( "ctime" => "日期", "day_sum" => "总数", "pc" => "PC端", "wap" => "M端", "app_ios" => "APP_苹果", "app_andriod" => "APP_安卓");
+                $rows = $arr;
+                $path_file = "注册用户来源分析数据";
+                export_to_csv($arr_title, $rows, $path_file);
+                break;
+            default:
+                echo "出错了！";
+                break;
+        }
+    }
+    //添加ios,andriod的新增活跃用户数据，存入数据库
+    public function add_data() {
+        $str = array("str" => "");
+        if(isset($_GET['time'])){
+            if(empty($_GET['time'])) {
+                $str['str'] = "请选择日期!";
+            }else{
+                if($_GET['ios_new']==null && $_GET['ios_old']==null && $_GET['ios_start']==null && $_GET['andriod_new']==null && $_GET['andriod']==null && $_GET['andriod_start']==null){
+                    $str = array("str" => "请填入数据！");
+                }else{
+                    $sql = "update `md_web_data` set ";
+                    foreach($_GET as $k => $v){
+                        if($k == 'time'){
+                            continue;
+                        }
+                        if($v == '0' || !empty($v)){
+                            $sql .= "`{$k}`='$v',";
+                        }
+                    }
+                    $sql = rtrim($sql, ",");
+                    $sql .= " where `ctime`='{$_GET['time']}' AND `type` = 0";
+                    $row = $this->db->query($sql);
+                    if ($row) {
+                        $str['str'] = "添加成功!";
+                    } else {
+                        $str['str'] = "添加失败!";
+                    }
+                }
+            }
+        }
+        $this->load->view('web_data/add_data', $str);
+    }
+    //来路分析  
+    public function path_data() {
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case "tody":
+                    $url = array();
+                    $domain = path_tody($ip, $port);
+                    foreach($domain as $k => $v){
+                        $sum = array("pv" => 0, "uv" => 0, "out" => 0);
+                        foreach($v as $kk => $vv){
+                            $sum['pv'] += $vv['pv'];
+                            $sum['uv'] += $vv['uv'];
+                            $sum['out'] += $vv['out'];
+                            $vv['domain'] = $kk;
+                            $url[$k][] = $vv;
+                        }
+                        $url[$k]['sum'] = $sum;
+                    }
+                    $host = $this->config->item('md_elasticsearch');
+                    $ip = $host['ip'];
+                    $port = $host['port'];
+                    $tody_data = tody($ip, $port);
+                    $uv = $tody_data[0]['uv'];
+                    break;
+
+                case "yesterday":
+                    $stime = date("Y-m-d",strtotime("-1 day"));
+                    $etime = date("Y-m-d");
+                    $reslut = $this->db->query("SELECT `uv` FROM `md_web_data` WHERE `ctime` = '{$stime}' AND `type` = 0");
+                    $row = $reslut->row_array();
+                    $uv = $row['uv'];
+                    break;
+                
+                case "week":
+                    $stime = date("Y-m-d",strtotime("-7 day"));
+                    $etime = date("Y-m-d");
+                    $reslut = $this->db->query("SELECT SUM(`uv`) uv FROM `md_web_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' AND `type` = 0");
+                    $row = $reslut->row_array();
+                    $uv = $row['uv'];
+                    break;
+                
+                case "month":
+                    $stime = date("Y-m-d",strtotime("-30 day"));
+                    $etime = date("Y-m-d");
+                    $reslut = $this->db->query("SELECT SUM(`uv`) uv FROM `md_web_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' AND `type` = 0");
+                    $row = $reslut->row_array();
+                    $uv = $row['uv'];
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) OR isset($_GET['end_time'])) {
+            $stime = $_GET['start_time'];
+            $etime = date("Y-m-d", strtotime($_GET['end_time'])+86400);
+            $reslut = $this->db->query("SELECT SUM(`uv`) FROM `md_web_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' AND `type` = 0");
+            $row = $reslut->row_array();
+            $uv = $row['uv'];
+            $start_time = $_GET['start_time'];
+            $end_time = $_GET['end_time'];
+        } else {
+            $stime = date("Y-m-d",strtotime("-1 day"));
+            $etime = date("Y-m-d");
+            $reslut = $this->db->query("SELECT `uv` FROM `md_web_data` WHERE `ctime` = '{$stime}' AND `type` = 0");
+            $row = $reslut->row_array();
+            $uv = $row['uv'];
+        }
+        if(isset($stime) && isset($etime)){
+            $url = array("search" => array(), "external" => array(), "interview" => array(), "unkown" => array());
+            foreach($url as $k => $v){
+                $sql = "SELECT `domain`,SUM(`pv`) `pv`,SUM(`uv`) `uv`,SUM(`out`) `out` FROM `md_web_path_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' AND `type` = '{$k}' GROUP BY `domain` ORDER BY `pv` DESC LIMIT 0,50";
+                $reslut = $this->db->query($sql);
+                $url[$k] = $reslut->result_array();
+                $sql = "SELECT SUM(`pv`) `pv`,SUM(`uv`) `uv`,SUM(`out`) `out` FROM (SELECT `domain`,SUM(`pv`) `pv`,SUM(`uv`) `uv`,SUM(`out`) `out` FROM `md_web_path_data` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' AND `type` = '{$k}' GROUP BY `domain` ORDER BY `pv` DESC LIMIT 0,50) a"; 
+                $reslut = $this->db->query($sql);
+                $url[$k]['sum'] = $reslut->row_array();
+            }
+        }
+        foreach($url as $k => $v){
+            foreach($v as $kk => $vv){
+                $url[$k][$kk]['per'] = round(($vv['uv']/$uv)*100,3)."%";
+                $url[$k][$kk]['p_u'] = round($vv['pv']/$vv['uv'],2);
+                $url[$k][$kk]['per_out'] = round(($vv['out']/$vv['uv'])*100,2)."%";
+            }
+        }
+        $url['unkown']['sum'] = $url['unkown'][0];
+        $url['search']['sum']['domain'] = "搜索引擎";
+        $url['external']['sum']['domain'] = "其他外部链接";
+        $url['interview']['sum']['domain'] = "带参数访问";
+        $url['unkown']['sum']['domain'] = "未知来源";
+        $str = serialize($url);
+        $this->redis->set("web_path_excel", $str);
+        unset($str);
+        if(isset($start_time) && isset($end_time)){
+            $url['start_time'] = $start_time;
+            $url['end_time'] = $end_time;
+        }
+        $this->load->view('web_data/path_data', $url);
+    }
+
+    //受访域名
+    public function visit_domain() {
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case "tody":
+                    $start_time = strtotime(date("Y-m-d"));
+                    $url = sort_url($ip, $port, $start_time, $start_time+86400, 2);
+                    break;
+                case "yesterday":
+                    $stime = date("Y-m-d",time()-86400);
+                    $etime = date("Y-m-d");
+                    break;
+                case "week":
+                    $stime = date("Y-m-d",strtotime("-7 day"));
+                    $etime = date("Y-m-d");
+                    break;
+                case "month":
+                    $stime = date("Y-m-d",strtotime("-30 day"));
+                    $etime = date("Y-m-d");
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) OR isset($_GET['end_time'])) {
+            $stime = $_GET['start_time'];
+            $etime = date("Y-m-d",strtotime($_GET['end_time'])+86400);
+        } else {
+            $stime = date("Y-m-d",time()-86400);
+            $etime = date("Y-m-d");
+        }
+        if(isset($stime) && ($etime)){
+            $sql = "SELECT `domain`,SUM(`pv`) pv,SUM(`uv`) uv FROM `md_web_visit_domain` WHERE `ctime` >= '{$stime}' AND `ctime` < '{$etime}' GROUP BY `domain` ORDER BY `pv` DESC";
+            $reslut = $this->db->query($sql);
+            $url = $reslut->result_array();
+        }
+        $domain_uv = 0;
+        foreach($url as $k => $v){
+            $domain_uv += $v['uv'];
+        }
+        $url['uv'] = $domain_uv;
+        $str = serialize($url);
+        $this->redis->set("web_visit_excel", $str);
+        unset($str);unset($url['uv']);
+        $shuzu = array();
+        if(isset($_GET['start_time']) && isset($_GET['end_time'])){
+            $shuzu['start_time'] = $_GET['start_time'];
+            $shuzu['end_time'] = $_GET['end_time'];
+        }
+        $shuzu['url'] = $url;
+        $shuzu['domain_uv'] = $domain_uv;
+        $this->load->view('web_data/visit_domain', $shuzu);
+    }
+    //注册用户终端来源分析
+    public function Analyze_users() {
+        if(isset($_GET['app_ios']) && isset($_GET['choice_time'])){
+            $sql = "SELECT `day_sum`,`app_ios` FROM `md_web_register_data` WHERE `ctime` ='{$_GET['choice_time']}'";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->row_array();
+            $num = $_GET['app_ios']-$row['app_ios']+$row['day_sum'];
+            $sql = "update `md_web_register_data` set `app_ios` = '".$_GET['app_ios']."',`day_sum` = '{$num}' where `ctime` = '".$_GET['choice_time']."'";
+            $row = $this->db->query($sql);
+            if($row){
+                $str = "修改成功！";
+            }else{
+                $str = "修改失败！";
+            }
+            $start_time = $_GET['choice_time'];
+            $end_time = date("Y-m-d",strtotime($start_time)+86400);
+        }elseif (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case "tody":
+                    $sql = "SELECT md_plan,count(`md_plan`) as sort from `md_users` where `ctime` >= '".date("Y-m-d")." 00:00:00' GROUP BY `md_plan`";
+                    $reslut = $this->db->query($sql);
+                    $row = $reslut->result_array();
+                    $arr = array();
+                    foreach($row as $k => $v){
+                        $arr[$v['md_plan']] = $v['sort'];
+                    }
+                    for($j = 0; $j < 4; $j++){
+                        if(!$arr[$j]){
+                            $arr[$j] = 0;
+                        }
+                    }
+                    $day_sum = 0;
+                    foreach($arr as $k => $v){
+                        $day_sum += $v;
+                    }
+                    $row[0]['day_sum'] = $day_sum;
+                    $row[0]['ctime'] = date("Y-m-d");
+                    $row[0]['pc'] = $arr[0]; 
+                    $row[0]['wap'] = $arr[3];
+                    $row[0]['app_ios'] = $arr[1];
+                    $row[0]['app_andriod'] = $arr[2];
+                    $row['sum'] = $row[0];
+                    $row['sum']['ctime'] = "总和";
+                    break;
+                case "yesterday":
+                    $start_time = date("Y-m-d", time() - 86400);
+                    $end_time = date("Y-m-d", time());
+                    break;
+                case "week":
+                    $start_time = date("Y-m-d", time() - 7*86400);
+                    $end_time = date("Y-m-d", time());
+                    break;
+                case "month":
+                    $start_time = date("Y-m-d", time() - 30*86400);
+                    $end_time = date("Y-m-d", time());
+                    break;
+                case "natural_month":
+                    $s_time = strtotime("-1 month");
+                    $start_time = date("Y-m", $s_time)."-1";
+                    $e_time = strtotime("+1 month", strtotime($start_time));
+                    $end_time = date("Y-m-d", $e_time);
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) && isset($_GET['end_time'])) {
+            $start_time = $_GET['start_time'];
+            $end_time = date("Y-m-d",strtotime($_GET['end_time'])+86400)."";
+        } else {
+            $start_time = "2014-06-01";
+            $end_time = date("Y-m-d",time());
+        }
+        if(isset($start_time) && isset($end_time)){
+            $sql = "SELECT * FROM `md_web_register_data` WHERE `ctime` >= '".$start_time."' AND `ctime` < '".$end_time."' ORDER BY `ctime`";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->result_array();
+            $sum = array("day_sum" => 0, "pc" => 0, "wap" => 0, "app_ios" => 0, "app_andriod" => 0);
+            foreach($row as $k => $v){
+                foreach($sum as $key => $value){
+                    $sum[$key] += $v[$key];
+                }
+            }
+            $sum['ctime'] = "总数";
+            $row['sum'] = $sum;
+            $row['sum']['ctime'] = "总和";
+            $shuzu = array("arr" => $row, "start_time" => $start_time, "end_time" => date("Y-m-d",strtotime($end_time)-86400));
+        }else{
+            $shuzu = array("arr" => $row);
+        }
+        $string = serialize($row);
+        $this->redis->set("web_register_excel", $string);
+        if($str){
+            $shuzu['str'] = $str;
+        }
+        $this->load->view('web_data/analyze_users', $shuzu);
+    }
+    //登录用户终端来源分析
+    public function Analyze_login() {
+        $data = array();
+        if (isset($_GET['date'])) {
+            switch ($_GET['date']) {
+                case "tody":
+                    $host = $this->config->item('md_elasticsearch');
+                    $ip = $host['ip'];
+                    $port = $host['port'];
+                    $start_time = date("Y-m-d", time())." 00:00:00";
+                    $end_time = date("Y-m-d", time()+86400)." 00:00:00";
+                    $start = strtotime($start_time)*1000;
+                    $end = strtotime($end_time)*1000;
+                    $str = "-mdsb:0";
+                    $data[0]['login_sum'] = Login_class($ip, $port, $start, $end, $str);
+                    $str = "-mdsb:0 +UA:Android";
+                    $data[0]['android'] = Login_class($ip, $port, $start, $end, $str);
+                    $str = "-mdsb:0 +UA:iphone";
+                    $data[0]['iphone'] = Login_class($ip, $port, $start, $end, $str);
+                    $str = "-mdsb:0 +UA:ipad";
+                    $data[0]['ipad'] = Login_class($ip, $port, $start, $end, $str);
+                    $data[0]['pc'] = $data['login_sum'] - $data['android'] - $data['iphone'] - $data['ipad'];
+                    $data[0]['ctime'] = date("Y-m-d");
+                    $data['sum'] = $data[0];
+                    $data['sum']['ctime'] = "总数";
+                    $start_time = date("Y-m-d", time());
+                    $end_time = date("Y-m-d", time()+86400);
+                    break;
+                case "yesterday":
+                    $start_time = date("Y-m-d", time() - 86400);
+                    $end_time = date("Y-m-d", time());
+                    break;
+                case "week":
+                    $start_time = date("Y-m-d", time() - 7*86400);
+                    $end_time = date("Y-m-d", time());
+                    break;
+                case "month":
+                    $start_time = date("Y-m-d", time() - 30*86400);
+                    $end_time = date("Y-m-d", time());
+                    break;
+                case "natural_month":
+                    $s_time = strtotime("-1 month");
+                    $start_time = date("Y-m", $s_time)."-1";
+                    $e_time = strtotime("+1 month", strtotime($start_time));
+                    $end_time = date("Y-m-d", $e_time);
+                    break;
+            }
+        } elseif (isset($_GET['start_time']) OR isset($_GET['end_time'])) {
+            $start_time = $_GET['start_time'];
+            $end_time = date("Y-m-d",strtotime($_GET['end_time'])+86400);
+        } else {
+            $start_time = "2014-06-01";
+            $end_time = date("Y-m-d",time());
+        }
+        if(empty($data)){
+            $sql = "SELECT * FROM `md_web_login_data` WHERE ctime >= '".$start_time."' AND `ctime` < '".$end_time."'";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->result_array();
+            $data = $row;
+            $sql = "SELECT SUM(`login_sum`) AS login_sum,SUM(`pc`) AS pc,SUM(`android`) AS android,SUM(`iphone`) AS iphone,SUM(`ipad`) AS ipad from `md_web_login_data` where ctime >= '".$start_time."' AND `ctime` < '".$end_time."'";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->row_array();
+            $data['sum'] = $row;
+            $data['sum']['ctime'] = "总数";
+        }
+        $string = serialize($data);
+        $this->redis->set("web_login_excel", $string);
+        $shuzu['data'] = $data;
+        $shuzu['start_time'] = $start_time;
+        $shuzu['end_time'] = date("Y-m-d",(strtotime($end_time)-86400));
+        $this->load->view('web_data/analyze_login', $shuzu);
+    }
+}

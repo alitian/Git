@@ -1,0 +1,74 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Test extends MD_Controller {
+
+
+    public function ipcnt($pro_id)
+    {
+        $pro_id = intval($pro_id);
+        if (empty($pro_id)) {
+            show_error('error pro_id.');
+        }
+
+        $this->config->load('database', NULL, TRUE);
+        $other_db = $this->config->item('other_db');
+        if (!empty($other_db) && !empty($other_db['tongji_db'])) {
+            $this->tongji_db = &DB($other_db['tongji_db']);
+        }
+
+        $sql = "SELECT page, ip, COUNT(*) AS cc
+                FROM (
+                    SELECT `md_statistics_stay_acc_log`.`page`, `md_statistics_stay_acc_log`.`ip`
+                    FROM `md_statistics_stay_acc_log`
+                        JOIN `md_product_back`
+                            ON `md_product_back`.`id`=`md_statistics_stay_acc_log`.`bid`
+                                AND `md_statistics_stay_acc_log`.`page`={$pro_id}
+                                AND `md_statistics_stay_acc_log`.`bid`!=0
+                                AND `md_product_back`.`pro_id`={$pro_id}
+                                AND `md_product_back`.`if_pay`=1
+                                AND `md_product_back`.`rew_id`!=-3
+                    GROUP BY uid) as tt
+                GROUP BY ip
+                ORDER BY cc DESC";
+
+        $res = $this->tongji_db->query($sql)->result_array();
+
+        $total_cnt = 0;
+        $qucong_cnt = 0;
+        foreach ($res as $row) {
+            $tmp_cnt = intval($row['cc']);
+
+            $total_cnt += $tmp_cnt;
+
+            if ($tmp_cnt > 2) {
+                $qucong_cnt += 2;
+            } else {
+                $qucong_cnt += $tmp_cnt;
+            }
+        }
+
+        $data['total_cnt'] = $total_cnt;
+        $data['qucong_cnt'] = $qucong_cnt;
+        $data['the_ref'] = $res;
+        $this->load->view('test/ipcnt', $data);
+    }
+
+
+    public function index() {
+        $this->load->model('Common');
+        if ($_POST['m'] && $_POST['c']) {
+            $this->Common->send_message($_POST['m'], $_POST['c'], 'reg');
+//            $v = $this->md_sms->send_sms($_POST['m'], $_POST['c']);
+//            print_r($v);
+        }
+        echo '<form class="upload_form" method="post" action="">'
+        . '手机号：<input type="text" name="m" value="'.$_POST['m'].'" />'
+        . '短信内容：<input type="text" name="c" value="'.$_POST['c'].'" /> '
+        . '<input type="submit" value="保存" />'
+        . '</from>';
+    }
+
+}

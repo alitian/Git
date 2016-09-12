@@ -1,0 +1,149 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('md_app_manager/sub_menu') ?>
+<div class="containers">
+    <div>
+        <div style="margin-top: 10px">
+            <form action="/md_app_manager/show_reply_list" class="form-inline" id="item_form" method="post">
+                <span style="font-size: 1.2rem">输入项目ID&nbsp;&nbsp;</span><input type="text" name="pro_id" style="width: 150px;height: 30px;" value="<?=$pro_id?>">
+                <a href="javascript:;" class="btn btn-primary btn-sm" id="add_item" style="margin-left: 10px; padding: 10px 15px;">新增</a>
+            </form>
+        </div>
+        <hr>
+        <?php if($rcmd_lists): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>权重</th>
+                        <th width="20%">评论属性</th>
+                        <th>评论人</th>
+                        <th>评论内容</th>
+                        <th>评论时间</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($rcmd_lists as $rcmd_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $rcmd_info['weight'] ?>" subid="<?= $rcmd_info['id'] ?>" type="text" class="sortid" value="<?= $rcmd_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?= $rcmd_info['reply_cate'] ?></td>
+                            <td><?= $rcmd_info['nickname'] ?></td>
+                            <td><?= $rcmd_info['content']?></td>
+                            <td><?= $rcmd_info['reply_time']?></td>
+                            <td>
+                                <a class="del" href="javascript:;" data-id="<?=$rcmd_info['id']?>">删除</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php elseif(empty($rcmd_lists) && $reply_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>评论人</th>
+                        <th>评论内容</th>
+                        <th width="20%">评论时间</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($reply_list as $reply_info): ?>
+                        <tr>
+                            <td><?= $reply_info['nickname'] ?></td>
+                            <td><?= $reply_info['content'] ?></td>
+                            <td><?= date("Y-m-d H:i:s",$reply_info['ctime'])?></td>
+                            <td>
+                                <?php if(!in_array($reply_info['reply_id'],$origin_ids[$reply_info['post_id']])){?>
+                                    <a class="recommend btn btn-success" type="button" href="javascript:;" data-pro_id="<?=$pro_id?>" data-reply_id="<?=$reply_info['reply_id']?>" data-post_id="<?=$reply_info['post_id']?>">推荐</a>
+                                <?php }else{?>
+                                    <a class="btn" type="button" href="javascript:;" data-id="<?=$reply_info['reply_id']?>" disabled="true"><i class=" icon-thumbs-up"></i>已推荐</a>
+                                <?php }?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('subid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_app_manager/change_weight')?>",
+            data : {'id':id,'weight':value}, //这儿type1表示专题列表权重
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_app_manager/del_rcmd_by_id')?>",
+            data:{'id':id,'type':2},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+
+    //type 4表示更新
+    $(".recommend").click(function(){
+        var reply_id = $(this).data('reply_id');
+        var post_id  = $(this).data("post_id");
+        var pro_id   = $(this).data("pro_id");
+        $.ajax({
+            type : 'post',
+            url  : '/md_app_manager/add_rcmd_item',
+            data : {'reply_id':reply_id,'post_id':post_id,'pro_id':pro_id,'type':2},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    window.location.href='/md_app_manager/comment_list';
+                }
+            }
+
+        })
+    })
+</script>
+<?php $this->load->view('ckad/footer'); ?>

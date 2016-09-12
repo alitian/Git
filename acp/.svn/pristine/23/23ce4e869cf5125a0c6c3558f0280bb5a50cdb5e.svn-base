@@ -1,0 +1,9 @@
+<div class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">支持者信息</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="9">
+  </div>
+  <p></p>
+  <div class="module-detail"></div>
+</div>

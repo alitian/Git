@@ -1,0 +1,44 @@
+<?php
+
+//error_reporting(E_ALL);
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Pro_to_html extends CI_Controller {
+
+    private $_cache_key = "timer_pro_to_html";
+    private $_cache;
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->library('md_brief_redis');
+        $this->_cache = md_brief_redis::instance();
+    }
+
+    public function init_list() {
+        $sql = "select * from md_product where if_show=1 AND start_time>'" . date("Y-m-d H:i:s") . "'";
+        $list = $this->db->query($sql)->result_array();
+        $res = array();
+        foreach ($list as $item) {
+            $res[] = array('pro_id' => $item['id'], 'start_time' => $item['start_time']);
+        }
+        $this->_cache->set($this->_cache_key, serialize($res));
+        echo count($res);
+        exit;
+    }
+
+    public function go() {
+        echo date("Y-m-d H:i:s");
+        $list = unserialize($this->_cache->get($this->_cache_key));
+        print_r($list);
+        $i = 0;
+        foreach ($list as $item) {
+            if ($item['start_time'] < date("Y-m-d H:i:s")) {
+                $i++;
+                file_get_contents(_gc('domain_zhongchou', 'domain') . "/p/set_to_html/{$item['pro_id']}");
+            }
+        }
+        echo $i . 'ok';
+    }
+
+}

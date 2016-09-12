@@ -1,0 +1,116 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div>
+        <h2>
+            管理专题
+        </h2>
+    </div>
+    <hr>
+    <div>
+        <div style="margin-top: 10px">
+            <form action="md_subject/subject_edit" class="form-inline" id="item_form" method="get">
+                <select name="type" id="">
+                    <option value="1">图文模板</option>
+                    <option value="2">创意模板</option>
+                    <option value="3">众筹模板</option>
+                </select>
+                <a href="javascript:;" class="btn btn-info btn-sm" id="add_item">添加</a>
+            </form>
+            <span style="float:right;margin-top: -50px;">
+				<a href="/md_subject/update_status/2"><button class="btn btn-info">同步到首页</button></a>
+			</span>
+        </div>
+        <p></p>
+        <?php if($subject_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>权重</th>
+                        <th width="8%">专题ID</th>
+                        <th>标题</th>
+                        <th width="25%">导语</th>
+                        <th>专题属性</th>
+                        <th>创建人</th>
+                        <th>创建时间</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($subject_list as $subject_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $subject_info['weight'] ?>" subid="<?= $subject_info['sub_id'] ?>" type="text" class="sortid" value="<?= $subject_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?= $subject_info['sub_id']?></td>
+                            <td><?= $subject_info['title'] ?></td>
+                            <td><?= $subject_info['guide']?></td>
+                            <td><?= ($subject_info['type']==1)?"图文混排":(($subject_info['type']==2)?"创意类":"众筹类")?></td>
+                            <td><?= $subject_info['manager_name']?></td>
+                            <td><?= $subject_info['ctime']?></td>
+                            <td>
+                                <a href="/md_subject/subject_edit/<?= $subject_info['sub_id'] ?>/<?= $subject_info['type']?>">编辑</a>
+                                |  <a class="del" href="javascript:;" data-id="<?=$subject_info['sub_id']?>">删除</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('subid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_subject/change_weight')?>",
+            data : {'id':id,'weight':value,'type':2}, //这儿type1表示专题列表权重
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_subject/del_item_by_type')?>",
+            data:{'id':id,'type':2},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

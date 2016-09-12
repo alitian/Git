@@ -1,0 +1,42 @@
+<?php 
+	/**
+	 * moxi论坛首页推荐模型
+	 * 
+	 * @author  Jaafar <[huangjianquan@modian.com]>
+	 */
+	class Bbs_recommend_model extends CI_Model{
+
+		private $table='bbs_recommend'; //首页推荐表
+		
+		public function __construct(){
+			parent::__construct();
+			$this->load->model('bbs/post')
+		}
+		/**
+		 * 添加推荐
+		 */
+		public function add_recommend($data){
+			$this->moxi_db->insert($this->table,$data);
+			return $this->moxi_db->insert_id();
+		}
+
+		/**
+		 * 获取首页推荐
+		 * @param  string $type   [推荐类型]
+		 * @param  int    $offset [偏移量，默认为4]
+		 * @return array
+		 */
+		public function get_recommend_post_list($type='',$offset=4){
+			$where=array(
+				'status' => 0,       //过滤伪删除状态的推荐
+				'type'   => $type,   //根据目标类型分类展示
+			);
+			$query=$this->moxi_db->select('*')->where($where)->limit($offset)->get($this->table);
+			return $query->result_array();
+		}
+	}
+
+
+
+ ?>
+ 

@@ -1,0 +1,99 @@
+
+<div>
+	<input type="text" id="check_pro" name="check_pro" class="check_pro" value="单项目" style="display:none">
+	<input class="btn btn-primary" type="button" name="single_project" id="single_project" value="单项目"/>
+	<input class="btn btn-primary" type="button" name="more_project" id="more_project" value="多项目"/>
+	<input class="btn btn-primary" type="button" name="topic_project" id="topic_project" value="话题项目"/>
+</div>
+<div id="single" class="single" style="display:block">
+	<table id="project_single" class="control-group" >
+		<thead>
+			<tr>
+				<th  width="150" align="center">项目编号</th>
+				<th  width="300" align="center">项目名称</th>				
+				<th  width="300" align="center">标签名称</th>
+				<th  width="300" align="center">样式选择</th>
+				<th  width="300" align="center">项目简介</th>
+			</tr>
+			<tr>
+				<th align="center"><input type="text" id="single_id" name="single_id" value=""></th>
+				<th align="center"><input type="text" id="single_name"  name="single_name" value="" ></th>
+				<th align="center"><input type="text" id="single_tag"  name="single_tag" value="" placeholder="多个标签以英文逗号分隔"></th>
+				<th align="center">
+					<input type="text" id="single_ui"  name="single_ui" value="1" readonly style="display:none">
+					<select id="single_sel" name="single_sel">
+						<option value ="1">垂直样式</option>
+						<option value ="2">水平样式</option>
+					</select>
+				</th>
+				<th align="center"><textarea  id="custom_single_content" name="custom_single_content" rows="3" cols="60"></textarea></th>				
+			</tr>
+		</thead>
+	</table>
+</div>
+
+<div id="more" class="more" style="display:none">
+	<table id="project_more" class="control-group" >
+		<thead>
+			<tr>
+				<th  width="150" align="center">排序</th>
+				<th  width="150" align="center">项目编号</th>
+				<th  width="300" align="center">项目名称</th>
+				<th  width="300" align="center">标签名称</th>
+				<th  width="300" align="center">样式选择</th>
+<!--				<th  width="300" align="center">项目图片</th>-->
+				<th  width="300" align="center">项目简介</th>
+				<th  width="100" align="center">操作</th>
+			</tr>
+			            
+			<tr>
+				<th align="center"><input type="text" id="more_asc_1" name="more_asc[]" value=""></th>
+				<th align="center"><input type="text" id="more_id_1" name="more_id[]" value="" onChange="get_more_product(1);"></th>
+				<th align="center"><input type="text" id="more_name_1"  name="more_name[]" value="" ></th>
+				<th align="center"><input type="text" id="more_tag_1"  name="more_tag[]" value="" placeholder="多个标签以英文逗号分隔"></th>
+				<th align="center">
+					<input type="text" id="more_ui_1"  name="more_ui[]" value="1" readonly style="display:none">
+					<select id="more_sel_1" name="more_sel[]">
+						<option value ="1">垂直样式</option>
+						<option value ="2">水平样式</option>
+					</select>
+				</th>
+				<th align="center" style="display:none"><input type="text" id="more_pic_1"  name="more_pic[]" value="" readonly ></th>
+				<th align="center"><textarea  id="custom_more_content_1" name="custom_more_content[]" rows="3" cols="60"></textarea></th>				
+				<th align="center"><input type="button" value="删除" onclick="dele(this)"></th>
+			</tr>
+		</thead>
+	</table>
+			
+	<div class="control-group">	
+		<input class="btn btn-primary" type="button" name="add_more_project" id="add_more_project" value="添加"/>
+<!--		<input class="btn btn-primary" type="button" name="more_add" id="more_add" value="确认"/>-->
+	</div>
+</div>
+
+<div id="topic" class="topic" style="display:none">
+	<div class="item">
+		<div class="mm-group clearfix noMarB">
+			<textarea id="JEditor" name="content" class="content" data-validation-engine="validate[required]" >
+				<div style="padding: 10px; -webkit-font-smoothing: antialiased; font-family: \5FAE\8F6F\96C5\9ED1, tahoma, arial, "Hiragino Sans GB", \5b8b\4f53, sans-serif;"></div>
+			</textarea>
+		</div>
+	</div>
+</div>
+			
+<div class="control-group">	
+	邮件标题:<input type="text" id="custom_email_title"  name="custom_email_title" value="">
+</div>
+<div class="control-group mail_conyent" id="mail_conyent">
+	邮件内容:<textarea  id="custom_email_content" name="custom_email_content" rows="3" cols="60"></textarea>
+</div>
+			
+<div class="control-group">
+	<input class="btn btn-primary" type="button" name="custom_save_btn" id="custom_save_btn" value="保存"/>
+	<input class="btn btn-primary" type="button" name="custom_preview_btn" id="custom_preview_btn" value="预览"/>
+	<input class="btn btn-primary" type="button" name="custom_send_btn" id="custom_send_btn" value="确认发送"/>
+	<input class="btn btn-primary" type="button" name="custom_cancel_btn" id="custom_cancel_btn" value="取消"/>
+	<input class="btn btn-primary" type="button" name="custom_return_btn" id="custom_return_btn" value="返回"/>
+</div>
+					
+

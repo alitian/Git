@@ -1,0 +1,59 @@
+<div id="module-vote" class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">投票模块</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="2">
+  </div>
+  <p></p>
+  <div class="module-detail">
+  <div class="row-fluid">
+    <label class="radio inline">项目投票类型</label>
+    <label class="radio inline">
+      <input type="radio" name="module_vote_type" value="1" checked>
+      从现有的投票列表中选择
+    </label>
+    <label class="radio inline">
+      <input type="radio" name="module_vote_type" value="2">
+      重新设置投票
+    </label>
+  </div>
+  <p></p>
+  <?php if(!empty($SSM_2['vote_list'])): ?>
+  <form name="form1" action="" method="POST">
+    <div class="row-fluid" style="display:none;">
+      <input type="text" name="ssubj_id" value='<?=$ssubj_id?>' readonly>
+    </div>
+    <table class="table table-bordered table-hover table-condensed">
+      <thead>
+        <tr>
+          <th><i class="icon-check"></i></th>
+          <th width="30">权重</th>
+          <th>主题</th>
+          <th>描述</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach ($SSM_2['vote_list'] as $ii => $row): ?>
+        <?php $row['weight'] = empty($row['weight']) ? 0 : $row['weight']; ?>
+        <tr data-vote-id='<?=$row['id']?>'>
+          <td><input type="checkbox" name="vote_id[]" value='<?="{$row['id']}:{$row['weight']}"?>' <?=($row['weight']==0) ? '' : 'checked'?>></td>
+          <td style="text-align:right;"><a href="#"><?=$row['weight']?></a></td>
+          <td><?=$row['topic_name']?></td>
+          <td><?=$row['topic_desc']?></td>
+        </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+    <div class="row-fluid">
+      <button type="button" class="btn">取消</button>
+      <button type="button" name="sure" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+  <?php endif; ?>
+  <form name="form2" action="" style="display:none;">
+    <div class="row-fluid">
+      <a href="#" type="button" class="btn" target="_blank">新建投票 <i class="icon-chevron-right"></i></a>
+    </div>
+  </form>
+  </div>
+</div>

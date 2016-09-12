@@ -1,0 +1,50 @@
+<?php $this->load->view('ckad/header'); ?>
+
+<style>
+    .btn-link {
+        color: #08c;
+        cursor: pointer;
+        border-color: transparent;
+        -webkit-border-radius: 0;
+        -moz-border-radius: 0;
+        border-radius: 0;
+    }
+    .btn-link, .btn-link:active, .btn-link[disabled] {
+        background-color: transparent;
+        background-image: none;
+        -webkit-box-shadow: none;
+        -moz-box-shadow: none;
+        box-shadow: none;
+    }
+    .btn-link:hover, .btn-link:focus {
+        color: #005580;
+        text-decoration: underline;
+        background-color: transparent;
+    }
+
+    .cursor-point {
+        cursor: pointer;
+    }
+    .disply-none {
+        display: none !important;
+    }
+
+    .ssubj-list-content button.btn-link {
+        display: inline-block;
+        margin: 0 0 0 7px;
+        padding: 0;
+    }
+    .ssubj-list-content .ssubj-list-item td.online-status-active {
+        color: #5CB85C;
+    }
+    .ssubj-list-content .ssubj-list-item td.online-status-disabled {
+        color: #D4D4D4;
+    }
+
+</style>
+
+<div id="ssubj-management"></div>
+<script src="<?= static_url(); ?>js/react/react.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/react/comp_bulid/special_subj_management.js?v=20151009" type="text/javascript"></script>
+
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charser="utf-8">
+    <title>全站数据</title>
+</head>
+<body>
+<h2>全站数据</h2>
+<form ation="web_data.php" method="get">
+    开始时间<input name="start_time" type="date" />
+    结束时间<input name="end_time" type="date" />
+    <input type="submit" value="显示" />
+<a href="web_data.php?date=tody"><button type="button">今天</button></a>
+<a href="web_data.php?date=yesterday"><button type="button">昨天</button></a>
+<a href="web_data.php?date=week"><button type="button">最近七天</button></a>
+<a href="web_data.php?date=month"><button type="button">最近30天</button></a>
+<a href="add.php"><button type="button">添加数据</button></a>
+</form>
+<div style="border:1px solid black;width:1200px;height:550px;padding:10px;margin:10px;">
+	<table border="1px" cellspacing="0px" cellpadding="5px" style="border-collapse:collapse;">
+		<tr>
+			<th width="100px">时间</th>
+			<th width="100px">浏览(PV)</th>
+			<th width="100px">独立访客(UV)</th>
+			<th width="100px">人均访问(P/U)</th>
+			<th width="100px">注册用户日活</th>
+			<th width="100px">新增注册(人)</th>
+			<th width="100px">订单(单)</th>
+			<th width="100px">筹资额(元)</th>
+			<th width="100px">ios(新增/活跃)</th>
+			<th width="100px">Andriod(新增/活跃)</th>
+		</tr>
+<?php 
+    require("function.php");
+    $redis=new Redis();
+    $redis->connect('127.0.0.1','6379');
+    $str=$redis->get("web_data");
+    $arr=unserialize($str);
+    if(isset($_GET['date'])){
+        switch($_GET['date']){
+            case 'week': 
+                $shijian=array('最近七天','上周周均','上月月均');
+                $shijian=array_flip($shijian);
+		$stime=strtotime("-1 week");
+		$etime=strtotime("-1 day");
+		$shijian['最近七天']=avg($stime,$etime,$arr);
+		$stime=strtotime("-2 week");
+		$etime=strtotime("-1 week");
+		$shijian['上周周均']=avg($stime,$etime,$arr);
+		$stime=strtotime("-2 month");
+		$etime=strtotime("-1 month");
+		$shijian['上月月均']=avg($stime,$etime,$arr);
+                break;
+
+            case 'month': 
+                $shijian=array('最近30天','上月月均','最高月均');
+                $shijian=array_flip($shijian);
+		$stime=strtotime("-1 month");
+		$etime=strtotime("-1 day");
+		$shijian['最近30天']=avg($stime,$etime,$arr);
+		$stime=strtotime("-2 month");
+                $etime=strtotime("-1 month");
+                $shijian['上月月均']=avg($stime,$etime,$arr);
+		$shijian['最高月均']=unserialize($redis->get("max_month"));
+                break;
+
+            case 'yesterday': 
+                $shijian=array('昨天','前一天','上周周均');
+                $shijian=array_flip($shijian);
+		$key=date("Ymd",strtotime("-1 day"));
+		$key=intval($key);
+                $shijian['昨天']=$arr[$key];
+		$key=date("Ymd",strtotime("-2 day"));
+		$key=intval($key);;
+                $shijian['前一天']=$arr[$key];
+		$stime=strtotime("-2 week");
+                $etime=strtotime("-1 week");
+                $shijian['上周周均']=avg($stime,$etime,$arr);
+                break;
+            
+	    case 'tody':
+        	$shijian=array('今天','昨天','上周周均');
+		$shijian=array_flip($shijian);
+     	        $shijian['今天']=tody();	
+                $key=date("Ymd",strtotime("-1 day"));
+		$key=intval($key);
+        	$shijian['昨天']=$arr[$key];
+        	$stime=strtotime("-2 week");
+        	$etime=strtotime("-1 week");
+        	$shijian['上周周均']=avg($stime,$etime,$arr);
+		break;
+        }
+    }elseif(isset($_GET['start_time']) OR isset($_GET['end_time'])){
+        $shijian=array('当前选定');
+        $shijian=array_flip($shijian);
+        $stime=strtotime($_GET['start_time']);
+        $etime=strtotime($_GET['end_time']);
+        $shijian['当前选定']=avg($stime,$etime,$arr);
+    }else{
+        $shijian=array('昨天','前一天','上周周均');
+        $shijian=array_flip($shijian);
+        $key=date("Ymd",strtotime("-1 day"));
+        $key=intval($key);
+        $shijian['昨天']=$arr[$key];
+        $key=date("Ymd",strtotime("-2 day"));
+        $key=intval($key);
+        $shijian['前一天']=$arr[$key];
+        $stime=strtotime("-2 week");
+        $etime=strtotime("-1 week");;
+        $shijian['上周周均']=avg($stime,$etime,$arr);
+    }
+    foreach($shijian as $k=>$v){
+?>
+	<tr>
+            <td><?php echo $k; ?></td>
+            <td><?php echo $v['pv']; ?></td>		    
+            <td><?php echo $v['uv']; ?></td>		    
+            <td><?php echo $v['p/u']; ?></td>		    
+            <td><?php echo $v['login_user']; ?></td>		    
+            <td><?php echo $v['new_user']; ?></td>		    
+            <td><?php echo $v['form']; ?></td>		    
+            <td><?php echo $v['money']; ?></td>
+            <td><?php echo "{$v['ios_new']}/{$v['ios_old']}"; ?></td>
+            <td><?php echo "{$v['andriod_new']}/{$v['andriod_old']}"; ?></td>
+	</tr>
+<?php
+    } 
+    $table=array();
+    $data=array();
+    for($i=time()-10*86400;$i<=time()-86400;$i+=86400){
+        $table[]=date("m-d",$i);
+        $key=intval(date("Ymd",$i));
+        $data[]=$arr[$key];
+    }
+?>
+	</table>
+	<h3>生成图表的数据</h3>
+        <div id="main" style="width: 1000px;height:350px;border:1px black solid;"></div>
+        <script src="echarts.min.js"></script>
+        <script type="text/javascript">
+            var myChart = echarts.init(document.getElementById('main'));
+            var option = {
+                tooltip : {
+                    trigger: 'axis'
+                },
+                legend: {
+                    data:['浏览','独立访客','用户日活','新用户','筹资额']
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                toolbox: {
+                    feature: {
+                        saveAsImage: {}
+                    }
+                },
+                xAxis : [
+                    {
+                        type : 'category',
+                        boundaryGap : false,
+                        data : [<?php echo "'{$table[0]}','{$table[1]}','{$table[2]}','{$table[3]}','{$table[4]}','{$table[5]}','{$table[6]}','{$table[7]}','{$table[8]}','{$table[9]}'"; ?>]
+                    }
+                ],
+                yAxis : [
+                    {
+                        type : 'value'
+                    }
+                ],
+                series : [
+                    {
+                        name:'浏览',
+                        type:'line',
+                        stack: '总量',
+                        data:[<?php 
+                            $str=$data[0]['pv'];
+                            for($i=1;$i<=9;$i++){
+                                $str.=", ".$data[$i]['pv']; 
+                            }
+                            echo $str;
+                        ?>]
+                    },
+                    {
+                        name:'独立访客',
+                        type:'line',
+                        stack: '总量',
+                        data:[
+                            <?php 
+                            $str=$data[0]['uv'];
+                            for($i=1;$i<=9;$i++){
+                                $str.=", ".$data[$i]['uv']; 
+                            }
+                            echo $str;
+                        ?>
+                        ]
+                    },
+                    {
+                        name:'用户日活',
+                        type:'line',
+                        stack: '总量',
+                        data:[
+                            <?php 
+                            $str=$data[0]['login_user'];
+                            for($i=1;$i<=9;$i++){
+                                $str.=", ".$data[$i]['login_user']; 
+                            }
+                            echo $str;
+                        ?>
+                        ]
+                    },
+                    {
+                        name:'新用户',
+                        type:'line',
+                        stack: '总量',
+                        data:[
+                            <?php 
+                            $str=$data[0]['new_user'];
+                            for($i=1;$i<=9;$i++){
+                                $str.=", ".$data[$i]['new_user']; 
+                            }
+                            echo $str;
+                        ?>
+                        ]
+                    },
+                    {
+                        name:'筹资额',
+                        type:'line',
+                        stack: '总量',
+                        data:[
+                            <?php 
+                            $str=$data[0]['money'];
+                            for($i=1;$i<=9;$i++){
+                                $str.=", ".$data[$i]['money']; 
+                            }
+                            echo $str;
+                        ?>
+                        ]
+                    }
+                ]
+            };
+            myChart.setOption(option);
+        </script>
+</div>
+</body>

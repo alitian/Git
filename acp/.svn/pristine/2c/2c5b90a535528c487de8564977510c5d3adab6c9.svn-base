@@ -1,0 +1,54 @@
+<?php if(!empty($user_save_data)): ?>
+<table class="table table-hover table-condensed">
+<thead>
+    <tr>
+        <th>日期</th>
+        <?php if($type == 2): ?>
+        <th>新增注册数</th>
+        <?php else: ?>
+        <th>新增访问数</th>
+        <?php endif; ?>
+        <th>+1</th>
+        <th>+2</th>
+        <th>+3</th>
+        <th>+4</th>
+        <th>+5</th>
+        <th>+6</th>
+        <th>+7</th>
+        <th>+8</th>
+        <th>+9</th>
+        <th>+10</th>
+        <th>+11</th>
+        <th>+12</th>
+        <?php if($d_type == 1): ?>
+        <th>+13</th>
+        <th>+14</th>
+        <?php endif; ?>
+    </tr>
+</thead>
+<tbody>
+    <?php foreach ($user_save_data as $value): ?>
+    <tr>
+        <td><?=$value['date']?></td>
+        <td><?=$value['reg']?></td>
+        <td><?=$value['a1']?></td>
+        <td><?=$value['a2']?></td>
+        <td><?=$value['a3']?></td>
+        <td><?=$value['a4']?></td>
+        <td><?=$value['a5']?></td>
+        <td><?=$value['a6']?></td>
+        <td><?=$value['a7']?></td>
+        <td><?=$value['a8']?></td>
+        <td><?=$value['a9']?></td>
+        <td><?=$value['a10']?></td>
+        <td><?=$value['a11']?></td>
+        <td><?=$value['a12']?></td>
+        <?php if($d_type == 1): ?>
+        <td><?=$value['a13']?></td>
+        <td><?=$value['a14']?></td>
+        <?php endif; ?>
+    </tr>
+    <?php endforeach; ?>
+</tbody>
+</table>
+<?php endif; ?>

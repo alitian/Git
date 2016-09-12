@@ -1,0 +1,89 @@
+/*可以在这里添加你自己的css*/
+.view {
+  /*height:400px!important;*/
+  overflow-y:hidden !important;
+  font-family: "Helvetica Neue",Helvetica,Arial,"Microsoft Yahei","Hiragino Sans GB","Heiti SC","WenQuanYi Micro Hei",sans-serif!important;
+  font-size: 14px;
+  -ms-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  /* margin-top: 20px; */
+  margin:0;
+  color: inherit;
+}
+
+body.view{
+	padding: 8px 16px;
+	/*height:384px!important;*/
+  box-sizing: border-box;
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+}
+.view a {
+  font-size: 14px;
+  text-decoration: underline;
+  cursor: auto;
+}
+
+.view b, .view strong {
+  font-weight: bold;
+}
+
+.view img{
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.view p {
+  display: block;
+  margin: .4em 0;
+  line-height:26px;
+}
+
+.view h1{
+  display: block;
+  font-size: 2em;
+  margin: 0.67em 0;
+  font-weight: bold;
+}
+
+.view h2 {
+  display: block;
+  font-size: 1.5em;
+  margin: 0.83em 0;
+  font-weight: bold;
+}
+
+.view h3 {
+  display: block;
+  font-size: 1.17em;
+  margin: 1em 0;
+  font-weight: bold;
+}
+
+.view h4 {
+  display: block;
+  margin: 1.33em 0;
+  font-weight: bold;
+}
+
+.view em {
+  font-style: italic;
+}
+
+.view ol {
+  list-style-type: decimal;
+}
+
+.view ul {
+  list-style-type: disc;
+}
+
+.view blockquote {
+    border-left: 6px solid #ddd;
+    padding: 5px 0 5px 10px;
+    margin: 15px 0 15px 15px;
+}
+.view .edui-faked-video{
+    width: 100%;
+	height: 380px;
+}

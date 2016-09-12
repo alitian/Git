@@ -1,0 +1,595 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+/**
+ * @auther: dingding
+ * @date: 2015-02-03
+ *
+ * uesed for acp delivery search.
+ *
+ */
+
+class Delivery_info extends Acp_Controller {
+
+    public function qrcode_url($type=0)
+    {
+        $postdata = $this->input->post(null, true);
+        if (!empty($postdata)) {
+            $this->load->helper('url');
+            $this->load->helper('excel');
+
+            $arr_title = array(
+                'username'  => '用户',
+                'mobile'    => '手机号',
+                'ori_url'   => '原始链接',
+                'short_url' => '短链接',
+                'content'   => '短信内容',
+            );
+
+            $msg_tpl = trim($postdata['msg_tpl']);
+            $rew_id  = intval(trim($postdata['rid']));
+            $pro_id  = intval(trim($postdata['pid']));
+            if ($pro_id == 0) {
+                $err_data['error_msg'] = '请填写正确信息';
+                $this->load->view('delivery/mkqrcode_url', $err_data);
+                return ;
+            }
+
+            $this->db->select('id, user_id, pro_id, address_name, address_mobile');
+            $this->db->from('md_product_back');
+            $this->db->where('pro_id', $pro_id);
+            if ($rew_id != 0)
+                $this->db->where('rew_id', $rew_id);
+            $this->db->where('if_pay', 1);
+            $this->db->where_in('status', array(103,200));
+            $back_info = $this->db->get()->result_array();
+            $export_d = array();
+            foreach ($back_info as $bi) {
+                $ori_url = urlencode(_gc('m_site_url', 'config')."delivery/mkqrcode/?oid={$bi['id']}&uid={$bi['user_id']}&pid={$bi['pro_id']}");
+                $url = short_url($ori_url);
+
+                $replace['#qrcode_url#'] = $url['url_short'];
+
+                $export_d[] = array(
+                    'username'  => $bi['address_name'],
+                    'mobile'    => $bi['address_mobile'],
+                    'ori_url'   => urldecode($ori_url),
+                    'short_url' => $url['url_short'],
+                    'content'   => strtr($msg_tpl, $replace),
+                );
+            }
+
+            $filename = "短链接详情_{$pro_id}_{$rew_id}.xls";
+            export_to_excel($arr_title, $export_d, $filename);
+        } else {
+            $this->load->view('delivery/mkqrcode_url');
+        }
+    }
+
+    public function index($page=1)
+    {
+        $_POST['per_page'] = 7;
+        $_POST['page'] = intval($page);
+        $this->_valid_post($_POST);
+        $this->_set_order_list($data, $_POST);
+
+        $config = array(
+            'uri_segment'      => 3,
+            'base_url'         => site_url('delivery_info/index'),
+            'use_page_numbers' => true,
+            'num_links'        => 2,
+            'total_rows'       => $data['order_total'],
+            'per_page'         => $_POST['per_page'],
+            'full_tag_open'    => '<ul id="page-nav" class="pager">',
+            'first_link'       => '首页',
+            'first_tag_open'   => '<li>',
+            'first_tag_close'  => '</li>',
+            'last_link'        => '尾页',
+            'last_tag_open'    => '<li>',
+            'last_tag_close'   => '</li>',
+            'full_tag_close'   => '</ul>',
+            'next_link'        => '下一页',
+            'next_tag_open'    => '<li>',
+            'next_tag_close'   => '</li>',
+            'prev_link'        => '前一页',
+            'prev_tag_open'    => '<li>',
+            'prev_tag_close'   => '</li>',
+            'cur_tag_open'     => '<li class="disabled"><a href="javascript:void(0)">',
+            'cur_tag_close'    => '</a></li>',
+            'num_tag_open'     => '<li>',
+            'num_tag_close'    => '</li>',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        $data['post'] = $this->input->post(null, true);
+        $this->load->view('delivery/delivery_info', $data);
+    }
+
+    private function _set_order_list(&$data, $filter)
+    {
+        $sql = "SELECT DISTINCT
+                        md_product_back.id AS back_id, md_product_back.pro_id, md_product_back.rew_id,
+
+                        md_product_back.amount AS back_money, md_product_back.ctime AS back_time, md_product_back.if_pay AS back_if_pay, md_product_back.status AS back_status,
+                        md_product_back.address_name AS back_recv_name, md_product_back.address_mobile AS back_recv_mobile, md_product_back.address_email AS back_recv_email , md_product_back.address_detail AS back_recv_address,
+                        md_product_back.check_support AS back_if_rew, md_product_back.if_post, md_product_back.post_time, md_product_back.receive_time AS post_recv_time, md_product_back.if_receive AS post_if_recv,
+
+                        md_product_rewards.money AS rew_money, md_product_rewards.content AS rew_content, md_product_rewards.if_address AS rew_way, md_product_rewards.ctime AS rew_ctime,
+
+                        md_product.name AS pro_name, md_product.short_title AS pro_short_title
+                   FROM md_product_back
+                        INNER JOIN md_product
+                            ON md_product_back.pro_id=md_product.id
+                        INNER JOIN md_users
+                            ON md_product_back.user_id=md_users.id
+                        INNER JOIN md_product_rewards
+                            ON md_product_back.rew_id=md_product_rewards.id
+                    WHERE md_product_back.amount>=0.01 AND md_product_back.if_pay NOT IN (0,2) ";
+
+        // 页面提交的筛选项
+        if (!empty($filter['pro_id']))
+            $sql .= " AND md_product.id={$filter['pro_id']} ";
+        if (!empty($filter['pro_name']))
+            $sql .= " AND md_product.name LIKE '%{$filter['pro_name']}%' OR md_product.short_title LIKE '%{$filter['pro_name']}%' ";
+
+        $data['unpost_ords']      = $this->_count_order_type($sql, 1);
+        $data['posted_ords']      = $this->_count_order_type($sql, 2);
+        $data['part_posted_ords'] = $this->_count_order_type($sql, 21);
+        $data['user_recv_ords']   = $this->_count_order_type($sql, 3);
+        $data['sys_recv_ords']    = $this->_count_order_type($sql, 4);
+
+
+        if (!empty($filter['back_id']))
+            $sql .= " AND md_product_back.id={$filter['back_id']} ";
+
+        if (!empty($filter['recv_name']))
+            $sql .= " AND md_product_back.address_name='{$filter['recv_name']}' ";
+        if (!empty($filter['recv_mobile']))
+            $sql .= " AND md_product_back.address_mobile='{$filter['recv_mobile']}' ";
+
+        // 回报方式(4:不需要回报、1:仅邮寄、2:仅发码、3:发码和邮寄)
+        switch ($filter['rew_way']) {
+        case 4:
+            $sql .= " AND md_product_back.check_support='on' ";
+            break;
+        case 1:
+        case 2:
+        case 3:
+            $sql .= " AND md_product_rewards.if_address={$filter['rew_way']} ";
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        // 订单状态(1:已付款、2:已发货、3:已收货、4:退款申请待确认、5:退款中、6:已退款、7:退款申请被拒绝)
+        switch ($filter['ord_status']) {
+        case 1:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status IN (103,200) ";
+            break;
+        case 2:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=201 ";
+            break;
+        case 3:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=202 ";
+            break;
+        case 4:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=303 ";
+            break;
+        case 5:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status IN (204,302,402) ";
+            break;
+        case 6:
+            $sql .= " AND md_product_back.if_pay=3 AND md_product_back.status IN (205,300,400) ";
+            break;
+        case 7:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=304 ";
+            break;
+        default:
+            // 不显示待付款订单，默认筛选已经过滤
+            // $sql .= " AND md_product_back.status IN (103,200,201,202,204,205,303,304) ";
+            break;
+        }
+
+        $data['order_total']    = $this->_count_order_type($sql, 0);
+
+        $sql .= " ORDER BY back_time DESC ";
+
+        if ($filter['per_page']!==null || $filter['page']!==null) {
+            $per_page = $filter['per_page'];
+            $page     = $filter['page'];
+            $start    = ($page - 1) * $per_page;
+            $sql     .= " LIMIT {$start},{$per_page} ";
+        }
+        $data['order_list'] = $this->db->query($sql)->result_array();
+    }
+    private function _count_order_type($sql, $type)
+    {
+        // 订单状态(1:未发货、2:已发货、3:用户确认收货、4:系统确认收货)
+        switch (intval($type)) {
+        case 1:
+            $sql .= " AND md_product_back.check_support!='on' AND md_product_back.post_time='0000-00-00 00:00:00' AND md_product_back.if_pay=1 AND md_product_back.status IN (103,200,304) ";
+            break;
+        case 2:
+            $sql .= " AND md_product_back.post_time!='0000-00-00 00:00:00' AND md_product_back.if_pay=1 AND md_product_back.status=201 ";
+            break;
+        case 21:
+            $sql .= " AND md_product_back.post_time!='0000-00-00 00:00:00'AND md_product_back.if_post!=1 AND md_product_back.if_pay=1 AND md_product_back.status=201 ";
+            break;
+        case 3:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=202 AND DATEDIFF(md_product_back.receive_time,md_product_back.post_time)<16 ";
+            break;
+        case 4:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=202 AND (UNIX_TIMESTAMP(md_product_back.receive_time) - UNIX_TIMESTAMP(md_product_back.post_time) > 1296000) ";
+            break;
+        default:
+            #code...
+            break;
+        }
+
+        return $this->db->query($sql)->num_rows();
+    }
+
+    private function _set_export_order_list(&$data, $where)
+    {
+        $sql = "SELECT CASE WHEN md_product_back.if_pay=1 AND md_product_back.status=200 THEN '1' ELSE '0' END AS operation,
+                        md_product_back.id AS back_id, md_product_back.user_id, md_product_back.pro_id, md_product_back.rew_id,
+                        md_product_back.ctime AS back_time, md_product_back.if_pay AS back_if_pay, md_product_back.status AS back_status,
+                        md_product_back.amount AS back_money, md_product_back.status_debt AS back_debt_status, md_product_back.md_plan AS back_plan, md_product_back.trade_no AS back_big_ord,
+                        md_product_back.address_name AS back_recv_name,md_product_back.address_county as address_county,md_product_back.address_town as address_town, md_product_back.address_mobile AS back_recv_mobile, md_product_back.address_email AS back_recv_email, md_product_back.address_province, md_product_back.address_city, md_product_back.address_detail AS back_recv_address, md_product_back.address_description,
+                        md_product_back.post_company, md_product_back.post_number, '无' AS post_aside, md_product_back.post_time, md_product_back.receive_time AS post_recv_time, md_product_back.if_receive AS post_if_recv,
+                        CASE WHEN md_product_back.check_support='on' THEN 'NO' ELSE 'YES' END AS back_if_rew,
+                        md_product_back.game_code, '无' AS game_code_aside, md_product_back.if_post,
+                        '无' AS back_subsidy,
+
+                        -- CASE WHEN md_product_back.post_time='0000-00-00 00:00:00' THEN 0 ELSE 1 END AS if_post_over,
+                        md_product_back.if_post AS if_post_over,
+
+                        CASE WHEN md_product.short_title!='' THEN md_product.short_title ELSE md_product.name END AS pro_name,
+                        md_product.user_id AS pro_owner_id, md_product.start_time AS pro_start_time, md_product.end_time AS pro_end_time, md_product.logo AS pro_logo, md_product.if_show AS pro_if_show,
+                        '无' AS pro_from, '无' AS pro_mng, '无' AS pro_progress,
+
+                        md_product_rewards.money AS rew_money, md_product_rewards.rew_logo, md_product_rewards.content AS rew_content, md_product_rewards.num AS rew_num, md_product_rewards.day AS rew_day,
+                        md_product_rewards.if_address AS rew_way, md_product_rewards.if_show AS rew_if_show, md_product_rewards.rew_phASe, md_product_rewards.ctime AS rew_ctime,
+
+                        md_users.nickname AS user_nickname, md_users.username AS user_username, md_users.realname AS user_realname, md_users.mobile AS user_reg_mobile, md_users.email AS user_reg_email, md_users.platform AS user_reg_plan
+                    FROM md_product_back
+                        INNER JOIN md_product
+                            ON md_product_back.pro_id=md_product.id
+                        INNER JOIN md_users
+                            ON md_product_back.user_id=md_users.id
+                        INNER JOIN md_product_rewards
+                            ON md_product_back.rew_id=md_product_rewards.id
+                    WHERE md_product_back.amount>=0.01 AND md_product_back.if_pay NOT IN (0,2) ";
+
+       // 页面提交的筛选项
+        if (!empty($where['pro_id']))
+            $sql .= " AND md_product.id={$where['pro_id']} ";
+        if (!empty($where['pro_name']))
+            $sql .= " AND md_product.name LIKE '%{$where['pro_name']}%' OR md_product.short_title LIKE '%{$where['pro_name']}%' ";
+
+        if (!empty($where['back_id']))
+            $sql .= " AND md_product_back.id={$where['back_id']} ";
+
+        if (!empty($where['recv_name']))
+            $sql .= " AND md_product_back.address_name='{$where['recv_name']}' ";
+        if (!empty($where['recv_mobile']))
+            $sql .= " AND md_product_back.address_mobile='{$where['recv_mobile']}' ";
+
+        // 回报方式(4:不需要回报、1:仅邮寄、2:仅发码、3:发码和邮寄)
+        switch ($where['rew_way']) {
+        case 4:
+            $sql .= " AND md_product_back.check_support='on' ";
+            break;
+        case 1:
+        case 2:
+        case 3:
+            $sql .= " AND md_product_rewards.if_address={$where['rew_way']} ";
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        // 订单状态(1:已付款、2:已发货、3:已收货、4:退款申请待确认、5:退款中、6:已退款、7:退款申请被拒绝)
+        switch ($where['ord_status']) {
+        case 1:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status IN (103,200) ";
+            break;
+        case 2:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=201 ";
+            break;
+        case 3:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=202 ";
+            break;
+        case 4:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=303 ";
+            break;
+        case 5:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status IN (204,302,402) ";
+            break;
+        case 6:
+            $sql .= " AND md_product_back.if_pay=3 AND md_product_back.status IN (205,300,400) ";
+            break;
+        case 7:
+            $sql .= " AND md_product_back.if_pay=1 AND md_product_back.status=304 ";
+            break;
+        default:
+            // 不显示待付款订单，默认筛选已经过滤
+            // $sql .= " AND md_product_back.status IN (103,200,201,202,204,205,303,304) ";
+            break;
+        }
+
+        $data = $this->db->query($sql)->result_array();
+
+        $sql = "select
+                    md_pay.back_id,md_pay.id AS pay_id, md_pay.out_trade_no AS pay_out_trade_no, md_pay.amount AS pay_money, md_pay.status AS pay_status, md_pay.return_time AS pay_time,
+                                            md_pay.pay_platform, md_pay.bank_type AS pay_bank_type, md_pay.return_str AS pay_return,
+                                            '无' AS pay_rate, '无' AS pay_finance_costs
+                    from md_pay
+                    INNER JOIN md_product_back bak ON bak.id=md_pay.back_id
+                    WHERE bak.pro_id='{$where['pro_id']}' AND md_pay.status=1";
+        $pay_res = $this->db->query($sql)->result_array();
+        $new_pay = array();
+        foreach($pay_res as $item)
+        {
+            $new_pay[$item['back_id']] = $item;
+        }
+        foreach($data as &$item)
+        {
+            if(isset($new_pay[$item['back_id']]))
+            {
+                $item = array_merge($item, $new_pay[$item['back_id']]);
+            }
+        }
+    }
+
+    private function _valid_post(&$post)
+    {
+        if(isset($post['pro_id']))
+            $post['pro_id'] = intval($post['pro_id']);
+
+        if(isset($post['pro_name']))
+            $post['pro_name'] = trim($post['pro_name']);
+
+        if(isset($post['back_id']))
+            $post['back_id'] = intval($post['back_id']);
+
+        if(isset($post['recv_name']))
+            $post['recv_name'] = trim($post['recv_name']);
+
+        if(isset($post['recv_mobile']))
+            $post['recv_mobile'] = trim($post['recv_mobile']);
+
+        if(isset($post['rew_way']))
+            $post['rew_way'] = intval($post['rew_way']);
+
+        if(isset($post['ord_status']))
+            $post['ord_status'] = intval($post['ord_status']);
+    }
+
+    public function export()
+    {
+        if ($this->input->post('pro_id', true)) {
+            $arr_title = array(
+                'back_id'             => '摩点订单号',
+                'back_time'           => '下单时间',
+                'rew_id'              => '回报ID',
+                'rew_content'         => '回报内容',
+                'pro_name'            => '项目名',
+                'pro_start_time'      => '项目开始时间',
+                'pro_end_time'        => '项目结束时间',
+                'user_nickname'       => '用户昵称',
+                'user_reg_email'      => '注册邮箱',
+                'user_reg_mobile'     => '注册手机',
+                'back_recv_name'      => '订单联系人',
+                'back_recv_mobile'    => '手机号',
+                'back_recv_email'     => '收货邮箱',
+                'address_province'    => '省份',
+                'address_city'        => '城市',
+                'address_county'      =>'区县',
+                'address_town'        =>"街道",
+                'back_recv_address'   => '地址',
+                'rew_money'           => '应支持金额单价',
+                'back_subsidy'        => '补贴',
+                'pay_money'           => '实际应支持金额',
+                'back_status'         => '订单状态',
+                'pay_time'            => '支付日期',
+                'back_if_rew'         => '要回报',
+                'address_description' => '备注信息',
+                'rew_way'             => '回报类型(1:邮寄;2:发码;3:发码+邮寄)',
+                'post_time'           => '回报发放时间',
+                'if_post_over'        => '回报是否发放完毕(0:没有;1:已发完)',
+                'post_company_0'      => '快递公司',
+                'post_number_0'       => '快递单号',
+                'post_aside_0'        => '备注',
+                'post_company_1'      => '补充1快递公司',
+                'post_number_1'       => '补充1快递单号',
+                'post_aside_1'        => '补充1快递备注',
+                'post_company_2'      => '补充2快递公司',
+                'post_number_2'       => '补充2快递单号',
+                'post_aside_2'        => '补充2快递备注',
+                'post_company_3'      => '补充3快递公司',
+                'post_number_3'       => '补充3快递单号',
+                'post_aside_3'        => '补充3快递备注',
+                'game_code_0'         => '游戏码',
+                'game_code_aside_0'   => '游戏码备注',
+                'game_code_1'         => '补充1发码',
+                'game_code_aside_1'   => '补充1备注',
+                'game_code_2'         => '补充2发码',
+                'game_code_aside_2'   => '补充2备注',
+                'game_code_3'         => '补充3发码',
+                'game_code_aside_3'   => '补充3备注',
+            );
+
+            $pro_id = intval($this->input->post('pro_id', true));
+            $this->_valid_post($_POST);
+            $this->_set_export_order_list($data, $this->input->post(null, true));
+
+            $ORDER_STATUS = new Order_biz();
+            $deliverys = $this->_get_delivery_by_pro_id($pro_id);
+            foreach ($data as $i => $row) {
+                $data[$i]['back_status'] = $ORDER_STATUS->order_status[$row['back_status']];
+
+                $goods = $deliverys[$row['back_id']];
+                if (!empty($goods)) {
+                    $count_1 = 0;
+                    $count_2 = 0;
+                    foreach ($goods as $g) {
+                        switch (intval($g['type'])) {
+                        case 1:
+                            if ($count_1 < 4) { // 最多四个
+                                $gv = json_decode($g['info'], true);
+                                $gk = "post_company_{$count_1}";
+                                $data[$i][$gk] = $gv['post_company'];
+                                $gk = "post_number_{$count_1}";
+                                $data[$i][$gk] = $gv['post_number'];
+                                $gk = "post_aside_{$count_1}";
+                                $data[$i][$gk] = $gv['post_aside'];
+
+                                ++$count_1;
+                            }
+                            break;
+                        case 2:
+                            if ($count_2 < 4)  {  // 最多四个
+                                $gv = json_decode($g['info'], true);
+                                $gk = "game_code_{$count_2}";
+                                $data[$i][$gk] = $gv['game_code'];
+                                $gk = "game_code_aside_{$count_2}";
+                                $data[$i][$gk] = $gv['game_code_aside'];
+
+                                ++$count_2;
+                            }
+                            break;
+                        default:
+                            # code...
+                            break;
+                        }
+                    }
+                }
+            }
+
+            $filename = "{$pro_id}项目_发货订单详情_" . date("YmdHis");
+            export_to_csv($arr_title, $data, $filename, 0);
+        } else {
+            redirect('delivery_info/index');
+            // md_common::display_javascript("没有设置项目ID");
+        }
+    }
+
+
+    public function order_detail() {
+        $oid = intval($this->input->get('oid', true));
+        $pid = intval($this->input->get('pid', true));
+
+        if ($oid===0 || $pid===0) {
+            var_dump('错误的请求');
+            exit;
+        }
+
+        $data['product'] = $this->Product_m->get_product_info($pid);
+        if (empty($data['product'])) {
+            var_dump('没有项目记录');
+            exit;
+        }
+
+        $data['back'] = $this->Common->get_single_record('md_product_back', array("id" => $oid));
+        if (empty($data['back'])) {
+            var_dump('没有支付记录');
+            exit;
+        }
+
+        $data['reward'] = $this->Product_m->get_product_reward_info($data['back']['rew_id'], 1);
+        if (empty($data['reward'])) {
+            var_dump('没有回报记录');
+            exit;
+        }
+
+        $data['delivery_list'] = $this->Common->get_select_records('md_order_delivery', array('back_id' => $oid), 'ctime DESC');
+
+        $md_pay = $this->Common->get_single_record('md_pay', array("back_id" => $oid, 'status' => '1'));
+        $data['back']['bank_type'] = $md_pay['bank_type'];
+        $data['back']['return_time'] = $md_pay['return_time'];
+
+        $data['payment'] = $this->Common->get_single_record('md_pay', array("back_id" => $oid, 'status'=>'1'));
+
+        $data['order_status'] = $this->Order_biz->order_status;
+        $data['if_address_array'] = Reward_m::$_if_address;
+
+        $this->load->view('delivery/order_detail', $data);
+    }
+
+    public function deliver_detail() {
+        $oid = intval($this->input->get("oid", true));
+        if (empty($oid)) {
+            var_dump('错误的请求');
+            exit;
+        }
+
+        $pay_info = $this->Common->get_single_record('md_product_back', array("id" => $oid));
+        if (empty($pay_info)) {
+            var_dump('没有支付记录');
+            exit;
+        }
+
+        $rew_info = $this->Product_m->get_product_reward_info($pay_info['rew_id'], 1);
+        if (empty($rew_info)) {
+            var_dump('没有回报记录');
+            exit;
+        }
+
+        $pro_info = $this->Product_m->get_product_info($pay_info['pro_id']);
+        if (empty($pro_info['id'])) {
+            var_dump('没有项目记录');
+            exit;
+        }
+
+        $delivery_list = $this->Common->get_select_records('md_order_delivery', array('back_id' => $oid), 'ctime DESC');
+
+        $data = array();
+        $data['back'] = $pay_info;
+        $data['reward'] = $rew_info;
+        $data['if_address_array'] = Reward_m::$_if_address;
+        $data['delivery_list'] = $delivery_list;
+
+        $this->load->view('delivery/deliver_detail', $data);
+    }
+
+
+////////////////////////////////////////////////////////////////////////////////
+    private function _get_delivery_by_pro_id($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $sql = "select delvy.* from md_order_delivery delvy inner join md_product_back bak ON delvy.back_id=bak.id WHERE bak.if_pay IN (1,3) AND bak.pro_id={$pro_id}";
+            $res = $this->db->query($sql)->result_array();
+            $dly = array();
+            foreach($res as $item)
+            {
+                if(!isset($dly[$item['back_id']]))
+                {
+                    $dly[$item['back_id']] = array();
+                }
+                $dly[$item['back_id']][] = $item;
+            }
+        }
+        return $dly;
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->model('Common');
+        $this->load->model('Product_m');
+        $this->load->model('Order_biz');
+        $this->load->model('Reward_m');
+        $this->load->helper('excel');
+    }
+
+}

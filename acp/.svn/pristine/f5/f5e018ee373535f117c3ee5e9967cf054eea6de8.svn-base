@@ -1,0 +1,42 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Order extends Deamon_Controller {
+
+    /**
+     * 修复订单发货时间
+     */
+    public function repair() {
+        $this->load->model('Common');
+        $this->load->model('Order_biz');
+        $date = date("Y-m-d 00:00:00", strtotime('-17 day'));
+        $sql = "SELECT
+	bak.id AS back_id,
+	bak.address_email AS email,
+	bak.address_mobile AS mobile,
+	bak.user_id AS id,
+	bak.address_name AS nickname,
+	pro.`name` as pro_name,
+	pro.short_title as short_name,
+	pro.id as pro_id
+FROM
+	md_product_back bak
+INNER JOIN md_users usr ON usr.id = bak.user_id
+INNER JOIN md_product pro ON pro.id=bak.pro_id
+WHERE
+	if_pay=1 AND if_post=1 AND bak.`status`='201' AND post_time < '{$date}%' AND receive_time='0000-00-00 00:00:00';";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $user) {
+            $replace = array();
+            $replace['#nickname#'] = $user['nickname'];
+            $replace['#pro_name#'] = $user['short_name'] ? $user['short_name'] : $user['pro_name'];
+            $this->Order_biz->update_status('202', $user['back_id']);
+            $this->Common->update('md_product_back', array('id' => $user['back_id'], 'if_post' => '1'), array('receive_time' => date("Y-m-d H:i:s"), 'if_receive' => 1));
+            //$this->md_edm->send_edm(3, $user, $replace);
+        }
+        echo date("Y-m-d H:i:s") . "处理：" . count($result);
+    }
+
+}

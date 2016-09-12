@@ -1,0 +1,6 @@
+<ul class="nav nav-tabs" role="tablist">
+<li role="presentation"<?php if ($type == '退款审核管理'):?> class="active"<?php endif;?>><a href="/refund/refund_mng">退款审核管理</a></li>
+	<li role="presentation"<?php if ($type == '众筹失败批退'):?> class="active"<?php endif;?>><a href="/refund/index">众筹失败批退</a></li>
+    <li role="presentation"<?php if ($type == '退款请求记录'):?> class="active"<?php endif;?>><a href="/refund/batch_log">退款请求记录</a></li>
+    <li role="presentation"<?php if ($type == '退款结果明细'):?> class="active"<?php endif;?>><a href="/refund/refund_info">退款结果明细</a></li>
+</ul>

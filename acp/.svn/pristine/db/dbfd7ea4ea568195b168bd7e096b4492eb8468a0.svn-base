@@ -1,0 +1,308 @@
+<?php	
+	class Bbs_user_model extends CI_Model{
+
+		const MD_USER_TABLE = 'md_users';
+		const MD_BBS_USER_TABLE = 'bbs_user';
+		const MD_BBS_USER_MANAGER_LOG_TABLE = 'bbs_user_manager_log';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+		}
+
+		/** 
+		 * 	获取禁言的用户总数
+		 *
+		 * 	@return 		int 		$total_number
+		 *
+		 */
+		public function get_total_banned_user()
+		{
+			$where = array(
+						'isbanned' => 1
+					);
+			$this->moxi_db->from(self::MD_BBS_USER_TABLE);	
+			$this->moxi_db->where($where);
+			$total_number = $this->moxi_db->count_all_results();
+			return $total_number;
+		}
+
+		/** 
+		 * 	搜索用户列表信息
+		 *
+		 * 	@param 		int 		$type
+		 * 	@param 		int 		$search
+		 * 	@param 		array 		$user_list
+		 *
+		 */
+		public function get_user_list($type, $search)
+		{
+			if($type == '1'){
+
+				// 这里改为了nickname，我们得去摩点的用户表中取查询
+				$this->db->from(self::MD_USER_TABLE);
+				$this->db->where('nickname', $search);
+				$this->db->select('id');
+				$md_user_query = $this->db->get();
+				$md_user_list = $md_user_query->result_array();
+
+				if($md_user_list){
+					foreach($md_user_list as $row){
+						$uid_array[] = $row['id'];
+					}
+					$this->moxi_db->where_in('uid', $uid_array);
+
+				// 未搜索到该昵称，也返回空
+				}else{
+					return array();	
+				}
+			}else{
+				$this->db->from(self::MD_USER_TABLE);
+				$this->db->where('mobile', $search);
+				$this->db->select('id');
+				$md_user_query = $this->db->get();
+				$md_user_list = $md_user_query->row_array();
+				if($md_user_list){
+					$where = array(
+								'uid' => $md_user_list['id']
+							);
+					$this->moxi_db->where($where);
+
+				// 未搜索到该手机号，也返回空
+				}else{
+					return array();	
+				}
+			}
+			$this->moxi_db->from(self::MD_BBS_USER_TABLE);
+			$user_query = $this->moxi_db->get();
+			$user_list = $user_query->result_array();
+				
+			// 发现用户，并未注册到论坛，也返回空
+			if(!$user_list){
+				return array();
+			}
+
+			// 这里单独对当前查询的用户，调用用户接口，查询用户信息(就不和下面的合并了)
+			// 获取 '用户的其他信息(注册时间，最后登录时间)'
+			foreach($user_list as $user_info){
+				$uid_array[] = $user_info['uid'];
+			}
+			$this->load->model('bbs_md_user_model');
+			$user_list_remote = $this->bbs_md_user_model->get_user_list_by_uid_array($uid_array);
+
+			foreach($user_list as &$user_info){
+				foreach($user_list_remote as $user_remote_info){
+					if($user_info['uid'] == $user_remote_info['id']){
+						$user_info['user_remote_info'] = $user_remote_info;
+						break;
+					}
+				}
+			}
+
+			/* 
+				因为可能出现多个，我们还是不一次性查出来，点击 '查看操作记录' 来ajax获取
+			// 获取 '用户操作记录'
+			$user_info['manager_record'] = '';
+			$where_log = array(
+							'manager_tuid' => $user_info['uid']
+						);
+			$where_log_in = array(1, 2);
+			$order_by = 'ctime DESC';
+			$this->moxi_db->from(self::MD_BBS_USER_MANAGER_LOG_TABLE);
+			$this->moxi_db->where($where_log);
+			$this->moxi_db->where_in('manager_type', $where_log_in);
+			$this->moxi_db->order_by($order_by);
+			$log_query = $this->moxi_db->get();
+			$log_list = $log_query->result_array();
+			if($log_list){
+				foreach($log_list as $log_info){
+					$log_fuid[] = $log_info['manager_fuid'];
+				}
+				$log_user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($log_fuid);
+
+				foreach($log_list as &$log_info){
+					if($log_info['manager_type'] == 1){
+						$log_info['operator'] = '禁言';
+					}elseif($log_info['manager_type'] == 2){
+						$log_info['operator'] = '解禁';
+					}
+					$log_info['time'] = date('Y-m-d H:i:s', $log_info['ctime']);
+					foreach($log_user_list as $log_user_info){
+						if($log_info['manager_fuid'] == $log_user_info['id']){
+							$log_info['f_user_info'] = $log_user_info;
+							break;
+						}
+					}
+				}
+
+				// 拼接 '用户操作记录' 字符串
+				foreach($log_list as $log_info){
+					$user_info['manager_record'] .= $log_info['f_user_info']['nickname'] . ' - ' . $log_info['operator'] . ' - ' . $log_info['manager_reason'] . ' - ' . $log_info['time'] . '<br>';
+				}
+			}
+			*/
+
+			return $user_list;
+		}
+
+		/**
+		 * 	用户禁言
+		 * 	
+		 *	@param 		int 		$uid
+		 *	@param 		int 		$start_time
+		 *	@param 		int 		$end_time
+		 *	@return 	bool 		$bool
+		 */
+		public function disable_user($uid, $start_time, $end_time)
+		{
+			$set = array(
+						'isbanned' => 1,
+						'ban_s_time' => $start_time,
+						'ban_e_time' => $end_time
+					);
+			$where= array(
+						'uid' => $uid
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_USER_TABLE, $set, $where);
+			return $bool;
+		}
+
+		/**
+		 * 	解除用户禁言
+		 * 	
+		 *	@param 		int 		$uid
+		 *	@return 	bool 		$bool
+		 */
+		public function enable_user($uid)
+		{
+			$set = array(
+						'isbanned' => 0,
+						'ban_s_time' => 0,
+						'ban_e_time' => 0
+					);
+			$where = array(
+						'uid' => $uid
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_USER_TABLE, $set, $where);
+			return $bool;
+		}
+
+		/**
+		 * 	添加用户操作记录
+		 *
+		 * 	@param 			int 		$manager_fuid
+		 * 	@param 			int 		$manager_tuid
+		 * 	@param 			int 		$manager_type
+		 * 	@param 			string 		$manager_reason
+		 * 	@return 		bool 		$bool
+		 */
+		public function add_manager_log($manager_fuid, $manager_tuid, $manager_type, $manager_reason)
+		{
+			$set = array(
+						'manager_fuid' => $manager_fuid,
+						'manager_tuid' => $manager_tuid,
+						'manager_type' => $manager_type,
+						'manager_reason' => $manager_reason,
+						'ctime' => time()
+					);
+			$bool = $this->moxi_db->insert(self::MD_BBS_USER_MANAGER_LOG_TABLE, $set);
+			return $bool;
+		}
+
+		/** 
+		 * 	获取禁言的用户列表
+		 *
+		 * 	@param 		int 		$nextpage
+		 * 	@param 		int 		$perpage
+		 * 	@return 	array 		$user_list
+		 *
+		 */
+		public function get_banned_user_list($nextpage, $perpage)
+		{
+			$where = array(
+						'isbanned' => 1
+					);
+			$order_by = 'ctime DESC';
+			$offset = ($nextpage - 1) * $perpage;
+			$this->moxi_db->from(self::MD_BBS_USER_TABLE);
+			$this->moxi_db->where($where);
+			$this->moxi_db->limit($perpage, $offset);
+			$user_query = $this->moxi_db->get();
+			$user_list = $user_query->result_array();
+
+			// 未查询到禁言用户，返回空
+			if(empty($user_list)){
+				return array();
+			}
+
+			foreach($user_list as $user){
+				$uid_array[] = $user['uid'];
+			}
+
+			// 通过$uid数组，调用摩点的用户接口，获取用户信息
+
+			$this->load->model('bbs_md_user_model');
+			$user_list_remote = $this->bbs_md_user_model->get_user_list_by_uid_array($uid_array);
+
+			$i = 0 + ($nextpage - 1) * $perpage;
+			foreach($user_list as &$user){
+				$user['sequence'] = ++$i;
+				foreach($user_list_remote as $user_remote){
+					if($user['uid'] == $user_remote['id']){
+						$user['user_info'] = $user_remote;
+						break;
+					}
+				}
+			}
+				
+			return $user_list;
+		}
+
+		/**
+		 * 	获取用户的禁言操作记录
+		 *
+		 * 	@param 		int 		$manager_tuid
+		 * 	@return 	array 		$log_list
+		 *
+		 */
+		public function get_manager_record_list_by_manager_tuid($manager_tuid)
+		{
+			$where = array(
+						'manager_tuid' => $manager_tuid
+					);
+			$where_in = array(1, 2);
+			$order_by = 'ctime DESC';
+			$this->moxi_db->from(self::MD_BBS_USER_MANAGER_LOG_TABLE);
+			$this->moxi_db->where($where);
+			$this->moxi_db->where_in('manager_type', $where_in);
+			$this->moxi_db->order_by($order_by);
+			$log_query = $this->moxi_db->get();
+			$log_list = $log_query->result_array();
+			if($log_list){
+				foreach($log_list as $log_info){
+					$log_fuid[] = $log_info['manager_fuid'];
+				}
+				$this->load->model('bbs_md_user_model');
+
+				// 这里获取的是管理员列表
+				$user_list = $this->bbs_md_user_model->get_admin_list_by_uid_array($log_fuid);
+				foreach($log_list as &$log_info){
+					if($log_info['manager_type'] == 1){
+						$log_info['operator'] = '禁言';
+					}elseif($log_info['manager_type'] == 2){
+						$log_info['operator'] = '解禁';
+					}
+					$log_info['time'] = date('Y-m-d H:i:s', $log_info['ctime']);
+					foreach($user_list as $user_info){
+						if($log_info['manager_fuid'] == $user_info['id']){
+							$log_info['f_user_info'] = $user_info;
+							break;
+						}
+					}
+				}
+			}
+			return $log_list;
+		}
+
+	}

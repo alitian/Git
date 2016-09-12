@@ -1,0 +1,157 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false,
+        });
+    });
+</script>
+<style type="text/css">
+    td,tr{
+        white-space: nowrap;
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/weidashang/choudiandian_pro">筹点点活动管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="筹点点活动管理_活动编辑" style="height:500px;padding:10px;margin: 0;" data-options="collapsible:true">
+			<!-- 编辑活动弹窗 -->
+			<div id="edit_pro" class="edit_pro">
+				<iframe name="edit_pro_iframe" width="1" height="1" id="edit_pro_iframe"></iframe> 
+				<form class="forms idetform" name="idetform" id="idetform" target="edit_pro_iframe" action="" method="post"> 
+				    <h3>活动编辑</h3>
+				    <div style="width:100%;height:1px; background:#E0E0E0;"></div>
+				    <div id="pro_mess" class="pro_mess">
+				    	<p style="margin-top:20px;">活动标题:<input style="margin-left:20px;" type="text" id='new_pro_name' name='new_pro_name' value="<?php echo $pro_mess[0]['topic']?>" /></p>
+				    	<p style="margin-top:20px;">标签:<input style="margin-left:20px;" type="text" id='new_pro_tag' name='new_pro_tag' value="<?php echo $pro_mess[0]['tag']?>" placeholder="多个标签以,分隔" /></p>
+				    	<p style="margin-top:20px;">首图:<input style="margin-left:20px;" type="text" name="topic_pic_hidden" id="topic_pic_hidden" value="<?php echo $pro_mess[0]['logo']?>"><input type="file" id="topic_picture" name="topic_picture" value=""><input type="button" value="上传图片" id="topic_up"></p>
+				    	<p style="margin-top:20px;">众筹金额:<input style="margin-left:20px;" type="text" id='new_pro_money' name='new_pro_money' value="<?php echo $pro_mess[0]['goal']?>"  />元</p>
+				    	<p style="margin-top:20px;">开始时间:<input style="margin-left:20px;" type="text" id='start_time' name='start_time' value="<?php echo $pro_mess[0]['effect_time']?>" readonly="true"/></p>
+				    	<p style="margin-top:20px;">限时:<input style="margin-left:20px;" type="text" id='new_pro_time' name='new_pro_time' value="<?php echo $pro_mess[0]['effect_day']?>" />天</p>
+	    				<p style="margin-top:20px;">活动介绍:<input type="text" id="pro_con" name="pro_con" value="" style="display:none;"/><textarea id="content_text" name="content_text"><?php echo $pro_mess[0]['des']?></textarea></p>	    					    	
+				    	<p style="margin-top:20px;">介绍链接:<input style="margin-left:20px;" type="text" id='new_pro_des' name='new_pro_des' value="<?php echo $pro_mess[0]['intro']?>" /></p>
+<!--	    				<p style="margin-top:20px;">分享标题:<input style="margin-left:20px;" type="text" id='pro_share_title' name='pro_share_title' value="<?php echo $pro_mess[0]['pro_share_title']?>" placeholder="请控制在20字内"/></p>-->
+<!--	    				<p style="margin-top:20px;">分享文案:<input style="margin-left:20px;" type="text" id='pro_share_des' name='pro_share_des' value="<?php echo $pro_mess[0]['pro_share_des']?>" placeholder="请控制在30字内"/></p>				    -->
+				    
+				    </div>
+				    <div>
+				    	<a style="margin-left:40%" class="btn btn-primary" id="btn_idet_pro" name="btn_idet_pro">更新提交</a>  
+				    </div>
+			    </form>
+			</div> 
+			<!-- 编辑结束 -->
+        </div>              	
+	</div>
+</div>
+<script type="text/javascript">
+$(document).ready(function(){   
+
+	$('#topic_up').click(function(){ 
+			var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+			$.ajaxFileUpload({
+				 url:'/user_ajax/upload_diandian_pic', //你处理上传文件的服务端
+				 secureuri:false,
+				 fileElementId:'topic_picture',
+				 dataType: 'json',
+				 success: function (data){
+					 url = url + data.pic;
+					 if(data.num == 1){
+						 $('#topic_pic_hidden').val(data.pic);
+					 }else{
+						 alert("文件上传失败");
+						 return false;
+					 }
+				 },
+				})
+		});
+	$("#btn_idet_pro").click(function(){    
+		var pro_name = $("#new_pro_name").val();
+		var new_pro_tag = $("#new_pro_tag").val();
+		var topic_pic_hidden = $("#topic_pic_hidden").val();
+		var new_pro_money = $("#new_pro_money").val();
+		var new_pro_time = $("#new_pro_time").val();
+		var new_pro_des = $("#new_pro_des").val();
+		var topic_des = $("#content_text").val();
+		document.getElementById("pro_con").value = topic_des;
+		
+//		var pro_share_title = $("#pro_share_title").val();
+//		var pro_share_des = $("#pro_share_des").val();
+//		var pattern = new RegExp("[`~!@#$^&*()=|{}':;'\\[\\]<>/?~！@#￥……&*（）——|{}【】‘；：”“'。、？]");
+		if(pro_name.length==0){
+			alert('请输入活动名称');
+			return false;
+		}
+//		for (var i = 0; i < pro_name.length; i++) {
+//			if(pattern.test(pro_name.substr(i, 1))){
+//				alert('活动名称内不合法，不能包含特殊字符！');
+//				return false;
+//			}
+//		}
+		if(new_pro_tag.length==0){
+			alert('请输入活动标签');
+			return false;
+		}
+		if(topic_pic_hidden.length==0){
+			alert('请上传活动首图');
+			return false;
+		}
+		if(new_pro_money.length==0){
+			alert('请输入活动筹资金额');
+			return false;
+		}
+		if(new_pro_time.length==0){
+			alert('请输入活动有限期限');
+			return false;
+		}
+//		if(new_pro_des.length==0){
+//			alert('请输入活动介绍链接');
+//			return false;
+//		}
+		if(topic_des.length==0 || topic_des.length > 1000){
+			alert('活动介绍大意不能为空或者超过1000字');
+			return false;
+			
+		}
+//		if(pro_share_title.length==0 || pro_share_title.length > 20){
+//			alert('请输入分享标题，标题不能超过20字');
+//			return false;
+//		}
+//		if(pro_share_des.length==0 || pro_share_des.length > 30){
+//			alert('请输入分享文案，文案不能超过30字');
+//			return false;
+//		}
+
+        var doc = document.getElementById('edit_pro_iframe').contentWindow.document;     
+		
+        idetform.action="/weidashang/update_diandian_pro/<?php echo $pro_mess[0]['id']?>";
+        idetform.submit();
+        var oFrm = document.getElementById("edit_pro_iframe");         
+        oFrm.onload = oFrm.onreadystatechange = function() {
+
+             if (this.readyState && this.readyState != 'complete') return;
+             else{
+                alert("更新成功！"); 
+             }
+        }
+	});
+});
+</script>
+<?php $this->load->view('ckad/footer')?>

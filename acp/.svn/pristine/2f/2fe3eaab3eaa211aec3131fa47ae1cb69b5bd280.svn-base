@@ -1,0 +1,38 @@
+<?php
+    $redis=new Redis();
+    $redis->connect('127.0.0.1','6379');
+    $arr=$redis->get('web_data');
+    $arr=unserialize($arr);
+    $avg=$redis->get('avg_month');
+    $avg=unserialize($avg);
+    $max=$redis->get('max_month');
+    $max=unserialize($max);
+    $shuzu=array();
+    $data=array('pv'=>0,'uv'=>0,'p/u'=>0,'login_user'=>0,'new_user'=>0,'form'=>0,'money'=>0);
+    $num=0;
+    $i=intval(date("Ym",time()-86400));
+    for($j=$i*100;$j<=$i*100+31;$j++){
+        if(isset($arr[$j])){
+            $num++;
+            $data['pv']+=$arr[$j]['pv'];
+            $data['uv']+=$arr[$j]['uv'];
+            $data['p/u']+=$arr[$j]['p/u'];
+            $data['login_user']+=$arr[$j]['login_user'];
+            $data['new_user']+=$arr[$j]['new_user'];
+            $data['form']+=$arr[$j]['form'];
+            $data['money']+=$arr[$j]['money'];
+        }
+    }
+    foreach($data as $k=>$v){
+        $data[$k]="".round($v/$num,2);
+    }
+    foreach($data as $key=>$value){
+        if($max[$key]<$value){
+            $max[$key]=$value;
+        }
+    }
+    $avg[$i]=$data;
+    $avg=serialize($avg);
+    $out=$redis->set("avg_month",$avg);
+    $max=serialize($max);
+    $out=$redis->set("max_month",$max);

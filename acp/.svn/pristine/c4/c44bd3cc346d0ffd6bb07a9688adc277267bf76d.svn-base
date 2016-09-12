@@ -1,0 +1,226 @@
+<?php 
+	header('Cache-control: private, must-revalidate');  //支持页面回跳，注意本行之前不能有任何输出
+	session_start();
+	$this->load->view('ckad/header') ?>
+<link id="bs-css" href="<?= static_url(); ?>css/bootstrap-cerulean.css" rel="stylesheet">
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<style>
+    .smartscroll #table-list-head > tr {
+        position: fixed;
+        top: 0px;
+        background-image: url(http://www.php-internals.com/images/toolbar_bg.png);
+        background-position: bottom left;
+        background-repeat: no-repeat;
+        background-size: 100%;
+        z-index: 999;
+    }
+
+    .table #table-list-head .t1,
+    .table #table-list-content .t1 {
+        width: 5%;
+    }
+    .table #table-list-head .t2,
+    .table #table-list-content .t2{
+        width: 15%;
+    }
+    .table #table-list-head .t3,
+    .table #table-list-content .t3{
+        width: 45%;
+    }
+    .table #table-list-head .t4,
+    .table #table-list-content .t4{
+        width: 15%;
+    }
+    .table #table-list-head .t5,
+    .table #table-list-content .t5{
+        width: 10%;
+    }
+    .table #table-list-head .t6,
+    .table #table-list-content .t6 {
+        width: 10%;
+    }
+
+    .table tbody tr.item-separtor:hover td {
+        background-color: #fff;
+    }
+    .table tbody tr.item-bottom td {
+        border-top: none;
+        background-color: #f5f5f5;
+    }
+    .table tbody tr.item-bottom td span {
+        display: inline-block;
+        margin-right: 20px;
+    }
+
+    .tooltip {
+        border-style: none;
+        background-color: transparent;
+    }
+    .tooltip.top .tooltip-arrow {
+        bottom: 0;
+        left: 70%;
+        margin-left: -5px;
+        border-top-color: #000;
+        border-width: 5px 5px 0;
+    }
+    .tooltip-inner {
+        max-width: 200px;
+        padding: 8px;
+        color: #fff;
+        text-align: center;
+        text-decoration: none;
+        background-color: #000;
+        -webkit-border-radius: 4px;
+        -moz-border-radius: 4px;
+        border-radius: 4px;
+    }
+
+    .delivery-info {
+        margin-bottom: 21px;
+    }
+    .delivery-info h4 {
+        background-color: #f8f8f8;
+        color: #000;
+        font-size: 18px;
+        font-weight: bold;
+        padding: 20px;
+        border-top: 1px solid #dfdfdf;
+        border-bottom: 1px solid #dfdfdf;
+    }
+    .delivery-info h4 span {
+        color: red;
+    }
+</style>
+
+<div class="delivery-info">
+    <h4><?php echo $total_time;?>有<span> <?=$total_succfull_num?> 条</span>短信已发送， <span> <?=$total_wait_num?> 条</span>短信待发送， <span> <?=$total_fail_num?> 条</span>短信发送失败， 合计<span> <?=$total_num?> 条</span></h4>
+</div>
+<div id="debug-info" style="display:none;margin:18px 0;padding:18px;background-color:#f5f5f5;color:red;"></div>
+<form name='form1' action="" method="post">
+    <div class="row-fluid">
+        <div class="span2">手机号<input class="span12" type="text" id="mobile" name="mobile" <?=!empty($_POST['mobile'])? "value='{$_POST['mobile']}'" : ""?> placeholder='发送手机号'></div>
+        <div class="span2">开始时间<input class="span12" type="text" id="start_time" name="start_time" <?=!empty($_POST['start_time'])? "value='{$_POST['start_time']}'" : ""?> placeholder='开始时间'></div>
+        <div class="span2">结束时间<input class="span12" type="text" id="end_time" name="end_time" <?=!empty($_POST['end_time'])? "value='{$_POST['end_time']}'" : ""?> placeholder='结束时间'></div>
+        <div class="span2">
+          	  发送状态
+            <select class="span12" name="status" id="status">
+                <option value="" <?php if(""==$_POST['status']) echo 'selected';?>>全部</option>
+                <option value="1" <?php if(1==$_POST['status']) echo 'selected';?>>成功</option>
+                <option value="0" <?php if(2==$_POST['status']) echo 'selected';?>>失败</option>
+                <option value="2" <?php if(3==$_POST['status']) echo 'selected';?>>待发送</option>
+            </select>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="span2">
+            <label>短信运营商</label>
+            <select class="span12" name="dealers" id="dealers">
+                <option value="0" <?php if(0==$_POST['dealers']) echo 'selected';?>>全部</option>
+                <option value="1" <?php if(1==$_POST['dealers']) echo 'selected';?>>创蓝</option>
+                <option value="2" <?php if(2==$_POST['dealers']) echo 'selected';?>>漫道</option>
+            </select>
+        </div>
+    </div>
+    <div class="row-fluid tooltip-export" style="margin-top:11px;">
+        <button type="submit" class="btn btn-primary" onclick="form1.action='/edm_ad/sms_list';form1.submit()"><i class="icon-search"></i> 查找</button>
+    </div>
+</form>
+
+<table class="table table-hover">
+    <thead id="table-list-head">
+        <tr>
+        	<th class="t1">编号</th>
+            <th class="t2">手机号</th>
+            <th class="t3">短信内容</th>
+            <th class="t4">发送时间</th>
+            <th class="t5">发送状态</th>
+            <th class="t6">运营商</th>
+        </tr>
+    </thead>
+    <tbody id="table-list-content">
+        <?php if(!empty($sms_list)): ?>
+        <?php foreach ($sms_list as $row): ?>
+        <tr class="item-content">
+            <td class="t1">
+                <p><?= $row['id']?></p>
+            </td>
+            <td class="t2"><?=$row['tel']?></td>
+            <td class="t3"><?= mb_substr($row['content'], 0, 60, 'utf-8')?></td>
+            <td class="t4"><?=$row['send_time']?></td>
+            <td class="t5">
+	            <?php if($row['status']== 0){
+	            	echo "失败";
+	            }elseif ($row['status']==1){
+	            	echo "成功";
+	            }elseif ($row['status']==2){
+	            	echo "待发送";
+	            }?>
+            </td>
+            <td class="t6">
+	            <?php if($row['dealers']== 1){
+	            	echo "创蓝";
+	            }elseif ($row['dealers']==2){
+	            	echo "漫道";
+	            }?>
+            </td>
+        </tr>
+        <!-- 
+        <tr class="item-bottom">
+            <td colspan="6">
+                <span><?=date('Y年m月d日 H:i:s', strtotime($row['back_time']))?></span>
+                <span>订单号：<?=$row['back_id']?></span>
+                <span>项目名称：[<?=$row['pro_id']?>] <?=$row['pro_short_title']?$row['pro_short_title']:$row['pro_name'];?></span>
+                <span><?php if($row['rew_id'] != _gc('special_reward')):?>回报档：&yen;<?=$row['rew_money']?><?php endif;?></span>
+            </td>
+        </tr> -->
+        <tr class="item-separtor"><td colspan="6"></td></tr>
+        <?php endforeach; ?>
+        <?php endif; ?>
+    </tbody>
+</table>
+
+<div style="clear:both">
+    <?php if(isset($pagination)) echo $pagination; ?>
+</div>
+
+<script>
+    $(function() {
+        // 设置分页
+        $('#page-nav li a').on('click', function(evt) {
+            evt.preventDefault();
+            var nav_url = $(this).attr('href');
+            var page = nav_url.substring(nav_url.lastIndexOf("/")+1);
+            var page_url = "/delivery_info/index/"+page;
+            $('form[name="form1"]').attr('action', page_url);
+            $('form[name="form1"]').submit();
+        });
+
+        (function() {
+            var toolbar = $("#table-list-head > tr");
+            if(toolbar.length == 0) return;
+
+            var tb_width = toolbar.width();
+            var tb_height = toolbar.height();
+            var tb_top = toolbar.position().top;
+            var org_body_margin = $("#table-list-content").css("margin-top");
+
+            $(window).scroll(function() {
+                if($(window).scrollTop() > tb_top) {
+                    $('body').addClass('smartscroll');
+                    toolbar.css("width", tb_width);
+                    $("#table-list-content").css('margin-top', tb_height);
+                }
+                else {
+                    // restore
+                    $('body').removeClass('smartscroll');
+                    $("#table-list-content").css('margin-top', org_body_margin);
+                }
+            });
+        })();
+
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

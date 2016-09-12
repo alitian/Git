@@ -1,0 +1,605 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Market_manage extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->model('Common');
+        $this->load->model('Recruit_m');
+        $this->load->model('Comment_model');       
+        $this->load->library('md_refund');
+    }
+    
+    
+    public function recruit(){    	
+		$data = array();
+		$this->load->view('recruit/recruit', $data);
+    }
+    
+    public function ajax_recruit(){
+		$res = array();
+		$result = array();
+		$res = $this->recruit_search(1);		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+    	
+    }
+    
+    public function recruit_search($mode=1){
+    	
+		header("Content-Type: text/html; charset=utf-8");
+		$search_arr["id"] = isset($_POST['recruit_id']) ? $_POST['recruit_id'] : '';
+		$search_arr["cusernames"] = isset($_POST['create_user']) ? $_POST['create_user'] : '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+				 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Recruit_m->recruit_mes_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["recruit_id"] = $val["id"];
+				$res["recruit_title"] = $val["title"];
+				$job_mess = $this->Recruit_m->recruit_job_mess($val["id"]);
+				$job_html = '';
+				if(!empty($job_mess)){
+					for($i=0;$i<count($job_mess);$i++){
+						$job_html .= '<span>'.$job_mess[$i]['job_title'].' | '.$job_mess[$i]['job_type'].' | '.$job_mess[$i]['recruit_type'].'</span>';
+						$job_html .= '<br/>';
+					}
+					$res["recruit_txt"] = $job_html;				
+				}else{
+					$res["recruit_txt"] = '';
+				}	
+				$say_mess = $this->Recruit_m->recruit_say_mess($val["id"]);
+				$say_html = '';
+				if(!empty($say_mess)){
+					for($j=0;$j<count($say_mess);$j++){
+						$img_url = cdn_url($say_mess[$j]['say_logo']);
+						$say_html .= '<img src="'.$img_url.'" style="width:40px;height:40px"/>：';					
+						$say_html .= '<span>'.$say_mess[$j]['say_username'].'</span>';
+						$say_html .= '<br/>';
+					}
+					$res["say_txt"] = $say_html;				
+				}else{
+					$res["say_txt"] = '';
+				}				
+				
+				$res["op_user"] = $val["op_man"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["ctime"] ='';
+				}else{
+					$res["ctime"] =$val["ctime"];
+				}
+				if($val["if_chose"] == '1'){
+						$res["work"] = '<a href="/market_manage/edit_recruit/'.$val["id"].'">基本信息编辑</a>|<a href="/market_manage/show_recruit_say_list/'.$val["id"].'">添加/编辑大家说</a>|<a href="/market_manage/show_recruit_job_list/'.$val["id"].'">添加/编辑工作职位</a>|<a href="/market_manage/down_recruit/'.$val["id"].'" id="down_recruit" class="down_recruit" onclick="if(confirm(\'确实要下线<' .$val["title"].'>吗？\')) return true;else return false;">下线</a> ';						
+				}elseif($val["if_chose"] == '0'){
+						$res["work"] = '<a href="/market_manage/edit_recruit/'.$val["id"].'">基本信息编辑</a>|<a href="/market_manage/show_recruit_say_list/'.$val["id"].'">添加/编辑大家说</a>|<a href="/market_manage/show_recruit_job_list/'.$val["id"].'">添加/编辑工作职位</a>|<a href="/market_manage/up_recruit/'.$val["id"].'" id="up_recruit" class="up_recruit" onclick="if(confirm(\'确实要上线<' .$val["title"].'>吗？\')) return true;else return false;">上线</a> ';						
+				}
+				$list_info[] = $res;
+			}
+		}
+		 
+		$recruit_list_info = array();
+		$recruit_list_info["search"]= $list_info;
+		return $recruit_list_info;
+    	
+    }
+    
+    public function create_new_recruit(){    	
+		$data = array();
+		$this->load->view('recruit/create_recruit', $data);
+    	
+    }
+    
+    public function edit_recruit($rid = 0){    	
+		$data = array();
+		$recruit_mess = $this->Recruit_m->get_recruit_mess($rid);
+		$data['recruit_mess'] = $recruit_mess[0];
+		$bac_pic = unserialize($recruit_mess[0]['back_pic']);
+		$data['back_pic'] = $bac_pic;
+		$data['back_intro'] = unserialize($recruit_mess[0]['back_intro']);
+		$data['back_con'] = unserialize($recruit_mess[0]['back_con']);
+		$this->load->view('recruit/edit_recruit', $data);    	
+    } 
+    public function add_recruit(){
+    	$back_con_arr= array();
+    	
+		$title = isset($_POST["title"])?$_POST["title"]:"";
+		$tag = isset($_POST["tag"])?$_POST["tag"]:"";
+		$background = isset($_POST["background"])?$_POST["background"]:"";
+		$back_pic_str = isset($_POST["pic_hidden"])?$_POST["pic_hidden"]:"";//中部展示图片
+		$back_intro_str = isset($_POST["pic_intro"])?$_POST["pic_intro"]:"";//中部展示连
+		$back_con_str = isset($_POST["back_html"])?$_POST["back_html"]:"";//中部展示内容		
+		#其他条件
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$unit_key = md5 ( $title ."_". $tag);
+		
+		#数组整理进行唯一判断；
+		#存在则更新，不存在创建
+		$re_data = array(
+ 			'title' => $title,
+			'tag' => $tag,
+			'background' => $background,	
+ 			'back_pic' => serialize($back_pic_str),
+ 			'back_intro' => serialize($back_intro_str),
+			'back_con' => serialize($back_con_str),
+			'unit_key' => $unit_key,
+			'ctime' => $ctime,
+ 		);		
+ 		$if_have = $this->Recruit_m->if_have($unit_key);
+ 		if(!empty($if_have)){
+			$updata_recruit = $this->Recruit_m->updata_recruit($re_data,$if_have[0]['id']);
+ 			echo "<script>alert('更新成功')</script>";
+ 			redirect("/market_manage/recruit/");
+ 			return true;			
+ 		}else{
+ 			$re_data['user_id'] = $user_id;
+ 			$re_data['op_man'] = $op_man;
+			$inner_recruit = $this->Recruit_m->inner_recruit($re_data);
+ 			echo "<script>alert('创建成功')</script>";
+ 			redirect("/market_manage/recruit/");
+ 			return true; 			 			
+ 		}		
+    }
+    function down_recruit($rid){
+    	
+		$down_recruit = $this->Recruit_m->down_recruit($rid);
+		redirect("/market_manage/recruit/");
+		return true;		
+    	
+    }
+    
+    function up_recruit($rid){
+		$up_recruit = $this->Recruit_m->up_recruit($rid);
+		redirect("/market_manage/recruit/");
+		return true;		
+    	
+    }        
+    public function show_recruit_say_list($rid = 0){
+    	$data = array();
+		$say_mess = $this->Recruit_m->recruit_say_mess($rid);
+		$data['say_mess'] = $say_mess;
+		$data['rid'] = $rid;
+		$this->load->view('recruit/show_recruit_say', $data); 
+    }
+    public function ajax_recruit_say($rid=0){
+		$res = array();
+		$result = array();
+		$res = $this->recruit_say_search(1,$rid);		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+    	
+    	
+    }
+    public function recruit_say_search($mode=1,$rid){
+    	
+		header("Content-Type: text/html; charset=utf-8");
+		$search_arr['rid'] = $rid;
+		$search_arr["saynames"] = isset($_POST['say_user']) ? $_POST['say_user'] : '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+				 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Recruit_m->recruit_say_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["say_sort"] = $val["say_sort"];
+				$res["rid"] = $val["rid"];
+				$res["say_name"] = $val["say_username"];
+				$res["say_logo"] = '<img src="'.cdn_url($val["say_logo"]).'" style="width:40px;height:40px"/>';
+				$res["say_txt"] = '<p>'.$val["say_content"].'</p>';;
+				$res["op_user"] = $val["op_man"];				
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["ctime"] ='';
+				}else{
+					$res["ctime"] =$val["ctime"];
+				}
+				if($val["if_chose"] == '1'){
+						$res["work"] = '<a href="/market_manage/edit_recruit_say/'.$val["rid"].'/'.$val["id"].'">编辑</a>|<a href="/market_manage/down_recruit_say/'.$val["rid"].'/'.$val["id"].'" id="down_recruit_say" class="down_recruit_say" onclick="if(confirm(\'确实要下线吗？\')) return true;else return false;">下线</a> ';						
+				}elseif($val["if_chose"] == '0'){
+						$res["work"] = '<a href="/market_manage/edit_recruit_say/'.$val["rid"].'/'.$val["id"].'">编辑</a>|<a href="/market_manage/up_recruit_say/'.$val["rid"].'/'.$val["id"].'" id="up_recruit_say" class="up_recruit_say" onclick="if(confirm(\'确实要上线吗？\')) return true;else return false;">上线</a> ';						
+				}
+				$list_info[] = $res;
+			}
+		}
+		 
+		$recruit_say_info = array();
+		$recruit_say_info["search"]= $list_info;
+		return $recruit_say_info;
+    	
+    	
+    }
+    public function create_recruit_say($rid=0){
+    	$data=array();
+    	$data['rid'] = $rid;
+    	$this->load->view('recruit/add_recruit_say', $data); 
+    }
+    public function edit_recruit_say($rid=0,$id=0){
+    	$data=array();
+    	$this_say_mess = $this->Recruit_m->get_this_say($rid,$id);
+    	$data['rid'] = $rid;
+    	$data['say_mes'] = $this_say_mess;
+    	$this->load->view('recruit/edit_recruit_say', $data); 
+    	
+    }
+    
+    public function add_recruit_say(){
+    	$rid = isset($_POST["rid"])?$_POST["rid"]:"";
+    	$say_sort_str = isset($_POST["say_sort"])?$_POST["say_sort"]:"";//大家说排序
+    	$say_logo_str = isset($_POST["logo_text"])?$_POST["logo_text"]:"";//大家说logo
+    	$say_title_str = isset($_POST["say_title"])?$_POST["say_title"]:"";//大家说名称
+    	$say_content_str = isset($_POST["say_html"])?$_POST["say_html"]:"";//大家说内容
+    	#其他条件
+    	$user_id = $_SESSION['admin_id'];
+    	$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+    	$ctime = date("Y-m-d H:i:s");
+    	$say_content_arr = explode("&",$say_content_str);
+    	#数组整理进行唯一判断；
+    	#存在则更新，不存在创建
+    	$say_data = array();
+    	for($i=0;$i<count($say_sort_str);$i++){
+    		$say_data[$i]['op_man'] = $op_man;
+    		$say_data[$i]['rid'] = $rid;
+    		$say_data[$i]['say_sort'] = $say_sort_str[$i];
+    		$say_data[$i]['say_logo'] = $say_logo_str[$i];
+    		$say_data[$i]['say_username'] = $say_title_str[$i];
+    		$say_data[$i]['say_content'] = $say_content_arr[$i+1];
+    	}
+    	foreach($say_data as $item){
+    		$item['ctime'] = $ctime;
+    		$inner_recruit_say = $this->Recruit_m->inner_recruit_say($item);
+    	}
+    	echo "<script>alert('创建成功')</script>";
+    	redirect("/market_manage/show_recruit_say_list/".$rid);
+    	return true;
+    }
+    
+    public function updata_recruit_say(){
+    	$id = isset($_POST["id"])?$_POST["id"]:"";//大家说排序
+    	$rid = isset($_POST["rid"])?$_POST["rid"]:"";
+    	$say_sort_str = isset($_POST["say_sort"])?$_POST["say_sort"]:"";//大家说排序
+    	$say_logo_str = isset($_POST["logo_text"])?$_POST["logo_text"]:"";//大家说logo
+    	$say_title_str = isset($_POST["say_title"])?$_POST["say_title"]:"";//大家说名称
+    	$say_content_str = isset($_POST["say_html"])?$_POST["say_html"]:"";//大家说内容
+    	#数组整理进行唯一判断；
+    	#存在则更新，不存在创建
+    	$say_data = array();
+    	$say_data['id'] = $id;
+    	$say_data['say_sort'] = $say_sort_str;
+    	$say_data['say_logo'] = $say_logo_str;
+    	$say_data['say_username'] = $say_title_str;
+    	$say_data['say_content'] = $say_content_str;
+    	$updata_recruit_say = $this->Recruit_m->updata_say($say_data);
+    	echo "<script>alert('更新大家说成功')</script>";
+    	redirect("/market_manage/show_recruit_say_list/".$rid);
+    	return true;
+    	
+    }
+    
+    public function up_recruit_say($rid=0,$id=0){
+    	
+		$up_say = $this->Recruit_m->up_say($id);
+		redirect("/market_manage/show_recruit_say_list/".$rid);
+		return true;		
+    	
+    }
+    public function down_recruit_say($rid=0,$id=0){
+    	
+		$down_say = $this->Recruit_m->down_say($id);
+		redirect("/market_manage/show_recruit_say_list/".$rid);
+		return true;		
+    	
+    }
+    
+    public function show_recruit_job_list($rid = 0){
+    	$data = array();
+		$job_mess = $this->Recruit_m->recruit_job_mess($rid);
+		$data['job_mess'] = $job_mess;
+		$data['rid'] = $rid;
+		$this->load->view('recruit/show_recruit_job', $data); 		
+    }
+    
+    public function ajax_recruit_job($rid=0){
+		$res = array();
+		$result = array();
+		$res = $this->recruit_job_search(1,$rid);		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+    	
+    }
+    public function recruit_job_search($mode=1,$rid){
+    	
+		header("Content-Type: text/html; charset=utf-8");
+		$search_arr["rid"] = $rid;
+		$search_arr["jobname"] = isset($_POST['job_name']) ? $_POST['job_name'] : '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+				 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Recruit_m->recruit_job_serach($search_arr);
+		//print_r($result);exit;
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["job_sort"] = $val["job_sort"];
+				$res["rid"] = $val["rid"];
+				$res["job_name"] = $val["job_title"];
+				$res["job_type"] = $val["job_type"];
+				$res["job_status"] = $val["job_status"];
+				$res["job_work"] = $val["job_work"];	
+				$res["job_need"] = $val["recruit_content"];
+				$res["job_kind"] = $val["recruit_type"];
+				$res["op_user"] = $val["op_man"];				
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["ctime"] ='';
+				}else{
+					$res["ctime"] =$val["ctime"];
+				}
+				if($val["if_chose"] == '1'){
+						$res["work"] = '<a href="/market_manage/edit_recruit_job/'.$val["rid"].'/'.$val["id"].'">编辑</a>|<a href="/market_manage/down_recruit_job/'.$val["rid"].'/'.$val["id"].'" id="down_recruit_job" class="down_recruit_job" onclick="if(confirm(\'确实要下线吗？\')) return true;else return false;">下线</a> ';						
+				}elseif($val["if_chose"] == '0'){
+						$res["work"] = '<a href="/market_manage/edit_recruit_job/'.$val["rid"].'/'.$val["id"].'">编辑</a>|<a href="/market_manage/up_recruit_job/'.$val["rid"].'/'.$val["id"].'" id="up_recruit_job" class="up_recruit_job" onclick="if(confirm(\'确实要上线吗？\')) return true;else return false;">上线</a> ';						
+				}
+				$list_info[] = $res;
+			}
+		}
+		 
+		$recruit_say_info = array();
+		$recruit_say_info["search"]= $list_info;
+		return $recruit_say_info;
+    	
+    	
+    }
+    public function create_recruit_job($rid){
+    	$data=array();
+    	$data['rid'] = $rid;
+    	$this->load->view('recruit/add_recruit_job', $data); 
+    	
+    }
+    
+    public function edit_recruit_job($rid=0,$id=0){
+    	$data=array();
+    	$this_job_mess = $this->Recruit_m->get_this_job($rid,$id);
+    	$data['job_mes'] = $this_job_mess;
+    	$data['rid'] = $rid;
+    	$this->load->view('recruit/edit_recruit_job', $data); 
+    	
+    }
+        
+    public function add_recruit_job(){
+    	$rid = isset($_POST["rid"])?$_POST["rid"]:"";
+		$job_sort_str = isset($_POST["job_sort"])?$_POST["job_sort"]:"";//职位排序
+		$job_name_str = isset($_POST["job_name"])?$_POST["job_name"]:"";//职位名称
+		$job_type_str = isset($_POST["job_type"])?$_POST["job_type"]:"";//职位类别
+		$job_status_str = isset($_POST["job_status"])?$_POST["job_status"]:"";//招聘类别
+		$work_type_str = isset($_POST["work_type"])?$_POST["work_type"]:"";//工作性质（全职；兼职；实习）						
+		$job_work_str = isset($_POST["job_work"])?$_POST["job_work"]:"";//岗位职责
+		$recruit_content_str = isset($_POST["recruit_con"])?$_POST["recruit_con"]:"";//任职要求
+		#其他条件
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		
+		$job_work_arr = explode("&",$job_work_str);
+		$recruit_content_arr = explode("&",$recruit_content_str);
+		#数组整理进行唯一判断；
+		#存在则更新，不存在创建
+		$job_data = array();
+		for($j=0;$j<count($job_sort_str);$j++){
+			$job_data[$j]['op_man'] = $op_man;
+    		$job_data[$j]['rid'] = $rid;			
+			$job_data[$j]['job_sort'] = $job_sort_str[$j];
+			$job_data[$j]['job_title'] = $job_name_str[$j];
+			$job_data[$j]['job_type'] = $job_type_str[$j];
+			$job_data[$j]['job_status'] = $job_status_str[$j];
+			$job_data[$j]['recruit_type'] = $work_type_str[$j];
+			$job_data[$j]['job_work'] = $job_work_arr[$j+1];
+			$job_data[$j]['recruit_content'] = $recruit_content_arr[$j+1];
+
+		}
+		//print_r($job_data);exit;
+		foreach($job_data as $row){
+			$row['ctime'] = $ctime;
+			$inner_recruit_job = $this->Recruit_m->inner_recruit_pro($row);
+		}
+		echo "<script>alert('创建成功')</script>";
+		redirect("/market_manage/show_recruit_job_list/".$rid);
+		return true;
+		 
+    }
+    public function updata_recruit_job(){
+    	$id = isset($_POST["id"])?$_POST["id"]:"";
+    	$rid = isset($_POST["rid"])?$_POST["rid"]:"";
+		$job_sort_str = isset($_POST["job_sort"])?$_POST["job_sort"]:"";//职位排序
+		$job_name_str = isset($_POST["job_name"])?$_POST["job_name"]:"";//职位名称
+		$job_type_str = isset($_POST["job_type"])?$_POST["job_type"]:"";//职位类别
+		$job_status_str = isset($_POST["job_status"])?$_POST["job_status"]:"";//招聘类别
+		$work_type_str = isset($_POST["work_type"])?$_POST["work_type"]:"";//工作性质（全职；兼职；实习）						
+		$job_work_str = isset($_POST["job_work"])?$_POST["job_work"]:"";//岗位职责
+		$recruit_content_str = isset($_POST["recruit_con"])?$_POST["recruit_con"]:"";//任职要求
+		#数组整理进行唯一判断；
+		#存在则更新，不存在创建
+		$job_data = array();
+		$job_data['id'] = $id;
+		$job_data['job_sort'] = $job_sort_str;
+		$job_data['job_title'] = $job_name_str;
+		$job_data['job_type'] = $job_type_str;
+		$job_data['job_status'] = $job_status_str;
+		$job_data['recruit_type'] = $work_type_str;
+		$job_data['job_work'] = $job_work_str;
+		$job_data['recruit_content'] = $recruit_content_str;
+		$inner_recruit_job = $this->Recruit_m->updata_job($job_data);
+		echo "<script>alert('更新成功')</script>";
+		redirect("/market_manage/show_recruit_job_list/".$rid);
+		return true;
+    	
+    } 
+    public function up_recruit_job($rid=0,$id=0){
+    	
+		$up_say = $this->Recruit_m->up_job($id);
+		redirect("/market_manage/show_recruit_job_list/".$rid);
+		return true;		
+    	
+    }
+    public function down_recruit_job($rid=0,$id=0){
+    	
+		$down_say = $this->Recruit_m->down_job($id);
+		redirect("/market_manage/show_recruit_job_list/".$rid);
+		return true;		
+    	
+    }
+    
+    /**
+     * 上传 中间部分
+     * 五张背景图
+     * Enter description here ...
+     * @param unknown_type $j
+     */
+    public function upload_recruit_back_pic($j){
+        $picture = "";
+    	if ($_FILES["pic_".$j]) {
+    		if ($_FILES["pic_".$j]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["pic_".$j]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "reruit/back/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "reruit/back/{$t1}" ,0777,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'reruit/back/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["pic_".$j]["tmp_name"], config_item('uploads_path') . $to);
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    		}
+    	}
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    	
+    }
+    
+    /**
+     * 上传大家说模块中的logo
+     * Enter description here ...
+     * @param unknown_type $i
+     */
+    public function upload_recruit_say_logo($i){
+    	
+        $picture = "";
+    	if ($_FILES["logo_".$i]) {
+    		if ($_FILES["logo_".$i]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["logo_".$i]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "reruit/say_logo/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "reruit/say_logo/{$t1}" ,0777,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'reruit/say_logo/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["logo_".$i]["tmp_name"], config_item('uploads_path') . $to);
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    		}
+    	}
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    	
+    }
+    
+    /**
+     * 上传头部背景logo
+     * Enter description here ...
+     * @param unknown_type $i
+     */
+    public function upload_back_pic($m){
+    	
+        $picture = "";
+    	if ($_FILES["background_".$m]) {
+    		if ($_FILES["background_".$m]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["background_".$m]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "reruit/background/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "reruit/background/{$t1}" ,0777,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'reruit/background/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["background_".$m]["tmp_name"], config_item('uploads_path') . $to);
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    		}
+    	}
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    	
+    }    
+
+}

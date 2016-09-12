@@ -1,0 +1,154 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Order extends Deamon_Controller {
+
+    public function archive() {
+        $sql = "select id,mtime,archive_time from md_product_back WHERE wds_id='0' AND (ISNULL(archive_time) OR mtime>archive_time) ORDER BY id DESC LIMIT 100";
+        $res = $this->db->query($sql)->result_array();
+        echo "total:".count($res)."\n";
+        foreach ($res as $item) {
+            $this->simple_archive($item['id']);
+        }
+    }
+
+    /**
+     * 
+     * @param type $oid
+     */
+    public function simple_archive($oid) {
+        $sql = "SELECT
+	pb.id as oid,
+	pb.pro_id,
+	pb.rew_id,
+	pb.user_id,
+	pb.md_plan,
+        pb.trade_no,
+        pb.if_pay,
+	pb.ctime AS bak_date,
+	p.`name` AS pro_name,
+	pw.content AS rew_content,
+	'' AS pro_from,
+	'' AS pro_mng,
+	p.start_time AS pro_start_date,
+	p.end_time AS pro_end_date,
+	CASE pb.rew_id
+WHEN '-3' THEN
+	'不需要'
+ELSE
+	'需要回报'
+END AS is_return,
+ u.nickname,
+ CASE pw.if_address
+WHEN 1 THEN
+	'邮寄'
+WHEN 2 THEN
+	'发码'
+WHEN 3 THEN
+	'邮寄+发码'
+ELSE
+	'无回报'
+END AS rew_type,
+ u.email AS reg_email,
+ u.mobile AS reg_mobile,
+ CASE u.md_plan WHEN '0' THEN '主站' WHEN '1' THEN 'IOS' WHEN '2' THEN 'android' WHEN '3' THEN 'WAP站' end AS reg_plan,
+ pb.address_name,
+ pb.address_mobile,
+ concat(pb.address_province,pb.address_city,pb.address_town,pb.address_detail) as address_detail,
+ pb.address_description,
+ pb.address_email,
+ pw.money as amount,
+ '' AS bonus,
+ pb.amount AS real_amount,
+ pb.`status` AS order_status,
+ CASE pb.status_debt WHEN '0' THEN '未赊账' WHEN '1' THEN '赊账中' END as status_debt,
+ pb.mtime as order_update_time
+FROM
+	md_product_back pb
+INNER JOIN md_product p ON pb.pro_id = p.id
+INNER JOIN md_product_rewards pw ON pw.id = pb.rew_id
+INNER JOIN md_users u ON pb.user_id = u.id
+WHERE pb.id={$oid}";
+
+        $order_info = $this->db->query($sql)->row_array();
+        if ($order_info) {
+            //获取发货数据
+            $sql = "SELECT * FROM md_order_delivery WHERE back_id='{$oid}' ORDER BY ctime ASC";
+            $res_delivery = $this->db->query($sql)->result_array();
+            $order_info['post_info'] = '';
+            $wordbook = array(
+                'post_company' => '快递公司',
+                'post_number' => '快递号',
+                'post_aside' => '备注',
+                'game_code' => '游戏码',
+                'game_code_aside' => '备注'
+            );
+            foreach ($res_delivery as $item) {
+                $delivery_detail = json_decode($item['info']);
+                foreach ($delivery_detail as $k => $v) {
+                    $order_info['post_info'] .= "{$wordbook[$k]}:{$v}\n";
+                }
+                $order_info['post_info'] .= "发货时间: {$item['ctime']}\n\n";
+            }
+            //获取支付数据
+            $sql = "SELECT * FROM md_pay WHERE status='1' AND back_id='{$oid}'";
+            $res_pay = $this->db->query($sql)->result_array();
+            $order_info['out_trade_no'] = $order_info['out_trade_no'] = $order_info['out_trade_no'] = '';
+            foreach ($res_pay as $pay) {
+                $order_info['out_trade_no'] .= $pay['out_trade_no'] . ';';
+                $order_info['pay_plan'] = $pay['pay_platform'];
+                $order_info['pay_date'] = $pay['return_time'];
+            }
+
+            $sql = "select oid from md_order_archive where oid={$oid}";
+            $res_archive = $this->db->query($sql)->result_array();
+            if ($res_archive) {
+                $this->db->update('md_order_archive', $order_info, array('oid' => $oid));
+            } else {
+                $this->db->insert('md_order_archive', $order_info);
+            }
+            $this->db->update('md_product_back', array('archive_time' => date("Y-m-d H:i:s", time() + 10)), array('id' => $oid));
+
+            echo $oid . "\n";
+        }ELSE{
+            echo $oid . " lost\n";
+        }
+    }
+
+    /**
+     * 修复订单发货时间
+     */
+    public function repair() {
+        $this->load->model('Common');
+        $this->load->model('Order_biz');
+        $date = date("Y-m-d 00:00:00", strtotime('-17 day'));
+        $sql = "SELECT
+	bak.id AS back_id,
+	bak.address_email AS email,
+	bak.address_mobile AS mobile,
+	bak.user_id AS id,
+	bak.address_name AS nickname,
+	pro.`name` as pro_name,
+	pro.short_title as short_name,
+	pro.id as pro_id
+FROM
+	md_product_back bak
+INNER JOIN md_users usr ON usr.id = bak.user_id
+INNER JOIN md_product pro ON pro.id=bak.pro_id
+WHERE
+	if_pay=1 AND if_post=1 AND bak.`status`='201' AND post_time < '{$date}%' AND receive_time='0000-00-00 00:00:00';";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $user) {
+            $replace = array();
+            $replace['#nickname#'] = $user['nickname'];
+            $replace['#pro_name#'] = $user['short_name'] ? $user['short_name'] : $user['pro_name'];
+            $this->Order_biz->update_status('202', $user['back_id']);
+            $this->Common->update('md_product_back', array('id' => $user['back_id'], 'if_post' => '1'), array('receive_time' => date("Y-m-d H:i:s"), 'if_receive' => 1));
+            //$this->md_edm->send_edm(3, $user, $replace);
+        }
+        echo date("Y-m-d H:i:s") . "处理：" . count($result);
+    }
+
+}

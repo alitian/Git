@@ -1,0 +1,532 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Weidashang extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->db->read_main = true;
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->helper('excel');
+        $this->load->model('User_m');
+        $this->load->library('md_refund');
+        $this->load->model('Diandian_m');
+        $this->load->library('md_common');
+        }
+
+	/**
+	 * 摩点点项目活动后台
+	 * Enter description here ...
+	 */
+	public function choudiandian_pro(){
+		$data = array();
+		$pro_name_arr = $this->Diandian_m->get_diandian_pro_name();
+		$data['pro_name_arr'] = $pro_name_arr;
+		$this->load->view('modiandian/diandian_pro', $data);
+		 
+	}
+
+	/**
+	 * 筹点点后台search查询的ajax最终组合方法
+	 * Enter description here ...
+	 */
+	public function ajax_diandian_pro(){
+		$res = array();
+		$result = array();
+		$res = $this->diandian_pro_search(1);
+		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+	}
+
+	/**
+	 * 筹点点后台查询详细方法
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function diandian_pro_search($mode=1){
+
+		$search_arr["pro_id"] = isset($_POST['pro_id']) ? $_POST['pro_id'] : '';
+		$search_arr["pro_name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+		$search_arr["sort"] = isset($_POST['bysort']) ? $_POST['bysort'] : 'id';
+		$search_arr["order"] = isset($_POST['byorder']) ? $_POST['byorder'] : 'asc';
+		$search_arr["type"] = isset($_POST['create_type']) ? $_POST['create_type'] : '';
+		 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Diandian_m->pro_mes_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["id"] = $val["id"];
+				if($val["type"] == '2'){
+					$res["pro_type"] = "微打赏";
+				}elseif($val["type"] == '3'){
+					$res["pro_type"] = "抢红包";
+				}
+				$res["pro_name"] = $val["topic"];
+				$res["start_time"] = $val["ctime"];
+				$res["create_user"] = $val["user_name"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$res["start_time"] =$val["effect_time"];
+				$res["end_time"] =$val["end_time"];
+				$res["op_user"] =$val["user_name"];
+				if($val["if_show"] == '1'){
+					if($val["type"] == '3'){
+						$res["work"] = '<a href="/redwallet/index/'.$val["id"].'/'.$val["topic"].'" id="edit" class="edit">编辑查看</a>';
+					}else{
+						if($val["kind"] == '0'){
+							$res["work"] = '<a href="/easyfund/edit_pro/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/easyfund/down_pro/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>下线吗？\')) return true;else return false;">下线</a> | <a href="/easyfund/show_pro_sub/'.$val["id"].'" id="show_sub_pro" class="show_sub_pro">查看参与项目</a>';													
+						}else{
+							$res["work"] = '<a href="/easyfund/down_pro/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>下线吗？\')) return true;else return false;">下线</a> ';													
+						}
+					}
+				}elseif($val["if_show"] == '0'){
+					if($val["type"] == '3'){
+						$res["work"] = '<a href="/redwallet/index/'.$val["id"].'/'.$val["topic"].'" id="edit" class="edit">编辑查看</a>';
+					}else{
+						if($val["kind"] == '0'){
+							$res["work"] = '<a href="/easyfund/edit_pro/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/easyfund/go_pro/'.$val["id"].'" id="go_pro" class="go_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>上线吗？\')) return true;else return false;">上线</a> | <a href="/easyfund/show_pro_sub/'.$val["id"].'" id="show_sub_pro" class="show_sub_pro">查看参与项目</a>';													
+						}else{	
+							$res["work"] = '<a href="/easyfund/go_pro/'.$val["id"].'" id="go_pro" class="go_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>上线吗？\')) return true;else return false;">上线</a>';													
+						}
+					}
+				}
+				if($val["if_recommend"] == '1'){
+					$res["recommend"] = '<a href="/easyfund/abandon_recommend_pro/'.$val["id"].'" id="abandon_recommend_pro" class="abandon_recommend_pro" onclick="if(confirm(\'确实要放弃推荐<' .$val["topic"].'>吗？\')) return true;else return false;">放弃推荐</a>';
+				}elseif($val["if_recommend"] == '0'){
+					$res["recommend"] ='<a href="/easyfund/recommend_pro/'.$val["id"].'" id="recommend_pro" class="recommend_pro" onclick="if(confirm(\'确实要推荐<' .$val["topic"].'>吗？\')) return true;else return false;">推荐轮播</a>';
+				}
+				$res["logo"] = $val["logo"];
+				$res["tag"] = $val["tag"];
+				$res["intro"] = $val["intro"];
+				$res["money"] = $val["goal"];
+				if($val["type"] == '3'){
+					$redeallwt_mess = $this->Easyfund_m->get_redwallet_mess($val["topic"]);	
+					$user_nums = $this->Easyfund_m->get_sub_nums($redeallwt_mess[0]['id']);
+				}else{
+					$user_nums = $this->Easyfund_m->get_sub_users_nums($val["id"]);
+				}
+				
+				$res["inner_user_num"] = $user_nums['user_num'];
+				$topic_all_money = $this->Easyfund_m->get_topic_money($val["id"]);
+				$res["topic_all_money"] = isset($topic_all_money) ? intval($topic_all_money) : '0';
+				 
+				$list_info[] = $res;
+			}
+		}
+		//根据支持人数/钱数重新排序
+		foreach($list_info as $key=>$value){
+			if($search_arr["sort"] == 'inner_user_num'){
+				$inner[$key] = $value['inner_user_num'];
+			}elseif($search_arr["sort"] == 'topic_all_money'){
+				$inner[$key] = $value['topic_all_money'];
+			}
+		}
+		if($search_arr["order"] == 'asc'){
+			array_multisort($inner, SORT_ASC,$list_info);
+		}elseif($search_arr["order"] == 'desc'){
+			array_multisort($inner, SORT_DESC,$list_info);
+		}
+		 
+		$diadian_list_info = array();
+		$diadian_list_info["search"]= $list_info;
+		return $diadian_list_info;
+	}
+
+	/**
+	 * 筹点点后台创建活动
+	 * Enter description here ...
+	 */
+	public function create_diandian_pro(){
+		$pro_name = isset($_POST["new_pro_name"])?$_POST["new_pro_name"]:"";
+		$pro_money = isset($_POST["new_pro_money"])?$_POST["new_pro_money"]:"";
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";
+		$tag = isset($_POST["new_pro_tag"])?$_POST["new_pro_tag"]:"";
+		$start_time = isset($_POST["prostart_time"])?$_POST["prostart_time"]:"";
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";
+		$effect_day = isset($_POST["new_pro_time"])?$_POST["new_pro_time"]:"";
+ 		$pro_share_title = isset($_POST["pro_share_title"])?$_POST["pro_share_title"]:"";
+ 		$pro_share_des= isset($_POST["pro_share_des"])?$_POST["pro_share_des"]:"";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $pro_name . '_' . $tag . '_' . $intro );
+		$type = 0;
+		$if_show = 0;
+		$data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'topic' => $pro_name,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'if_show' => $if_show,
+ 			'unit_key' => $unit_key,
+ 			'type' => $type,		 			
+ 			'ctime' => $ctime,
+ 			'start_time' =>$start_time,
+ 			'end_time' => $end_time,
+ 			'goal' => $pro_money,
+ 			'pro_share_title' => $pro_share_title,
+ 			'pro_share_des' => $pro_share_des	
+ 			);
+ 			$if_pro = $this->Diandian_m->if_pro($unit_key);
+ 			if(!empty($if_pro)){
+ 				echo "<script>alert('该活动已经创建过!')</script>";
+ 				return false;
+ 			}else{
+ 				$inner_new_pro = $this->Diandian_m->inner_new_pro($data);
+ 				echo "<script>alert('创建成功')</script>";
+ 				return true;
+ 			}
+	}
+
+	/**
+	 * 筹点点后台进入活动编辑更新页面
+	 * Enter description here ...
+	 * @param unknown_type $id
+	 */
+	public function edit_pro($id){
+		$data = array();
+		$pro_mess = $this->Diandian_m->get_edit_pro_mess($id);
+		$data['pro_mess'] = $pro_mess;
+		$this->load->view('modiandian/diandian_edit_pro', $data);
+
+	}
+
+	/**
+	 * 筹点点活动更新
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function update_diandian_pro($pro_id){
+		$pro_name = isset($_POST["new_pro_name"])?$_POST["new_pro_name"]:"";
+		$pro_money = isset($_POST["new_pro_money"])?$_POST["new_pro_money"]:"";
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";
+		$tag = isset($_POST["new_pro_tag"])?$_POST["new_pro_tag"]:"";
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";
+		$effect_day = isset($_POST["new_pro_time"])?$_POST["new_pro_time"]:"";
+		$start_time = isset($_POST["start_time"])?$_POST["start_time"]:"";
+ 		$pro_share_title = isset($_POST["pro_share_title"])?$_POST["pro_share_title"]:"";
+ 		$pro_share_des= isset($_POST["pro_share_des"])?$_POST["pro_share_des"]:"";
+		$user_id = $_SESSION['admin_id'];
+		//$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $pro_name . '_' . $tag . '_' . $intro );
+		$type = 2;
+		$data = array(
+ 			'topic' => $pro_name,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'unit_key' => $unit_key,
+ 			'type' => $type,		 			
+ 			'ctime' => $ctime,
+ 			'end_time' => $end_time,
+ 			'goal' => $pro_money,
+ 			'pro_share_title' => $pro_share_title,
+ 			'pro_share_des' => $pro_share_des	
+ 		
+ 			);
+ 			$update_new_pro = $this->Diandian_m->update_pro_mess($pro_id,$data);
+ 			return true;
+	}
+
+	/**
+	 * 筹点点后台-下线活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function down_pro($pro_id){
+		$topic_mess =  $this->Diandian_m->get_topic_info($pro_id);
+		$down_diandian_pro = $this->Diandian_m->down_diandian_pro($pro_id);		
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-上线活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function go_pro($pro_id){
+		$topic_mess =  $this->Diandian_m->get_topic_info($pro_id);
+		$go_diandian_pro = $this->Diandian_m->go_diandian_pro($pro_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台查看活动中的项目列表
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function show_pro_sub($pro_id){
+		$data = array();
+		$topic_pro_config = $this->Diandian_m->get_diandian_pro_config($pro_id);
+		$sub_pro_arr = $this->Easyfund_m->get_diandian_pro_sub($pro_id);
+		$data['topic_pro_config'] = $topic_pro_config;
+		for($i=0;$i < count($sub_pro_arr);$i++){
+			$pro_cuser = $this->User_m->get_user_info ( $sub_pro_arr[$i]['user_id'] );
+			$sub_pro_arr[$i]['sub_pro_cuser'] = $pro_cuser['nickname'];
+			$sub_pro_arr[$i]['sub_back_nums'] = $this->Easyfund_m->get_backer_total($sub_pro_arr[$i]['id']);
+			$sub_pics_arr = $this->Diandian_m->get_sub_pics($pro_id,$sub_pro_arr[$i]['unit_key']);//获取子项目logo信息
+			$logo_arr = unserialize($sub_pics_arr[0]['sub_logo']);
+			$sub_pro_arr[$i]['logo'] = $logo_arr[0];
+			$sub_pro_arr[$i]['des'] = mb_strimwidth($sub_pro_arr[$i]['des'],0,130,'...');
+			$sub_back_moneys = $this->Easyfund_m->get_easyfund_back_total($sub_pro_arr[$i]['id']);
+			$sub_pro_arr[$i]['sub_back_moneys'] = isset($sub_back_moneys)?$sub_back_moneys:"0";
+		}
+		$data['topic_id'] = $pro_id;
+		//根据支持人数/钱数重新排序
+		if(!empty($topic_pro_config) || $topic_pro_config != ''){
+			foreach($sub_pro_arr as $key=>$value){
+				if($topic_pro_config[0]['sort'] == 'inner_user_num'){
+					$inner[$key] = $value['sub_back_nums'];
+				}elseif($topic_pro_config[0]['sort'] == 'topic_all_money'){
+					$inner[$key] = $value['sub_back_moneys'];
+				}
+			}
+			if($topic_pro_config[0]['order'] == 'asc'){
+				array_multisort($inner, SORT_ASC,$sub_pro_arr);
+			}elseif($topic_pro_config[0]['order'] == 'desc'){
+				array_multisort($inner, SORT_DESC,$sub_pro_arr);
+			}
+			$money_arr = explode(",",$topic_pro_config[0]['money']);
+			$data['money_arr'] = $money_arr;
+			$data['sub_list'] = $sub_pro_arr;
+		}else{
+			$money_arr = explode(",","1,10,50,80,100,200");
+			$data['money_arr'] = $money_arr;
+			$data['sub_list'] = $sub_pro_arr;
+		}
+
+		$this->load->view('modiandian/diandian_sub_list', $data);
+	}
+
+	/**
+	 * 筹点点后台-设置活动中的部分属性
+	 * Enter description here ...
+	 */
+	public function edit_topic_configuration(){
+		$topic_id = isset($_POST["topic_id"])?$_POST["topic_id"]:"";
+		$sort = isset($_POST["bysort"])?$_POST["bysort"]:"asc";
+		$order = isset($_POST["byorder"])?$_POST["byorder"]:"id";
+		$money = isset($_POST["money_str"])?$_POST["money_str"]:"1,10,50,80,100,200";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$data = array(
+        	"topic_id" => $topic_id,
+        	"sort" => $sort,
+        	"order" => $order,
+        	"money" => $money,
+        	"cuser" => $op_man,
+		);
+		$if_topic = $this->Easyfund_m->if_topic($data);
+		if(!empty($if_topic)){
+			$updata_topic_config = $this->Easyfund_m->up_topic_config($data);
+			echo "<script>alert('该活动配置已经更新!')</script>";
+			redirect("easyfund/choudiandian_pro");
+		}else{
+			$add_topic_config = $this->Easyfund_m->add_topic_config($data);
+			echo "<script>alert('该活动配置设置成功!')</script>";
+			redirect("easyfund/choudiandian_pro");
+		}
+	}
+	/**
+	 * 筹点点后台-下线项目
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 * @param unknown_type $sub_id
+	 */
+	public function down_pro_sub($pro_id,$sub_id){
+
+		$down_diandian_pro = $this->Easyfund_m->down_diandian_sub($pro_id,$sub_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-上线项目
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 * @param unknown_type $sub_id
+	 */
+	public function updata_pro_sub($pro_id,$sub_id){
+
+		$up_diandian_pro = $this->Easyfund_m->updata_diandian_sub($pro_id,$sub_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-放弃选择推荐活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function abandon_recommend_pro($pro_id){
+		$abandon_pro = $this->Easyfund_m->abandon_recommend_pro($pro_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-选择推荐活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function recommend_pro($pro_id){
+
+		$recommend_pro = $this->Easyfund_m->recommend_pro($pro_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+	
+	/**
+	 * 轮播图自定义
+	 * Enter description here ...
+	 */
+	public function recom_pic(){
+		$data = array();
+		$pic_name_arr = $this->Easyfund_m->recoms_name_serach();
+		$data['pic_name_arr'] = $pic_name_arr;
+		$this->load->view('modiandian/diandian_recom', $data);
+	}
+	/**
+	 * 
+	 * Enter description here ...
+	 */
+	public function ajax_recom_pic(){
+		$res = array();
+		$result = array();
+		$res = $this->recom_pic_search(1);
+		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+	}
+
+	/**
+	 * 
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function recom_pic_search($mode=1){
+
+		$search_arr["name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Easyfund_m->recoms_pic_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["pic_id"] = $val["id"];
+				$res["pic_name"] = $val["name"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$pic = cdn_url($val["recom_pic"]);
+				$res["pic_show"] = '<img src="'.$pic.'" style="width:80px;height:80px"/>';
+				$res["op_user"] =$val["user_name"];
+				$res["pic_intro"] =isset($val["pic_intro"]) ? $val["pic_intro"] : '无';;
+				if($val["if_recommend"] == '1'){
+					$res["recommend"] = '<a href="/easyfund/abandon_recommend/'.$val["id"].'" id="abandon_recommend" class="abandon_recommend" onclick="if(confirm(\'确实要放弃推荐<' .$val["name"].'>吗？\')) return true;else return false;">放弃推荐</a>';
+				}elseif($val["if_recommend"] == '0'){
+					$res["recommend"] ='<a href="/easyfund/recommend/'.$val["id"].'" id="recommend" class="recommend" onclick="if(confirm(\'确实要推荐<' .$val["name"].'>吗？\')) return true;else return false;">推荐轮播</a>';
+				}
+				$list_info[] = $res;
+			}
+		}
+		$diadian_list_info = array();
+		$diadian_list_info["search"]= $list_info;
+		return $diadian_list_info;
+	}	
+	public function add_recom_pic(){
+		$logo_name = isset($_POST["pic_name"])?$_POST["pic_name"]:"";
+		$logo = isset($_POST["topic_recom_hidden"])?$_POST["topic_recom_hidden"]:"";
+		$pic_intro = isset($_POST["pic_intro"])?$_POST["pic_intro"]:"";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'name' => $logo_name,
+ 			'recom_pic' => $logo,
+			'pic_intro' => $pic_intro,
+ 			'ctime' => $ctime,
+		);
+		$if_have = $this->Easyfund_m->if_have_recom($unit_key);
+		if(!empty($if_have)){
+			echo "<script>alert('该图片已存在!')</script>";
+			return false;
+		}else{
+			$inner_new_recoms = $this->Easyfund_m->inner_new_recoms($data);
+			echo "<script>alert('创建成功')</script>";
+			redirect("/easyfund/recom_pic/");
+			return true;
+		}
+	}
+	
+	public function abandon_recommend($id){
+		$abandon = $this->Easyfund_m->abandon_recommend($id);
+		redirect("/easyfund/recom_pic");
+		return true;
+	}
+
+	public function recommend($id){
+
+		$recommend = $this->Easyfund_m->recommend($id);
+		redirect("/easyfund/recom_pic");
+		return true;
+	}
+	
+}

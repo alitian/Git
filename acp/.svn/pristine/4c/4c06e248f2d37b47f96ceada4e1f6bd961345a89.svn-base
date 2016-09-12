@@ -1,0 +1,117 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript">
+    $(function () {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN'
+//            pickTime: false
+        });
+        $("#pro_list").change(function(){
+            window.location.href = "http://acp.modian.com/ext/virtual_order/"+$(this).val();
+        })
+    });
+</script>
+<?php if (isset($error) && $error): ?>
+    <div class="alert alert-error">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Warning!</strong> <?= $error; ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($ok) && $ok): ?>
+    <div class="alert alert-success">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Well done!</strong> <?= $ok; ?>
+    </div>
+<?php endif; ?>
+<form method="POST" name='form1' id="form1" action="">
+    <table class="table table-bordered">
+        <tr>
+            <td style="width:100px;">项目名称</td>
+            <td>
+                <select id="pro_list">
+                    <?php foreach ($pro_list as $protmp): ?>
+                    <option value='<?= $protmp['id'] ?>'<?php if($protmp['id']==$pro_info['id']): ?> selected="selected"<?php endif; ?>><?= $protmp['id'] ?>:<?= $protmp['name'] ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <td>时间段：</td>
+            <td>
+                <div id="datetimepicker1" class="input-append">
+                    <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" name='start_time' value="<?= $start_time ?>"></input>
+                    <span class="add-on">
+                        <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                        </i>
+                    </span>
+                </div>
+                <div id="datetimepicker2" class="input-append">
+                    <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="截至时间" name='end_time' value="<?= $end_time ?>"></input>
+                    <span class="add-on">
+                        <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                        </i>
+                    </span>
+                </div>
+            </td>
+        </tr>
+        <?php foreach ($rewards as $reward): ?>
+            <tr>
+                <td><?= $reward['id'] ?>（<?= $reward['money'] ?>元）<?= $reward['num'] > 0 ? "<br />【限量{$reward['num']}】" : ''; ?></td><td>生成<input type="text" name="rewuser_<?= $reward['id'] ?>" style="width:50px;" />个订单 购买总数：<?=$reward['back_count']?></td>
+            </tr>
+        <?php endforeach; ?>
+        <tr><td colspan="2"><button class="btn btn-small btn-primary" type="submit">生成</button></td></tr>
+    </table>
+</form>
+<table class="table table-bordered">
+    <tr>
+        <td style="width:100px;">虚拟用户总量:</td><td><?= $user_sum ?></td>
+    </tr>
+    <tr>
+        <td style="width:100px;">已生成订单量:</td><td><?= $user_use_sum ?></td>
+    </tr>
+    <tr>
+        <td style="width:100px;">虚拟支持金额:</td><td><?= $user_use_money ?></td>
+    </tr>
+</table>
+<table class="table table-bordered">
+    <tr>
+        <td>回报ID\日期</td>
+        <?php foreach ($date as $d): ?>
+            <td><?= $d ?></td>
+        <?php endforeach; ?>
+    </tr>
+    <?php $order_sum = $money_sum = array(); ?>
+    <?php foreach ($rewards as $item): ?>
+        <tr>
+            <td><?= $item['id']; ?></td>
+            <?php foreach ($date as $d): ?>
+                <td>
+                    <?php
+                    $money_sum[$d] = isset($money_sum[$d]) ? $money_sum[$d] : 0;
+                    $order_sum[$d] = isset($order_sum[$d]) ? $order_sum[$d] : 0;
+                    if (isset($logs[$item['id']][$d])) {
+                        $order_sum[$d] = isset($order_sum[$d]) ? $order_sum[$d] + $logs[$item['id']][$d] : $logs[$item['id']][$d];
+                        $money_sum[$d] = isset($money_sum[$d]) ? $money_sum[$d] + $logs[$item['id']][$d] * $item['money'] : $logs[$item['id']][$d] * $item['money'];
+                        echo $logs[$item['id']][$d] . "\t[" . ($logs[$item['id']][$d] * $item['money']) . "元]";
+                    } else {
+                        echo '--';
+                    }
+                    ?>
+                </td>
+            <?php endforeach; ?>
+        </tr>
+
+    <?php endforeach; ?>
+    <tr>
+        <td>总金额</td>
+        <?php foreach ($date as $d): ?>
+            <td><?= $money_sum[$d]; ?>[<?= $order_sum[$d]; ?>]</td>
+        <?php endforeach; ?>
+    </tr>
+</table>
+<?php
+$this->load->view('ckad/footer')?>

@@ -1,0 +1,305 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('refund/tabs') ?>
+
+<style>
+	.span2 select,
+	.span2 input {
+		width: 90%;
+	}
+</style>
+
+<p style="color:red">说明：本页面可对系统退款失败、用户主动发起退款、线下转账等订单进行审核，并退款，请谨慎操作。</p>
+<div class="row-fluid">
+	<div class="box span12">
+		<div id="p" class="easyui-panel" title="查找" style="height:210px;padding:10px;margin:0;" data-options="collapsible:true">
+			<form method="POST" name='form1' id="form1" action="" onkeydown="if(event.keyCode==13){return false;}">
+				<div class="span10">
+				<div class="row-fluid">
+					<div class="span2">项目ID<input type="text" name="pro_id" id="pro_id" placeholder='输入项目ID'></div>
+					<div class="span2">项目名称<input type="text" name="pro_name" id="pro_name" placeholder='输入项目名称'></div>
+					<div class="span2">订单号查询<input type="text" name="back_id" id="back_id" placeholder='输入订单号'></div>
+					<div class="span2">用户ID<input type="text" name="user_id" id="user_id" placeholder='输入用户ID'></div>
+					<div class="span2">用户手机号<input type="text" name="user_mobile" id="user_mobile" placeholder='输入用户手机号'></div>
+					<div class="span2">回报ID<input type="text" name="rew_id" id="rew_id" placeholder='输入回报ID'></div>
+				</div>
+				<div class="row-fluid">
+					<div class="span2">项目状态
+						<select name="pro_status" id="pro_status">
+							<option value="项目状态全部">全部</option>
+							<option value="众筹中">众筹中</option>
+							<option value="众筹成功">众筹成功</option>
+							<option value="众筹失败">众筹失败</option>
+						</select>
+					</div>
+					<div class="span2">支付方式
+						<select name="pay_way" id="pay_way">
+							<option value="支付方式全部">全部</option>
+							<option value="alipay">支付宝快捷</option>
+							<option value="alipay_bank">支付宝网银</option>
+							<option value="银行转帐">银行转帐</option>
+							<option value="赊账">赊账</option>
+						</select>
+					</div>
+					<div class="span2">订单物流状态
+						<select name="post_status" id="post_status">
+							<option value="订单物流状态全部">全部</option>
+							<option value="众筹成功且未发货">众筹成功且未发货</option>
+							<option value="已发货">已发货</option>
+							<!-- <option value="系统确认收货">系统确认收货</option>
+							<option value="用户确认收货">用户确认收货</option> -->
+							<option value="已收货">已收货</option>
+						</select>
+					</div>
+					<div class="span2">订单退款状态
+						<select name="ord_status" id="ord_status">
+							<option value="订单退款状态全部">全部</option>
+							<option value="退款申请待审核">退款申请待审核</option>
+							<option value="退款中">退款中</option>
+							<option value="退款申请被拒绝">退款申请被拒绝</option>
+							<option value="已退款">已退款</option>
+						</select>
+					</div>
+					<div class="span2">退款原因
+						<select name="refund_reason" id="refund_reason">
+							<option value="退款原因全部">全部</option>
+							<option value="1">项目众筹失败退款</option>
+							<option value="2">选错项目，想支持其他项目</option>
+							<option value="3">项目进展不顺，不看好该项目，想撤回投资</option>
+							<option value="4">一时冲动，没看清楚，想重新选择项目</option>
+							<option value="5">回报发放时间过长，等不及了</option>
+							<option value="6">一直没收到货</option>
+							<option value="7">回报质量太差</option>
+							<option value="8">实际收到的回报与项目中承诺的回报内容不一致</option>
+							<option value="9">其他...</option>
+						</select>
+					</div>
+				</div>
+				</div>
+				<div class="span1">
+                    <button class="btn btn-large btn-primary" type="button" id="search">查询</button><br /><br />
+                    <button class="btn btn-large" type="button" id="export2excel" onclick="form1.action='/refund/export_refund_mng_ord';form1.submit()">导出Excel</button>
+                </div>
+			</form>
+		</div>
+		<div class="box-content">
+			<table id="tt" class="easyui-datagrid" style="margin:0;height:600px" title="明细" 
+					url="/refund/load_refund_mng_ord" singleSelect='true' 
+					rownumbers="true" pagination="true" pageSize=20>
+				<thead>
+					<tr>
+						<th field="back_id" width="70" align="center">订单号</th>
+						<th field="pay_out_trade_no" width="130" align="center">外部订单号</th>
+						<th field="trade_no" width="130" align="center">交易号</th>
+						<th field="op_type" width="130" align="center" formatter="format_op">操作</th>
+						<th field="op_reason" width="210" align="left">拒绝原因</th>
+						<th field="rew_id" width="50" align="center">回报ID</th>
+						<th field="refund_amount" width="70" align="right">退款金额</th>
+						<th field="back_refund_status" width="110" align="center">订单退款状态</th>
+						<th field="back_post_status" width="110" align="center">订单物流状态</th>
+						<th field="pro_id" width="50" align="center">项目ID</th>
+						<th field="pro_name" width="210" align="left">项目名称</th>
+						<th field="pro_status" width="70" align="center">项目状态</th>
+						<th field="pro_end_time" width="130" align="center">项目结束时间</th>
+						<th field="user_realname" width="70" align="center">申请人姓名</th>
+						<th field="user_reg_mobile" width="110" align="center">申请人手机号</th>
+						<th field="pay_platform" width="70" align="center">支付工具</th>
+						<th field="refund_rsn" width="210" align="left">申请退款原因</th>
+						<th field="refund_date" width="130" align="center">申请时间</th>
+						<th field="op_man" width="70" align="center">操作员</th>
+						<th field="op_time" width="130" align="center">操作时间</th>
+		            </tr>
+				</thead>
+			</table>
+		</div><!-- end of box-content -->
+	</div><!-- end of span12 -->
+</div><!-- end of row-fluid -->
+
+
+<div id="agree-refund-content" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        <h3 id="myModalLabel">同意退款</h3>
+    </div>
+    <div class="modal-body">
+        <table class="table table-condensed table-hover">
+        	<tbody>
+            	<tr>
+                    <td>订单号</td>
+                    <td><input type="text" name="back_id" placeholder="订单号" readonly="readonly"></td>
+                </tr>
+                <tr>
+                    <td>交易号</td>
+                    <td><input type="text" name="agree_trade_no" placeholder="交易号" readonly="readonly"></td>
+                </tr>
+                <tr>
+                    <td>外部订单号</td>
+                    <td><input type="text" name="pay_out_trade_no" placeholder="外部订单号" readonly="readonly"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="modal-footer">
+        <input type="button" class="btn" data-dismiss="modal" aria-hidden="true" value="取消">
+        <input type="button" name="ok" class="btn btn-primary" value="同意">
+    </div>
+</div>
+<div id="reject-refund-content" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        <h3 id="myModalLabel">拒绝退款</h3>
+    </div>
+    <div class="modal-body">
+        <table class="table table-condensed table-hover">
+        	<tbody>
+            	<tr>
+                    <td>订单号</td>
+                    <td><input type="text" name="back_id" placeholder="订单号" readonly="readonly"></td>
+                </tr>
+                <tr>
+                    <td>交易号</td>
+                    <td><input type="text" name="reject_trade_no" placeholder="交易号" readonly="readonly"></td>
+                </tr>
+                <tr>
+                    <td>外部订单号</td>
+                    <td><input type="text" name="pay_out_trade_no" placeholder="外部订单号" readonly="readonly"></td>
+                </tr>
+                <tr>
+                    <td>历史原因</td>
+                    <td><input type="text" name="history_rsn" placeholder="历史" readonly="readonly"></td>
+                </tr>
+                <tr>
+                    <td>拒绝原因</td>
+                    <td><input type="text" name="reject_rsn" placeholder="拒绝原因"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="modal-footer">
+        <input type="button" class="btn" data-dismiss="modal" aria-hidden="true" value="取消">
+        <input type="button" name="ok" class="btn btn-primary" value="拒绝">
+    </div>
+</div>
+
+<div id="debug_info"></div>
+
+
+<script>
+    $(function(){
+    	$("#search").click(function() {
+			$('#tt').datagrid('load',{
+				back_id: $('#back_id').val(),
+				pro_id: $('#pro_id').val(),
+				pro_name: $('#pro_name').val(),
+				user_id: $('#user_id').val(),
+				rew_id: $('#rew_id').val(),
+				user_mobile: $('#user_mobile').val(),
+				pro_status: $('#pro_status').val(),
+				pay_way: $('#pay_way').val(),
+				post_status: $('#post_status').val(),
+				ord_status: $('#ord_status').val(),
+				refund_reason: $('#refund_reason').val(),
+			});
+		});
+
+        $('#tt').datagrid({
+        	rowStyler:function(index,row){
+        		var color = 'color:black;';
+		        if (row.pay_platform != '支付宝快捷' && row.pay_platform != '支付宝网银') {
+		            color = 'color:blue;';
+		        } else if (row.trade_no=='1000101099999999') {
+		        	color = 'color:red;';
+		        }
+		        return color;
+		    },
+            onLoadSuccess: function (data) {
+                $("button.agree-refund-button").click(function(evt) {
+                	evt.preventDefault();
+
+                	$('#agree-refund-content .modal-body table tbody input[name="back_id"]').val($(this).attr('d_back_id'));
+                	$('#agree-refund-content .modal-body table tbody input[name="agree_trade_no"]').val($(this).attr('d_trade_no'));
+                	$('#agree-refund-content .modal-body table tbody input[name="pay_out_trade_no"]').val($(this).attr('d_pay_out_trade_no'));
+
+                	$('#agree-refund-content').modal();
+                    return false;
+                });
+                $("button.reject-refund-button").click(function(evt){
+                	evt.preventDefault();
+
+                	$('#reject-refund-content .modal-body table tbody input[name="back_id"]').val($(this).attr('d_back_id'));
+                	$('#reject-refund-content .modal-body table tbody input[name="reject_trade_no"]').val($(this).attr('d_trade_no'));
+                	$('#reject-refund-content .modal-body table tbody input[name="pay_out_trade_no"]').val($(this).attr('d_pay_out_trade_no'));
+                	$('#reject-refund-content .modal-body table tbody input[name="history_rsn"]').val($(this).attr('d_op_reason'));
+
+                	$('#reject-refund-content').modal();
+                    return false;
+                });
+            }
+        });
+
+		// 同意弹窗下按钮点击
+		$('#agree-refund-content .modal-footer input[name="ok"]').click(function() {
+			var back_id = $('#agree-refund-content .modal-body table tbody input[name="back_id"]').val();
+			var trade_no = $('#agree-refund-content .modal-body table tbody input[name="agree_trade_no"]').val();
+			var pay_out_trade_no = $('#agree-refund-content .modal-body table tbody input[name="pay_out_trade_no"]').val();
+
+			$.post("refund/manual_refund",
+			{
+				back_id:back_id,
+				trade_no:trade_no,
+				pay_out_trade_no:pay_out_trade_no,
+				if_rf:1
+			},
+			function(data,status) {
+				$('#agree-refund-content').modal('hide');
+				$("#search").trigger("click");
+				$('#debug_info').html(data);
+			});
+		});
+
+		// 拒绝弹窗下按钮点击
+		$('#reject-refund-content .modal-footer input[name="ok"]').click(function() {
+			var back_id = $('#reject-refund-content .modal-body table tbody input[name="back_id"]').val();
+			var trade_no = $('#reject-refund-content .modal-body table tbody input[name="reject_trade_no"]').val();
+			var pay_out_trade_no = $('#reject-refund-content .modal-body table tbody input[name="pay_out_trade_no"]').val();
+
+			var reject_rsn = $('#reject-refund-content .modal-body table tbody input[name="reject_rsn"]').val();
+			if (reject_rsn == "") {
+				reject_rsn = $('#reject-refund-content .modal-body table tbody input[name="history_rsn"]').val();
+			}
+
+			$.post("refund/manual_refund",
+			{
+				back_id:back_id,
+				trade_no:trade_no,
+				pay_out_trade_no:pay_out_trade_no,
+				if_rf:0,
+				reject_rsn:reject_rsn
+			},
+			function(data,status) {
+				$('#reject-refund-content').modal('hide');
+				$("#search").trigger("click");
+				$('#debug_info').html(data);
+			});
+		});
+
+    });
+
+	function format_op(val,row) {
+	    if (val == 18 || val == 19 || val == 11) {
+	    	return '<button class="agree-refund-button btn btn-success btn-mini" d_back_id="'+row.back_id+'" d_trade_no="'+row.trade_no+'" d_pay_out_trade_no="'+row.pay_out_trade_no+'" style="margin-right: 7px;">同意</button><button class="reject-refund-button btn btn-danger btn-mini" d_back_id="'+row.back_id+'" d_trade_no="'+row.trade_no+'" d_pay_out_trade_no="'+row.pay_out_trade_no+'" d_op_reason="'+row.op_reason+'" style="margin-left: 7px;">拒绝</button>';
+	    } else if (val == 1) {
+	        return '系统已处理';
+	    } else if (val == 2) {
+	    	return '已同意';
+	    } else if (val == 3) {
+	    	return '已拒绝';
+	    } else {
+	    	return val;
+	    }
+	}
+
+</script>
+<?php
+$this->load->view('ckad/footer')?>
+
+

@@ -1,0 +1,1053 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('special_subj/tabs'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<link rel="stylesheet" type="text/css" href="/static/css/bootstrap-switch.min.css">
+<script type="text/javascript" src="/static/js/bootstrap-switch.min.js"></script>
+
+<style>
+    form#ssubj-info {
+        margin: 11px 0;
+        padding: 9px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        -webkit-border-radius: 4px;
+            moz-border-radius: 4px;
+                border-radius: 4px;
+    }
+
+    ul#ssubj-modules {
+        list-style: none;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    ul#ssubj-modules > li > .well {
+        background-color: #fdfdfd;
+    }
+    ul#ssubj-modules > li > .well > .module-drag-sort {
+        font: bold 20px Sans-Serif;
+        color: #5F9EDF;
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+    }
+
+    #coo-partner-pic-preview > .preview,
+    #ssubj-upload-pic-preview > .preview {
+        position: relative;
+        display: inline-block;
+        width: 15%;
+        margin: 10px;
+        margin-top: 0;
+        padding: 3px;
+        border: solid 1px #dedede;
+        vertical-align: top;
+    }
+    #ssubj-upload-pic-preview > .preview > button {
+        position: absolute;
+        z-index: 2;
+        right: 2px;
+        top: 0;
+        color: red;
+    }
+    .hidden-input {
+        display: none;
+    }
+
+    #ssubj-subpro-id-list {
+        margin-left: 70px;
+    }
+    #ssubj-subpro-id-list .pro-id-item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+    }
+    #ssubj-subpro-id-list .pro-id-item input.input-mini {
+        margin: 0;
+    }
+
+</style>
+
+
+<!-- 选择配置项 -->
+<div class="row-fluid">
+    <form action="/special_subj/edit_ssubj" method="POST">
+        <div class="input-append">
+            <select name="edit_ssubj_id">
+              <option value="0">-----选择待配置专题-----</option>
+              <?php foreach ($ssubj_select_list as $row): ?>
+              <option value='<?=$row['id']?>' <?php echo $ssubj_id==$row['id'] ? 'selected' : '';?>><?=$row['name']?></option>
+              <?php endforeach;?>
+            </select>
+            <button type="submit" class="btn btn-success"><i class="icon-cog"></i></button>
+        </div>
+    </form>
+</div><hr>
+
+<?php if(intval($ssubj_id) !== 0): ?>
+
+<!-- 模板选择，及预览功能 -->
+<div class="row-fluid">
+    <div id="ssubj-tpl" class="span5">
+        <div class="row-fluid">
+            <div class="span3"><label>模板选择</label></div>
+            <div class="span9">
+                <label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="1" <?php echo $ssubj_info['ssubj_view']==1 ? 'checked' : ''; ?>>
+                  采用模板1（PS4类型模板）
+                </label>
+                <label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="2" <?php echo $ssubj_info['ssubj_view']==2 ? 'checked' : ''; ?>>
+                  采用模板2（红袖类型模板）
+                </label>
+                <label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="3" <?php echo $ssubj_info['ssubj_view']==3 ? 'checked' : ''; ?>>
+                  采用模板3（imbatv类型模板）
+                </label>
+                <label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="4" <?php echo $ssubj_info['ssubj_view']==4 ? 'checked' : ''; ?>>
+                  采用模板4（海燕杯类型模板）
+                </label>
+                
+                <label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="5" <?php echo $ssubj_info['ssubj_view']==5 ? 'checked' : ''; ?>>
+                  采用模板5（360游戏类型模板）
+                </label>
+
+		<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="6" <?php echo $ssubj_info['ssubj_view']==6 ? 'checked' : ''; ?>>
+                  采用模板6（乐元素类型模板）
+                </label>
+
+				<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="7" <?php echo $ssubj_info['ssubj_view']==7 ? 'checked' : ''; ?>>
+                  采用模板7（SNH48类型模板）
+                </label>
+				<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="8" <?php echo $ssubj_info['ssubj_view']==8 ? 'checked' : ''; ?>>
+                  采用模板8（可汗北京类型模板）
+                </label> 
+		<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="9" <?php echo $ssubj_info['ssubj_view']==9 ? 'checked' : ''; ?>>
+                  采用模板9（PS4第二届模板）
+                </label>   
+		<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="10" <?php echo $ssubj_info['ssubj_view']==10 ? 'checked' : ''; ?>>
+                  采用模板10（可汗上海类型模板）
+                </label>                
+		<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="11" <?php echo $ssubj_info['ssubj_view']==11 ? 'checked' : ''; ?>>
+                  采用模板11（可汗广州类型模板）
+                </label>     
+				<label class="radio">
+                  <input type="radio" name="ssubj_tpl" value="12" <?php echo $ssubj_info['ssubj_view']==12 ? 'checked' : ''; ?>>
+                  采用模板12（MYGB类型模板）
+                </label>       
+            </div>
+        </div>
+    </div>
+    <div id="ssubj-preview" class="span7">
+        <!-- <a href="#" type="button" name="cancel" class="btn"><i class="icon-trash"></i> 取消</a> -->
+        <a href="#" type="button" name="save" class="btn"><i class="icon-hdd"></i> 保存</a>
+        <a href="#" type="button" name="preview" class="btn btn-primary" data-url='<?=_gc('base_url', 'config')?>'><i class="icon-camera"></i> 查看</a>
+    </div>
+</div>
+
+
+<!-- 待保存的专题信息 -->
+<form id="ssubj-info" name="ssubj_info_form" action="" method="">
+    <div class="row-fluid">
+        <div class="input-prepend hidden-input">
+            <span class="add-on">专题ID</span>
+            <input class="input-large" name="ssubj_id" value='<?=$ssubj_id?>' type="text" placeholder="专题ID" readonly>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend">
+            <span class="add-on">专题名称</span>
+            <input class="input-large" name="ssubj_name" value='<?=$ssubj_info['ssubj_name']?>' type="text" placeholder="专题名称">
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend">
+            <span class="add-on">专题图片</span>
+            <input class="input-large" name="ssubj_pic" value='<?=$ssubj_info['ssubj_pic']?>' type="text" placeholder="专题图片" readonly style="display:none;">
+            <a id="ssubj-pic-up-btn" href="#" role="button">添加图片</a>
+            <img id="ssubj-pic-up-status" src="http://www.helloweba.com/demo/ajax_uploadimage/loader.gif" alt="loading" style="display:none;">
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend">
+            <span class="add-on">背景色设置</span>
+            <input class="input-large" id="ssubj_bgcolor" name="ssubj_bgcolor" value='<?=$ssubj_info['ssubj_bgcolor']?>' type="text" placeholder="请输入背景色色值,如213,237,243">
+        </div>
+    </div>
+    
+    <div class="row-fluid">
+        <div class="input-prepend">
+            <span class="add-on">二维码关注</span>
+            <input class="input-large" id="ssubj_code_pic" name="ssubj_code_pic" value='<?=$ssubj_info['ssubj_code_pic']?>' type="text" placeholder="关注项目二维码" readonly style="display:none;">
+            <a id="ssubj-code-pic-up-btn" href="#" role="button">添加二维码</a>
+            <img id="ssubj-code-pic-up-status" src="http://www.helloweba.com/demo/ajax_uploadimage/loader.gif" alt="loading" style="display:none;">
+        </div>
+    </div>
+    
+    <div id="ssubj-upload-pic-preview" class="row-fluid">
+        <?php $pics = explode(',', $ssubj_info['ssubj_pic']); ?>
+        <?php foreach ($pics as $pic): ?>
+        <?php if(!empty($pic)): ?>
+        <div class="preview">
+            <button class="close" _src="<?=$pic?>">&times;</button>
+            <img src="<?=_gc('main_site_url', 'config').$pic?>" alt="<?=$pic?>">
+        </div>
+        <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+    
+    <div id="ssubj-upload-code-pic-preview" class="row-fluid">
+        <?php $pics = explode(',', $ssubj_info['ssubj_code_pic']); ?>
+        <?php foreach ($pics as $pic): ?>
+        <?php if(!empty($pic)): ?>
+        <div class="preview">
+            <button class="close" _src="<?=$pic?>">&times;</button>
+            <img src="<?=_gc('main_site_url', 'config').$pic?>" alt="<?=$pic?>">
+        </div>
+        <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+    
+    <div class="row-fluid">
+        <div class="input-prepend">
+            <span class="add-on">专题描述</span>
+            <textarea name="ssubj_des" placeholder="活动描述" rows="3"><?=$ssubj_info['ssubj_des']?></textarea>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend input-append">
+            <span class="add-on">专题时间</span>
+            <span class="input-append date form_datetime">
+                <input class="input-large" name="ssubj_start_time" value='<?=$ssubj_info['ssubj_start_time']?>' type="text" placeholder="开始时间">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+            </span>
+            <span> <i class="icon-resize-horizontal"></i> </span>
+            <span class="input-append date form_datetime">
+                <input class="input-large" name="ssubj_end_time" value='<?=$ssubj_info['ssubj_end_time']?>' type="text" placeholder="结束时间">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+            </span>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend">
+            <span class="add-on">主项目ID</span>
+            <input class="input-large" name="ssubj_main_pro_id" value='<?=$ssubj_info['ssubj_main_pro_id']?>' type="text" placeholder="主项目ID">
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend input-append">
+            <span class="add-on">子项目ID</span>
+            <a id="ssubj-subpro-id-add" href="#" role="button">添加子项目</a>
+        </div>
+    </div>
+    <div id="ssubj-subpro-id-list" class="row-fluid">
+        <?php $pids = explode(',', $ssubj_info['ssubj_sub_pro_id']); ?>
+        <?php foreach ($pids as $pid): ?>
+        <?php if (!empty($pid)): ?>
+        <div class="pro-id-item">
+            <a href="#" class="close del-subjpro-id-item">&times;</a>
+            <input class="input-mini" type="text" name="pro_id_items[]" value="<?=$pid?>" readonly>
+        </div>
+        <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend hidden-input">
+            <span class="add-on">模块状态</span>
+            <input class="input-large" name="ssubj_module_show" type="text" value='<?=$ssubj_info['ssubj_module_show']?>' placeholder="模块状态" readonly>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend hidden-input">
+            <span class="add-on">模块排序</span>
+            <input class="input-large" name="ssubj_module_sort" type="text" value='<?=$ssubj_info['ssubj_module_sort']?>' placeholder="模块排序" readonly>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="input-prepend hidden-input">
+            <span class="add-on">页面模板</span>
+            <input class="input-large" name="ssubj_view" type="text" value='<?=$ssubj_info['ssubj_view']?>' placeholder="页面模板" readonly>
+        </div>
+    </div>
+</form>
+
+<!-- 专题模块 -->
+<ul id="ssubj-modules">
+    <?php $module_array = json_decode($ssubj_info['ssubj_module_sort']); ?>
+    <?php foreach ($module_array as $module): ?>
+        <?php if ($module == 'SSM_1'): ?>
+            <li data-id="SSM_1"><?php $this->load->view('special_subj/module_lottery'); ?></li>
+        <?php elseif ($module == 'SSM_2'): ?>
+            <li data-id="SSM_2"><?php $this->load->view('special_subj/module_vote'); ?></li>
+        <?php elseif ($module == 'SSM_3'): ?>
+            <li data-id="SSM_3"><?php $this->load->view('special_subj/module_update'); ?></li>
+        <?php elseif ($module == 'SSM_4'): ?>
+            <li data-id="SSM_4"><?php $this->load->view('special_subj/module_billboard'); ?></li>
+        <?php elseif ($module == 'SSM_5'): ?>
+            <li data-id="SSM_5"><?php $this->load->view('special_subj/module_coo_partner'); ?></li>
+        <?php elseif ($module == 'SSM_6'): ?>
+            <li data-id="SSM_6"><?php $this->load->view('special_subj/module_comments'); ?></li>
+        <?php elseif ($module == 'SSM_7'): ?>
+            <li data-id="SSM_7"><?php $this->load->view('special_subj/module_video_live'); ?></li>
+        <?php elseif ($module == 'SSM_8'): ?>
+            <li data-id="SSM_8"><?php $this->load->view('special_subj/module_ssubj_info'); ?></li>
+        <?php elseif ($module == 'SSM_9'): ?>
+            <li data-id="SSM_9"><?php $this->load->view('special_subj/module_backer_list'); ?></li>
+        <?php else: ?>
+        <?php endif; ?>
+    <?php endforeach; ?>
+</ul>
+<script src="<?= static_url(); ?>js/sortable/Sortable.min.js"></script>
+<script>
+    var el = document.getElementById('ssubj-modules');
+    var ssmst = Sortable.create(el, {
+        store: {
+            // 初始化
+            get: function (sortable) {
+                var order = $('#ssubj-info .row-fluid input[name="ssubj_module_sort"]').val();
+                return order ? JSON.parse(order) : [];
+
+            },
+            // 保存拖动结果
+            set: function (sortable) {
+                var order = sortable.toArray();
+                $('#ssubj-info .row-fluid input[name="ssubj_module_sort"]').val(JSON.stringify(order));
+            }
+        },
+        animation: 150,
+        handle: ".module-drag-sort",
+        scroll: true,
+        scrollSensitivity: 30,
+        scrollSpeed: 10
+    });
+</script>
+
+
+<!-- 添加专题图片 -->
+<div id="add-ssubj-pic" style="display:none;">
+<form action="" enctype="multipart/form-data">
+    <input type="file" name="upload_img">
+</form>
+</div>
+
+<!-- 添加二维码图片 -->
+<div id="add-ssubj-code-pic" style="display:none;">
+<form action="" enctype="multipart/form-data">
+    <input type="file" name="upload_code_img">
+</form>
+</div>
+
+<script>
+    $(function() {
+        // 时间选择
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd hh:mm:ss",
+            pickTime: true
+        });
+
+        // 专题模板设置
+        $('#ssubj-tpl input[type=radio][name="ssubj_tpl"]').change(function() {
+            $('#ssubj-info .row-fluid input[name="ssubj_view"]').val($(this).val());
+        });
+
+        // 预览、取消功能
+        $('#ssubj-preview a').on('click', function(evt) {
+            evt.preventDefault();
+            switch($(this).attr('name')) {
+            case 'cancel':
+                alert('取消');
+                break;
+            case 'save':
+                var url = '/special_subj/save_ssubj_info';
+                var data = $('form#ssubj-info').serialize();
+                ajax_submit(url, data, function(res) {
+                    // console.log(res);
+                    alert(res.status);
+                });
+                break;
+            case 'preview':
+                var ssubj_id = $('#ssubj-info .row-fluid input[name="ssubj_id"]').val();
+                var base_url = $(this).data('url');
+                var a = $("<a href='"+base_url+"special_subj/preview_ssubj/"+ssubj_id+"' target='_blank'>preview</a>").get(0);
+                var e = document.createEvent('MouseEvents');
+                e.initEvent('click', true, true);
+                a.dispatchEvent(e);
+                break;
+            default:
+                ;
+            }
+        });
+
+        // ajax 上传专题图片
+        $('#ssubj-pic-up-btn').on('click', function(evt) {
+            evt.preventDefault();
+            // $('#add-ssubj-pic form input[type="file"]').val('');
+            $('#add-ssubj-pic form input[type="file"]').click();
+        });
+        $('#add-ssubj-pic form input[type="file"]').on('change', function() {
+            var url = "/special_subj/upload_image";
+            var formdata = new FormData($('#add-ssubj-pic form')[0]);
+            formdata.append('ssubj_id', 1);
+
+            var up_btn = $('#ssubj-pic-up-btn');
+            var up_status = $('#ssubj-pic-up-status');
+            ajax_upload(url, formdata, function(res) {
+                console.log(res);
+
+                switch(res.status_code) {
+                case 0:
+                    var upload_imgs = $('#ssubj-info .row-fluid input[name="ssubj_pic"]').val();
+                    if (upload_imgs!="")
+                        $('#ssubj-info .row-fluid input[name="ssubj_pic"]').val(upload_imgs.concat(",", res.data.pathname));
+                    else
+                        $('#ssubj-info .row-fluid input[name="ssubj_pic"]').val(upload_imgs.concat(res.data.pathname));
+
+                    var html = $('#ssubj-upload-pic-preview').html();
+                    html += '<div class="preview"><button class="close" _src="'+res.data.pathname+'">&times;</button><img src="'+res.data.src+'" alt="'+res.data.name+'"></div>';
+                    $('#ssubj-upload-pic-preview').html(html);
+                    break;
+                default:
+                    alert(res.status);
+                }
+
+                up_btn.show();
+                up_status.hide();
+            }, '#ssubj-pic-up-btn', '#ssubj-pic-up-status');
+        });
+
+        // ajax 上传二维码图片
+        $('#ssubj-code-pic-up-btn').on('click', function(evt) {
+            evt.preventDefault();
+            $('#add-ssubj-code-pic form input[type="file"]').click();
+        });
+        $('#add-ssubj-code-pic form input[type="file"]').on('change', function() {
+            var url = "/special_subj/upload_code_image";
+            var formdata = new FormData($('#add-ssubj-code-pic form')[0]);
+            formdata.append('ssubj_id', 1);
+            var up_btn = $('#ssubj-code-pic-up-btn');
+            var up_status = $('#ssubj-code-pic-up-status');
+            ajax_upload(url, formdata, function(res) {
+                console.log(res);
+                switch(res.status_code) {
+                case 0:
+                    var upload_imgs = $('#ssubj-info .row-fluid input[name="ssubj_code_pic"]').val();
+                    if (upload_imgs!="")
+                        $('#ssubj-info .row-fluid input[name="ssubj_code_pic"]').val(upload_imgs.concat(",", res.data.pathname));
+                    else
+                        $('#ssubj-info .row-fluid input[name="ssubj_code_pic"]').val(upload_imgs.concat(res.data.pathname));
+
+                    var html = $('#ssubj-upload-code-pic-preview').html();
+                    html += '<div class="preview"><button class="close" _src="'+res.data.pathname+'">&times;</button><img src="'+res.data.src+'" alt="'+res.data.name+'"></div>';
+                    $('#ssubj-upload-code-pic-preview').html(html);
+                    break;
+                default:
+                    alert(res.status);
+                }
+                up_btn.show();
+                up_status.hide();
+            }, '#ssubj-code-pic-up-btn', '#ssubj-code-pic-up-status');
+        });
+
+        
+        // 删除专题图片(服务器端并没有删除)
+        $('#ssubj-upload-pic-preview').on('click', '.preview button.close', function(evt) {
+            evt.preventDefault();
+            console.log($(this).attr('_src'));
+
+            var upload_imgs = $('#ssubj-info .row-fluid input[name="ssubj_pic"]').val();
+            upload_imgs = upload_imgs.replace($(this).attr('_src')+',', '');
+            upload_imgs = upload_imgs.replace(','+$(this).attr('_src'), '');
+            upload_imgs = upload_imgs.replace($(this).attr('_src'), '');
+            $('#ssubj-info .row-fluid input[name="ssubj_pic"]').val(upload_imgs)
+            console.log(upload_imgs);
+
+            $(this).parent().remove();
+        });
+
+        // 删除专题图片(服务器端并没有删除)
+        $('#ssubj-upload-code-pic-preview').on('click', '.preview button.close', function(evt) {
+            evt.preventDefault();
+            console.log($(this).attr('_src'));
+
+            var upload_imgs = $('#ssubj-info .row-fluid input[name="ssubj_code_pic"]').val();
+            upload_imgs = upload_imgs.replace($(this).attr('_src')+',', '');
+            upload_imgs = upload_imgs.replace(','+$(this).attr('_src'), '');
+            upload_imgs = upload_imgs.replace($(this).attr('_src'), '');
+            $('#ssubj-info .row-fluid input[name="ssubj_code_pic"]').val(upload_imgs)
+            console.log(upload_imgs);
+
+            $(this).parent().remove();
+        });
+
+        // 添加子项目
+        $('a#ssubj-subpro-id-add').on('click', function(evt) {
+            evt.preventDefault();
+            var html = '<div class="pro-id-item">\
+                            <a href="#" class="close del-subjpro-id-item">&times;</a>\
+                            <input class="input-mini" type="text" name="pro_id_items[]" placeholder="子项目ID">\
+                        </div>';
+            $('#ssubj-subpro-id-list').append(html);
+        });
+        $('#ssubj-subpro-id-list').on('click', '.pro-id-item a.del-subjpro-id-item', function(evt) {
+            evt.preventDefault();
+            $(this).parent().remove();
+        });
+
+        // 模块开关组件设置
+        // 初始化页面模块开关
+        var module_switch_status = JSON.parse($('#ssubj-info .row-fluid input[name="ssubj_module_show"]').val());
+        $('#ssubj-modules .well .switch input[type="checkbox"]').each(function() {
+            $(this).bootstrapSwitch();
+
+            if (parseInt(module_switch_status['SSM_'+$(this).data('module')]) == 1) {
+                $(this).bootstrapSwitch('setState', true);
+                $(this).parent().parent().parent().parent().find('div.module-detail').show(300);
+            } else {
+                $(this).bootstrapSwitch('setState', false);
+                $(this).parent().parent().parent().parent().find('div.module-detail').hide(300);
+            }
+        });
+        // 依据操作设置模块开关
+        $('#ssubj-modules .well .switch input[type="checkbox"]').on('switch-change', function (e, data) {
+            var status = JSON.parse($('#ssubj-info .row-fluid input[name="ssubj_module_show"]').val());
+            if (data.value) {
+                status['SSM_'+$(this).data('module')] = 1;
+                $(this).parent().parent().parent().parent().find('div.module-detail').show(300);
+            } else {
+                status['SSM_'+$(this).data('module')] = 0;
+                $(this).parent().parent().parent().parent().find('div.module-detail').hide(300);
+            }
+            $('#ssubj-info .row-fluid input[name="ssubj_module_show"]').val(JSON.stringify(status));
+        });
+    });
+
+    function ajax_submit(url, data, fun) {
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: data,
+            dataType: "json",
+            success: fun,
+            error: function() {
+                alert('出错了');
+            }
+        });
+    }
+
+    function ajax_upload(url, formdata, fun, up_btn_selt, status_selt) {
+        var up_btn = $(up_btn_selt);
+        var up_status = $(status_selt);
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: formdata,
+            cache: false,
+            contentType: false,
+            processData: false,
+            dataType: "json",
+            beforeSend: function() {
+                up_btn.hide();
+                up_status.show();
+            },
+            success: fun,
+            error : function() {
+                alert('上传图片出错');
+                up_btn.show();
+                up_status.hide();
+            }
+        });
+    }
+</script>
+
+
+<!-- 模块::抽奖活动 -->
+<script>
+    $(function() {
+        // 保存活动配置
+        $('#module-lottery form button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/save_module_lottery";
+            var data = $('#module-lottery form').serialize();
+
+            ajax_submit(url, data, function(res) {
+                // console.log(res);
+                alert(res.status);
+            });
+        });
+    });
+</script>
+
+<!-- 模块::投票 -->
+<div id="fix-vote-weight-modal" class="modal hide fade">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>修改权重</h3>
+  </div>
+  <div class="modal-body">
+    <input type="text" class="input-large" name="weight" placeholder="输入新权重">
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">取消</button>
+    <button name="sure" class="btn btn-primary">确定</button>
+  </div>
+</div>
+<script>
+    $(function() {
+        $('#module-vote .row-fluid input[type="radio"][name="module_vote_type"]').on('change', function(evt) {
+            evt.preventDefault();
+            var rv = $('#module-vote .row-fluid input[type="radio"][name="module_vote_type"]:checked').val();
+            switch(parseInt(rv)) {
+            case 1:
+                $('#module-vote form[name="form2"]').hide();
+                $('#module-vote form[name="form1"]').show();
+                break;
+            case 2:
+                $('#module-vote form[name="form1"]').hide();
+                $('#module-vote form[name="form2"]').show();
+                break;
+            default:
+                ;
+            }
+        });
+
+        $('#module-vote form[name="form1"] table tbody').on('click', 'tr > td > a', function(evt) {
+            evt.preventDefault();
+            $('#fix-vote-weight-modal .modal-body input[name="weight"]').data('vote-id', $(this).parent().parent().data('vote-id'));
+            $('#fix-vote-weight-modal .modal-body input[name="weight"]').val('');
+            $('#fix-vote-weight-modal').modal('show');
+        });
+        $('#fix-vote-weight-modal .modal-footer button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var vote_id = $('#fix-vote-weight-modal .modal-body input[name="weight"]').data('vote-id');
+            var weight = $('#fix-vote-weight-modal .modal-body input[name="weight"]').val();
+            if (''!=vote_id && ''!=weight) {
+                $('#module-vote form[name="form1"] table tbody tr[data-vote-id="'+vote_id+'"] > td > a').text(weight);
+                var iv = vote_id + ':' + weight;
+                $('#module-vote form[name="form1"] table tbody tr[data-vote-id="'+vote_id+'"] > td > input').val(iv);
+                $('#fix-vote-weight-modal').modal('hide');
+            }
+        });
+        $('#module-vote form[name="form1"] .row-fluid button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/save_module_vote";
+            var data = $('#module-vote form').serialize();
+
+            ajax_submit(url, data, function(res) {
+                // console.log(res);
+                alert(res.status);
+            });
+        });
+    });
+</script>
+
+<!-- 模块::专题更新 -->
+<div id="fix-update-weight-modal" class="modal hide fade">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>修改权重</h3>
+  </div>
+  <div class="modal-body">
+    <input type="text" class="input-large" name="weight" placeholder="输入新权重">
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">取消</button>
+    <button name="sure" class="btn btn-primary">确定</button>
+  </div>
+</div>
+<script type="text/javascript" src="<?=_gc('main_site_url', 'config')?>/mt/ueditor_cus/ueditor.config.js"></script>
+<script type="text/javascript" src="<?=_gc('main_site_url', 'config')?>/mt/ueditor_cus/ueditor.all.min.js"></script>
+<script>
+    $(function() {
+        $('#module-update .row-fluid input[type="radio"][name="module_update_type"]').on('change', function(evt) {
+            evt.preventDefault();
+            var rv = $('#module-update .row-fluid input[type="radio"][name="module_update_type"]:checked').val();
+            switch(parseInt(rv)) {
+            case 1:
+                $('#module-update form[name="form2"]').hide();
+                $('#module-update form[name="form1"]').show();
+                break;
+            case 2:
+                $('#module-update form[name="form1"]').hide();
+                $('#module-update form[name="form2"]').show();
+                break;
+            default:
+                ;
+            }
+        });
+
+        $('#module-update form[name="form1"] table tbody').on('click', 'tr > td > a', function(evt) {
+            evt.preventDefault();
+            $('#fix-update-weight-modal .modal-body input[name="weight"]').data('update-id', $(this).parent().parent().data('update-id'));
+            $('#fix-update-weight-modal .modal-body input[name="weight"]').val('');
+            $('#fix-update-weight-modal').modal('show');
+        });
+        $('#fix-update-weight-modal .modal-footer button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var update_id = $('#fix-update-weight-modal .modal-body input[name="weight"]').data('update-id');
+            var weight = $('#fix-update-weight-modal .modal-body input[name="weight"]').val();
+            if (''!=update_id && ''!=weight) {
+                $('#module-update form[name="form1"] table tbody tr[data-update-id="'+update_id+'"] > td > a').text(weight);
+                var iv = update_id + ':' + weight;
+                $('#module-update form[name="form1"] table tbody tr[data-update-id="'+update_id+'"] > td > input').val(iv);
+                $('#fix-update-weight-modal').modal('hide');
+            }
+        });
+        $('#module-update form[name="form1"] .row-fluid button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/save_module_update";
+            var data = $('#module-update form[name="form1"]').serialize();
+
+            ajax_submit(url, data, function(res) {
+                // console.log(res);
+                alert(res.status);
+            });
+        });
+
+        var ue = UE.getEditor('module-update-content');
+        $('#module-update form[name="form2"] .row-fluid button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/save_module_update";
+            var data = $('#module-update form[name="form2"]').serialize();
+
+            ajax_submit(url, data, function(res) {
+                // console.log(res);
+                alert(res.status);
+            });
+        });
+    });
+</script>
+
+<!- 模块::视频直播 -->
+<script>
+    $(function() {
+        $('#module-video-live form[name="formVideoLive"] .row-fluid button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/save_module_video_live";
+            var data = $('#module-video-live form[name="formVideoLive"]').serialize();
+            ajax_submit(url, data, function(res) {
+                // console.log(res);
+                alert(res.status);
+            });
+        });
+    });
+</script>
+
+<!-- 模块::添加榜单项目弹窗 -->
+<div id="add-billboard-pro-modal" class="modal hide fade">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>添加项目</h3>
+  </div>
+  <div class="modal-body">
+    <input type="text" class="input-large" name="pro_id" placeholder="输入项目ID">
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">取消</button>
+    <button name="sure" class="btn btn-primary">添加</button>
+  </div>
+</div>
+<script>
+  $(function() {
+    // 添加榜单项目
+    $('#add-billboard-pro-modal .modal-footer button[name="sure"]').on('click', function(evt) {
+        evt.preventDefault();
+        var bbpi = $('#module-billboard form .row-fluid input[name="billboard_pro_id"]').val();
+        var abbpi = $('#add-billboard-pro-modal .modal-body input[name="pro_id"]').val();
+        if (abbpi!="" && bbpi != "")
+            bbpi = bbpi.concat(",", abbpi);
+        else if (abbpi!="")
+            bbpi = bbpi.concat(abbpi);
+        else
+            ;
+        $('#module-billboard form .row-fluid input[name="billboard_pro_id"]').val(bbpi);
+
+        $('#add-billboard-pro-modal').modal('hide');
+    });
+
+    // 保存榜单配置
+    $('#module-billboard form .row-fluid button[name="sure"]').on('click', function(evt) {
+        evt.preventDefault();
+        var url = "/special_subj/save_module_billboard";
+        var data = $('#module-billboard form').serialize();
+
+        ajax_submit(url, data, function(res) {
+            console.log(res);
+            alert(res.status);
+        });
+    });
+  });
+</script>
+
+
+<!-- 模块::合作伙伴弹窗 -->
+<div id="add-coo-partner-modal" class="modal hide fade">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>合作伙伴</h3>
+  </div>
+  <div class="modal-body">
+    <form action="" class="form-horizontal">
+      <div class="row-fluid input-append" style="display:none; margin-bottom:11px;">
+        <span class="add-on">操作类型</span>
+        <input type="text" class="input-large" name="type" value="1" placeholder="操作类型" readonly>
+      </div>
+      <div class="row-fluid input-append" style="display:none; margin-bottom:11px;">
+        <span class="add-on">专题ID</span>
+        <input type="text" class="input-large" name="ssubj_id" value='<?=$ssubj_id?>' placeholder="专题ID" readonly>
+      </div>
+      <div class="row-fluid input-append" style="display:none; margin-bottom:11px;">
+        <span class="add-on">合作伙伴ID</span>
+        <input type="text" class="input-large" name="coo_partner_id" placeholder="合作伙伴ID" readonly>
+      </div>
+      <div class="row-fluid input-append" style="margin-bottom:11px;">
+        <span class="add-on">排序权重</span>
+        <input type="text" class="input-large" name="weight" placeholder="排序权重">
+      </div>
+      <div class="row-fluid input-append" style="margin-bottom:11px;">
+        <span class="add-on">网址链接</span>
+        <input id="coo-partner-site" type="text" class="input-large" name="site" autocomplete="off" placeholder="网址链接">
+      </div>
+      <div class="row-fluid input-append" style="display:none; margin-bottom:11px;">
+        <span class="add-on">图片</span>
+        <input type="text" class="input-large" name="pic" placeholder="图片" readonly>
+        <a id="coo-partner-pic-up-btn" href="#" role="button">添加图片</a>
+        <img id="coo-partner-pic-up-status" src="http://www.helloweba.com/demo/ajax_uploadimage/loader.gif" alt="loading" style="display:none;">
+      </div>
+      <div id="coo-partner-pic-preview" class="display:none; row-fluid"></div>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">取消</button>
+    <button name="sure" class="btn btn-primary">确定</button>
+  </div>
+</div>
+<!-- 模块::上传合伙伙伴图片 -->
+<div id="up-coo-partner-pic" style="display:none;">
+<form action="" enctype="multipart/form-data">
+    <input type="file" name="upload_img">
+</form>
+</div>
+<script>
+    $(function() {
+        // 重置弹窗状态
+        $('#add-coo-partner-modal').on('hidden', function () {
+            var ssubj_id = $('#ssubj-info .row-fluid input[name="ssubj_id"]').val();
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="type"]').val(1);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="ssubj_id"]').val(ssubj_id);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="coo_partner_id"]').val('');
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="weight"]').val('');
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').val('');
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').removeAttr("readonly");
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').val('');
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').parent().hide();
+            $('#coo-partner-pic-up-btn').show();
+            $('#coo-partner-pic-up-status').hide();
+            $('#coo-partner-pic-preview').html('');
+            $('#coo-partner-pic-preview').hide();
+        });
+
+        // 重新编辑合作伙伴信息设置
+        $('#module-coo-partner table tbody').on('click', 'tr > td > a', function(evt) {
+            evt.preventDefault();
+
+            var ed = $(this).parent().parent().data('row');
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="type"]').val(2);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="ssubj_id"]').val(ed.ssubj_id);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="coo_partner_id"]').val(ed.coo_partner_id);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="weight"]').val(ed.weight);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').val(ed.site);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').attr("readonly","readonly");
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').val(ed.pic);
+            $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').parent().show();
+            $('#coo-partner-pic-up-btn').hide();
+
+            $('#add-coo-partner-modal').modal('show');
+        });
+
+        // 网址输入框提示设置
+        $('#coo-partner-site').typeahead({
+            source: function(query, process) {
+                var parameter = {ssubj_id: $('#ssubj-info .row-fluid input[name="ssubj_id"]').val()};
+                ajax_submit('/special_subj/ajax_coo_partner_site', parameter, function(res) {
+                    // console.log(res);
+                    $('#coo-partner-site').data('base_url', res.base_url);
+                    $('#coo-partner-site').data('pic_list', res.pic_list);
+                    process(res.site_list);
+                });
+            }
+        });
+
+        // 网址输入框、图片及图片预览设置
+        $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').on('change', function() {
+            var site = $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').val();
+            // console.log(site);
+            if (site != '') {
+                var base_url = $('#coo-partner-site').data('base_url');
+                var pic_list = $('#coo-partner-site').data('pic_list');
+                // console.log(pic_list);
+                if (pic_list[site]) {
+                    $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').val(pic_list[site]);
+                    $('#coo-partner-pic-up-btn').hide();
+                    $('#coo-partner-pic-preview').html('<div class="preview"><img src="'+base_url+pic_list[site]+'" alt="lalla"></div>');
+                } else {
+                    $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').val('');
+                    $('#coo-partner-pic-up-btn').show();
+                    $('#coo-partner-pic-preview').html('');
+                }
+                $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').parent().show();
+                $('#coo-partner-pic-preview').show();
+            } else {
+                $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').parent().hide();
+                $('#coo-partner-pic-preview').hide();
+            }
+        });
+
+        // 确认弹窗，保存信息
+        $('#add-coo-partner-modal .modal-footer button[name="sure"]').on('click', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/save_module_coo_partner";
+            var data = $('#add-coo-partner-modal .modal-body form').serialize();
+            ajax_submit(url, data, function(res) {
+                // console.log(res);
+
+                switch(res.status_code) {
+                case 0:
+                    switch(res.type) {
+                    case 1:
+                        var html = "<tr data-cpid='"+res.coo_partner_id+"' data-row='"+JSON.stringify(res)+"'>\
+                                      <td><a href='#'>"+res.weight+"</a></td>\
+                                      <td>"+res.site+"</td>\
+                                      <td>"+res.pic+"</td>\
+                                    </tr>";
+                        $('#module-coo-partner table tbody').append(html);
+                        break;
+                    case 2:
+                        $('#module-coo-partner table tbody tr[data-cpid="'+res.coo_partner_id+'"]').data('row', res);
+                        $('#module-coo-partner table tbody tr[data-cpid="'+res.coo_partner_id+'"] td a').text(res.weight);
+                        break;
+                    default:
+                        ;
+                    }
+
+                    $('#add-coo-partner-modal').modal('hide');
+                    break;
+                default:
+                    alert(res.status);
+                }
+            });
+        });
+
+        // ajax 上传专题图片
+        $('#coo-partner-pic-up-btn').on('click', function(evt) {
+            evt.preventDefault();
+            if ('' != $('#add-coo-partner-modal .modal-body .row-fluid input[name="site"]').val())
+                $('#up-coo-partner-pic form input[type="file"]').click();
+            else
+                alert('请输入网址');
+        });
+        $('#up-coo-partner-pic form input[type="file"]').on('change', function(evt) {
+            evt.preventDefault();
+            var url = "/special_subj/upload_image";
+            var formdata = new FormData($('#up-coo-partner-pic form')[0]);
+            formdata.append('folder', 'coo_partner');
+
+            var up_btn = $('#coo-partner-pic-up-btn');
+            var up_status = $('#coo-partner-pic-up-status');
+            ajax_upload(url, formdata, function(res) {
+                // console.log(res);
+
+                switch(res.status_code) {
+                case 0:
+                    $('#add-coo-partner-modal .modal-body .row-fluid input[name="pic"]').val(res.data.pathname);
+                    $('#coo-partner-pic-preview').html('<div class="preview"><img src="'+res.data.src+'" alt="'+res.data.name+'"></div>');
+                    break;
+                default:
+                    alert(res.status);
+                }
+
+                up_btn.show();
+                up_status.hide();
+            }, '#coo-partner-pic-up-btn', '#coo-partner-pic-up-status');
+        });
+    });
+</script>
+
+
+
+<!-- 子项目详情 -->
+<div id="fix-subpro-weight-modal" class="modal hide fade">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+    <h3>子项目详情</h3>
+  </div>
+  <div class="modal-body">
+    <form action="" class="form-horizontal">
+    <div class="row-fluid input-append" style="margin-bottom:11px;">
+      <span class="add-on">专题ID</span>
+      <input type="text" class="input-large" name="ssubj_id" value='<?=$ssubj_id?>' placeholder="专题ID" readonly>
+    </div>
+    <div class="row-fluid input-append" style="margin-bottom:11px;">
+      <span class="add-on">项目ID</span>
+      <input type="text" class="input-large" name="pro_id" placeholder="项目ID" readonly>
+    </div>
+    <div class="row-fluid input-append" style="margin-bottom:11px;">
+      <span class="add-on">排序权重</span>
+      <input type="text" class="input-large" name="weight" placeholder="排序权重">
+    </div>
+    <div class="row-fluid input-append" style="margin-bottom:11px;">
+      <span class="add-on">分类</span>
+      <input type="text" class="input-large" name="category" placeholder="分类">
+    </div>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">取消</button>
+    <button name="sure" class="btn btn-primary">确定</button>
+  </div>
+</div>
+<script>
+    $(function() {
+        var init_subpro_info_editor = function (data) {
+            $('#fix-subpro-weight-modal .modal-body input[name="pro_id"]').val(data.pro_id);
+            $('#fix-subpro-weight-modal .modal-body input[name="weight"]').val(data.weight);
+            $('#fix-subpro-weight-modal .modal-body input[name="category"]').val(data.category);
+        };
+
+        var update_subpro_info = function (data) {
+            $('#module-subpro-info table tbody tr[data-cpid="'+data.pro_id+'"]').data('row', data);
+            $('#module-subpro-info table tbody tr[data-cpid="'+data.pro_id+'"] td>a').text(data.weight);
+            $('#module-subpro-info table tbody tr[data-cpid="'+data.pro_id+'"] td:eq(1)').text(data.category);
+        };
+
+        $('#module-subpro-info table tbody').on('click', 'tr > td > a', function(evt) {
+            evt.preventDefault();
+            init_subpro_info_editor($(this).parent().parent().data('row'));
+            $('#fix-subpro-weight-modal').modal('show');
+        });
+        // 保存配置
+        $('#fix-subpro-weight-modal .modal-footer button[name="sure"]').on('click', function(evt) {
+            var url = "/special_subj/save_module_subpro";
+            var data = $('#fix-subpro-weight-modal .modal-body form').serialize();
+            ajax_submit(url, data, function(res) {
+                if (res.status_code == 0) {
+                    update_subpro_info(res.data);
+                    $('#fix-subpro-weight-modal').modal('hide');
+                }
+            });
+        });
+    });
+</script>
+
+<?php endif; ?>
+<?php $this->load->view('ckad/footer'); ?>

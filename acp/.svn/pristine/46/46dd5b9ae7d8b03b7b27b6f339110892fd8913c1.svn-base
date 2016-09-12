@@ -1,0 +1,63 @@
+<?php $this->load->view('ckad/header') ?>
+<script language="javascript">
+    $(function() {
+        $("#save_status").click(function() {
+            $.messager.confirm('提示', '你确认要修改状态吗?', function(r) {
+                if (r) {
+                    $("#form1").submit();
+                }
+            });
+        })
+    })
+</script>
+<div id="aa" class="easyui-accordion" style="width:auto;height:500px;">
+    <div title="订单详情与状态操作" style="overflow:auto;padding:10px;">
+        <span class="span4">订单号：<?= $order_info['id']; ?></span>
+        <span class="span2">来源：</span>
+        <span class="span6">订单提交时间：<?= $order_info['ctime']; ?></span>
+        <p>订单状态：
+        <form method="POST" action="" id="form1">
+            <select name="order_status">
+                <?php foreach ($order_status_group as $k => $name): ?>
+                    <optgroup label="<?= $name ?>">
+                        <?php foreach ($order_status as $code => $stat): ?>
+                            <?php if (substr($code, 0, 1) == $k): ?>
+                                <option value="<?= $code ?>"<?php if ($order_info['status'] == $code): ?> selected="selected"<?php endif; ?>><?= $stat ?>：<?= $code ?></option>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </optgroup>
+                <?php endforeach; ?>
+            </select>
+            <br />
+            <label><input type="radio" name="status_debt" value="1" <?php if (isset($order_info['status_debt']) && $order_info['status_debt'] == '1'): ?>checked<?php endif; ?> />赊账中</label>
+            <label><input type="radio" name="status_debt" value="0" <?php if (isset($order_info['status_debt']) && $order_info['status_debt'] == '0' || !isset($order_info['status_debt'])): ?>checked<?php endif; ?> />未赊账</label>
+        </form>
+        <button class="btn btn-primary" id="save_status" type="button">修改状态</button>
+        </p>
+
+        <p>用户ID：<?= $order_info['user_id']; ?></p>
+        <p>收件人：<?= $order_info['create_user']; ?></p>
+        <p>手机：<?= $order_info['reg_mobile']; ?></p>
+        <p>邮箱：<?= $order_info['reg_email']; ?></p>
+    </div>
+    <div title="项目内容" style="overflow:auto;padding:10px;">
+        <h3 style="color:#0099FF;"><?= $pro_info['name'] ?></h3>
+        <p>发起人：<?php echo $pro_info['nickname']; ?></p>
+        <p><?php echo str_replace("\n", '<br />', $pro_info['des']); ?></p>
+        <p>目标金额：<?php echo $pro_info['goal']; ?></p>
+        <p>支持总金额：<?php echo $pro_info['all_amount']; ?></p>
+    </div>
+    <div title="操作日志" style="overflow:auto;padding:10px;">
+        <?php foreach ($operation_list as $time => $operation): ?>
+            <p><?= date("Y-m-d H:i:s", $time) . "\t" . $operation ?></p>
+        <?php endforeach; ?>
+    </div>
+</div>
+<script>
+	$(function(){
+		$("#modify-btn").click(function(){
+			$("#modify-form").submit();
+		});
+	})
+</script>
+<?php $this->load->view('ckad/footer') ?>

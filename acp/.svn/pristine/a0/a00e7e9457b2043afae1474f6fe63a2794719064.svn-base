@@ -1,0 +1,424 @@
+<?php $this->load->view('ckad/header') ?>
+<h2>全站数据</h2>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<form ation="<?php echo site_url('web_data/path_data'); ?>" method="get">
+        <div class="span3">
+            <div id="datetimepicker1" class="input-append">
+                <input data-format="yyyy-MM-dd" type="text" placeholder="开始时间" id='start_time' name='start_time' value="<?php if(isset($start_time)){ echo $start_time; }?>" style="width:165px;"></input>
+                <span class="add-on">
+                    <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                    </i>
+                </span>
+            </div>
+        </div>
+        <div class="span3">
+            <div id="datetimepicker2" class="input-append">
+                <input data-format="yyyy-MM-dd" type="text" placeholder="截止时间" id='end_time' name='end_time' value="<?php if(isset($end_time)){ echo $end_time; }?>" style="width:165px;"></input>
+                <span class="add-on">
+                    <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                    </i>
+                </span>
+            </div>
+        </div>
+        <input type="submit" value="显示" class="btn"/>
+<a href="<?php echo site_url('web_data/web_data_all').'?date=tody'; ?>"><button type="button" class="btn" id="url_tody">今天</button></a>
+<a href="<?php echo site_url('web_data/web_data_all').'?date=yesterday'; ?>"><button type="button" class="btn" id="url_yesterday">昨天</button></a>
+<a href="<?php echo site_url('web_data/web_data_all').'?date=week'; ?>"><button type="button" class="btn" id="url_week">最近七天</button></a>
+<a href="<?php echo site_url('web_data/web_data_all').'?date=month'; ?>"><button type="button" class="btn" id="url_month">最近30天</button></a>
+<a href="<?php echo site_url('web_data/add_data'); ?>"><button type="button" class="btn">添加数据</button></a>
+</form>
+<ul class="nav nav-tabs">
+    <li class='active'><a href="#data_all" data-toggle="tab">全站</a></li>
+    <li><a href="#data_wds" data-toggle="tab">微打赏</a></li>
+    <li><a href="#data_project" data-toggle="tab">众筹项目</a></li>
+    <li><a href="#data_moximoxi" data-toggle="tab">摩西社区</a></li>
+</ul>
+
+<div style="border:1px solid #BBB;width:960px;padding:5px;">
+    <div class="tab-content">
+        <div class="tab-pane active" id="data_all">
+            <table class="table table-bordered">
+                    <tr>
+                        <th width="80px">时间</th>
+                        <th width="75px">浏览PV</th>
+                        <th width="75px">独立访问<br>(UV)</th>
+                        <th width="75px">人均访问<br>(P/U)</th>
+                        <th width="75px">注册用户<br>日活</th>
+                        <th width="75px">新增注册<br>(人)</th>
+                        <th width="75px">订单(单)</th>
+                        <th width="75px">独立支持人数</th>
+                        <th width="75px">筹资额/退款</th>
+                        <th width="105px">ios(新增/活跃/<br>启动次数)</th>
+                        <th width="105px">Andriod(新增/<br>活跃/启动次数)</th>
+                    </tr>
+                    <tr>
+                        <td>总和<button class="button btn btn-mini" id="tr1">+</button></td>
+                        <td><?php echo round($table_sum[0]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[0]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[0]['p_u'],2); ?></td>		    
+                        <td><?php echo round($table_sum[0]['login_user'],2); ?></td>		    
+                        <td><?php echo round($table_sum[0]['new_user'],2); ?></td>		    
+                        <td><?php echo round($table_sum[0]['form'],2); ?></td>
+                        <td><?php echo round($table_sum[0]['independent'],2); ?></td>
+                        <td><?php echo round($table_sum[0]['money'],2)."/".round($table_sum[0]['refund'],2); ?></td>
+                        <td><?php echo "(".round($table_sum[0]['ios_new'],2)."/".round($table_sum[0]['ios_old'],2)."/".round($table_sum[0]['ios_start'],2).")"; ?></td>
+                        <td><?php echo "(".round($table_sum[0]['andriod_new'],2)."/".round($table_sum[0]['andriod_old'],2)."/".round($table_sum[0]['andriod_start'],2).")"; ?></td>
+                    </tr>
+                    <?php foreach($table_data[0] as $k => $v){ ?>
+                        <tr style="display:none;" class="tr1">
+                            <td><?php echo $v['ctime']; ?></td>
+                            <td><?php echo round($v['pv'],2); ?></td>		    
+                            <td><?php echo round($v['uv'],2); ?></td>		    
+                            <td><?php echo round($v['p_u'],2); ?></td>		    
+                            <td><?php echo round($v['login_user'],2); ?></td>		    
+                            <td><?php echo round($v['new_user'],2); ?></td>		    
+                            <td><?php echo round($v['form'],2); ?></td>
+                            <td><?php echo round($v['independent'],2); ?></td>
+                            <td><?php echo round($v['money'],2)."/".round($v['refund'],2); ?></td>
+                            <td><?php echo "(".round($v['ios_new'],2)."/".round($v['ios_old'],2)."/".round($v['ios_start'],2).")"; ?></td>
+                            <td><?php echo "(".round($v['andriod_new'],2)."/".round($v['andriod_old'],2)."/".round($v['andriod_start'],2).")"; ?></td>
+                        </tr>
+                    <?php } ?>
+                    <tr>
+                        <td>平均</td>
+                        <td><?php echo round($table_avg[0]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[0]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[0]['p_u'],2); ?></td>		    
+                        <td><?php echo round($table_avg[0]['login_user'],2); ?></td>		    
+                        <td><?php echo round($table_avg[0]['new_user'],2); ?></td>		    
+                        <td><?php echo round($table_avg[0]['form'],2); ?></td>
+                        <td><?php echo round($table_avg[0]['independent'],2); ?></td>
+                        <td><?php echo round($table_avg[0]['money'],2)."/".round($table_avg[0]['refund'],2); ?></td>
+                        <td><?php echo "(".round($table_avg[0]['ios_new'],2)."/".round($table_avg[0]['ios_old'],2)."/".round($table_avg[0]['ios_start'],2).")"; ?></td>
+                        <td><?php echo "(".round($table_avg[0]['andriod_new'],2)."/".round($table_avg[0]['andriod_old'],2)."/".round($table_avg[0]['andriod_start'],2).")"; ?></td>
+                    </tr>    
+                    <?php foreach($shijian as $k=>$v){ ?>
+                    <tr>
+                        <td><?php echo $k; ?></td>
+                        <td><?php echo round($v[0]['pv'],2); ?></td>		    
+                        <td><?php echo round($v[0]['uv'],2); ?></td>		    
+                        <td><?php echo round($v[0]['p_u'],2); ?></td>		    
+                        <td><?php echo round($v[0]['login_user'],2); ?></td>		    
+                        <td><?php echo round($v[0]['new_user'],2); ?></td>		    
+                        <td><?php echo round($v[0]['form'],2); ?></td>	
+                        <td><?php echo round($v[0]['independent'],2); ?></td>
+                        <td><?php echo round($v[0]['money'],2)."/".round($v[0]['refund'],2); ?></td>
+                        <td><?php echo "(".round($v[0]['ios_new'],2)."/".round($v[0]['ios_old'],2)."/".round($v[0]['ios_start'],2).")"; ?></td>
+                        <td><?php echo "(".round($v[0]['andriod_new'],2)."/".round($v[0]['andriod_old'],2)."/".round($v[0]['andriod_start'],2).")"; ?></td>
+                    </tr>
+                    <?php } ?>
+            </table>
+            <h3>生成图表的数据</h3>
+            <div style="float:right;margin: -35px 5px 0 0;">
+                <a class="btn" style="color:#369bd7;" href="<?php echo site_url('web_data/download_excel').'?type=data_all&action=web_data_all'; ?>" target="_blank">下载</a>
+            </div>
+            <ul class="nav nav-tabs">
+                <li class='active'><a href="#data_all_pv" data-toggle="tab">PV</a></li>
+                <li><a href="#data_all_uv" data-toggle="tab">UV</a></li>
+                <li><a href="#data_all_p_u" data-toggle="tab">P/U</a></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane active" id="data_all_pv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_all_uv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_all_p_u" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+            </div>
+             
+        </div>
+        <div class="tab-pane" id="data_wds">
+            <table class="table table-bordered">
+                    <tr>
+                            <th width="80px">时间</th>
+                            <th width="80px">浏览PV</th>
+                            <th width="80px">独立访问UV</th>
+                            <th width="80px">人均访问P/U</th>
+                            <th width="80px">注册用户日活</th>
+                            <th width="80px">订单(单)</th>
+                            <th width="80px">筹资额(元)</th>
+                    </tr>
+                    <tr>
+                        <td>总和<button class="button btn btn-mini" id="tr2">+</button></td>
+                        <td><?php echo round($table_sum[1]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[1]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[1]['p_u'],2); ?></td>		    
+                        <td><?php echo round($table_sum[1]['login_user'],2); ?></td>
+                        <td><?php echo round($table_sum[1]['form'],2); ?></td>
+                        <td><?php echo round($table_sum[1]['money'],2); ?></td>
+                   </tr>
+                    <?php foreach($table_data[1] as $k => $v){ ?>
+                        <tr style="display:none;" class="tr2">
+                            <td><?php echo $v['ctime']; ?></td>
+                            <td><?php echo round($v['pv'],2); ?></td>		    
+                            <td><?php echo round($v['uv'],2); ?></td>		    
+                            <td><?php echo round($v['p_u'],2); ?></td>		    
+                            <td><?php echo round($v['login_user'],2); ?></td>	
+                            <td><?php echo round($v['form'],2); ?></td>
+                            <td><?php echo round($v['money'],2); ?></td>
+                         </tr>
+                    <?php } ?>
+                    <tr>
+                        <td>平均</td>
+                        <td><?php echo round($table_avg[1]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[1]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[1]['p_u'],2); ?></td>		    
+                        <td><?php echo round($table_avg[1]['login_user'],2); ?></td>
+                        <td><?php echo round($table_avg[1]['form'],2); ?></td>
+                        <td><?php echo round($table_avg[1]['money'],2); ?></td>
+                    </tr>  
+                    <?php 
+                    foreach($shijian as $k=>$v){ ?>
+                    <tr>
+                        <td><?php echo $k; ?></td>
+                        <td><?php echo round($v[1]['pv'],2); ?></td>		    
+                        <td><?php echo round($v[1]['uv'],2); ?></td>		    
+                        <td><?php echo round($v[1]['p_u'],2); ?></td>
+                        <td><?php echo round($v[1]['login_user'],2); ?></td>
+                        <td><?php echo round($v[1]['form'],2); ?></td>
+                        <td><?php echo round($v[1]['money'],2); ?></td>
+                    </tr>
+                    <?php } ?>
+            </table>
+            <h3>生成图表的数据</h3>
+            <div style="float:right;margin: -35px 5px 0 0;">
+                <a class="btn" style="color:#369bd7;" href="<?php echo site_url('web_data/download_excel').'?type=data_wds&action=web_data_all'; ?>" target="_blank">下载</a>
+            </div>
+            <ul class="nav nav-tabs">
+                <li class='active'><a href="#data_wds_pv" data-toggle="tab">PV</a></li>
+                <li><a href="#data_wds_uv" data-toggle="tab">UV</a></li>
+                <li><a href="#data_wds_p_u" data-toggle="tab">P/U</a></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane active" id="data_wds_pv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_wds_uv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_wds_p_u" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+            </div>
+        </div>
+        <div class="tab-pane" id="data_project">
+            <table class="table table-bordered">
+                    <tr>
+                            <th width="80px">时间</th>
+                            <th width="80px">浏览PV</th>
+                            <th width="80px">独立访问UV</th>
+                            <th width="80px">人均访问P/U</th>
+                            <th width="80px">注册用户日活</th>
+                            <th width="80px">订单(单)</th>
+                            <th width="80px">筹资额(元)</th>
+                    </tr>
+                    <tr>
+                        <td>总和<button class="button btn btn-mini" id="tr3">+</button></td>
+                        <td><?php echo round($table_sum[2]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[2]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[2]['p_u'],2); ?></td>		    
+                        <td><?php echo round($table_sum[2]['login_user'],2); ?></td>
+                        <td><?php echo round($table_sum[2]['form'],2); ?></td>
+                        <td><?php echo round($table_sum[2]['money'],2); ?></td>
+                   </tr>
+                    <?php foreach($table_data[2] as $k => $v){ ?>
+                        <tr style="display:none;" class="tr3">
+                            <td><?php echo $v['ctime']; ?></td>
+                            <td><?php echo round($v['pv'],2); ?></td>		    
+                            <td><?php echo round($v['uv'],2); ?></td>		    
+                            <td><?php echo round($v['p_u'],2); ?></td>		    
+                            <td><?php echo round($v['login_user'],2); ?></td>	
+                            <td><?php echo round($v['form'],2); ?></td>
+                            <td><?php echo round($v['money'],2); ?></td>
+                         </tr>
+                    <?php } ?>
+                    <tr>
+                        <td>平均</td>
+                        <td><?php echo round($table_avg[2]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[2]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[2]['p_u'],2); ?></td>		    
+                        <td><?php echo round($table_avg[2]['login_user'],2); ?></td>
+                        <td><?php echo round($table_avg[2]['form'],2); ?></td>
+                        <td><?php echo round($table_avg[2]['money'],2); ?></td>
+                    </tr>
+                    <?php 
+                    foreach($shijian as $k=>$v){ ?>
+                    <tr>
+                        <td><?php echo $k; ?></td>
+                        <td><?php echo round($v[2]['pv'],2); ?></td>		    
+                        <td><?php echo round($v[2]['uv'],2); ?></td>		    
+                        <td><?php echo round($v[2]['p_u'],2); ?></td>
+                        <td><?php echo round($v[2]['login_user'],2); ?></td>
+                        <td><?php echo round($v[2]['form'],2); ?></td>
+                        <td><?php echo round($v[2]['money'],2); ?></td>
+                    </tr>
+                    <?php } ?>
+            </table>
+            <h3>生成图表的数据</h3>
+            <div style="float:right;margin: -35px 5px 0 0;">
+                <a class="btn" style="color:#369bd7;" href="<?php echo site_url('web_data/download_excel').'?type=data_project&action=web_data_all'; ?>" target="_blank">下载</a>
+            </div>
+            <ul class="nav nav-tabs">
+                <li class='active'><a href="#data_project_pv" data-toggle="tab">PV</a></li>
+                <li><a href="#data_project_uv" data-toggle="tab">UV</a></li>
+                <li><a href="#data_project_p_u" data-toggle="tab">P/U</a></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane active" id="data_project_pv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_project_uv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_project_p_u" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+            </div>
+        </div>
+        <div class="tab-pane" id="data_moximoxi">
+            <table class="table table-bordered">
+                <tr>
+                    <th width="80px">时间</th>
+                    <th width="80px">浏览PV</th>
+                    <th width="80px">独立访问UV</th>
+                    <th width="80px">人均访问P/U</th>
+                </tr>
+                <tr>
+                        <td>总和<button class="button btn btn-mini" id="tr4">+</button></td>
+                        <td><?php echo round($table_sum[3]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[3]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_sum[3]['p_u'],2); ?></td>	
+                   </tr>
+                    <?php foreach($table_data[3] as $k => $v){ ?>
+                        <tr style="display:none;" class="tr4">
+                            <td><?php echo $v['ctime']; ?></td>
+                            <td><?php echo round($v['pv'],2); ?></td>		    
+                            <td><?php echo round($v['uv'],2); ?></td>		    
+                            <td><?php echo round($v['p_u'],2); ?></td>	
+                         </tr>
+                    <?php } ?>
+                    <tr>
+                        <td>平均</td>
+                        <td><?php echo round($table_avg[3]['pv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[3]['uv'],2); ?></td>		    
+                        <td><?php echo round($table_avg[3]['p_u'],2); ?></td>
+                    </tr>
+                <?php 
+                    foreach($shijian as $k=>$v){ ?>
+                    <tr>
+                        <td><?php echo $k; ?></td>
+                        <td><?php echo round($v[3]['pv'],2); ?></td>		    
+                        <td><?php echo round($v[3]['uv'],2); ?></td>		    
+                        <td><?php echo round($v[3]['p_u'],2); ?></td>
+                    </tr>
+                    <?php } ?>
+            </table>
+            <h3>生成图表的数据</h3>
+            <div style="float:right;margin: -35px 5px 0 0;">
+                <a class="btn" style="color:#369bd7;" href="<?php echo site_url('web_data/download_excel').'?type=data_moxi&action=web_data_all'; ?>" target="_blank">下载</a>
+            </div>
+            <ul class="nav nav-tabs">
+                <li class='active'><a href="#data_moxi_pv" data-toggle="tab">PV</a></li>
+                <li><a href="#data_moxi_uv" data-toggle="tab">UV</a></li>
+                <li><a href="#data_moxi_p_u" data-toggle="tab">P/U</a></li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane active" id="data_moxi_pv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_moxi_uv" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+                <div class="tab-pane" id="data_moxi_p_u" style="width: 890px;height:300px;border:1px #DDD solid;"></div>
+            </div>
+        </div>
+    </div>
+    <font>注：上周周均取非自然周，起始14天前至七天前，最高月均取自然月月均，上月月均取自然月，默认显示昨天数据。</font>
+</div>
+        <script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+        <script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+        <script src="/static/js/echarts.min.js"></script>
+        <script type="text/javascript">
+            $('#myTab a').click(function (e) {
+                e.preventDefault();
+                $(this).tab('show');
+              });
+            $(function () {
+                $('#datetimepicker1,#datetimepicker2').datetimepicker({
+                    language: 'zh-CN',
+                    pickTime: false
+                });
+            });
+            var k=0;
+            $(".button").click(function(){
+                var str = $(this).text();
+                var id = $(this).attr("id");
+                if(str === "+"){
+                    $(this).text("-");
+                    $("."+id).show();
+                }else{
+                    $(this).text("+");
+                    $("."+id).hide();
+                }
+            });
+            <?php 
+                $num = 0;
+                foreach($data as $k => $v){
+                    switch($sum){
+                        case 0:
+                            echo "make_map('{$k}',[{$map_time}],[{$v}],'pv');";
+                            break;
+                        case 1:
+                            echo "make_map('{$k}',[{$map_time}],[{$v}],'uv');";
+                            break;
+                        case 2:
+                            echo "make_map('{$k}',[{$map_time}],[{$v}],'p/u');";
+                            break;
+                    }
+                    $sum++;
+                    if($sum == 3){
+                        $sum = 0;
+                    }
+                }
+            ?>
+            function make_map(map_id, data_time, data_number, sort){
+                var myChart = echarts.init(document.getElementById(map_id));
+                var option = {
+                    tooltip : {
+                        trigger: 'axis'
+                    },
+                    legend: {
+                        data:[sort]
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    toolbox: {
+                        feature: {
+                            saveAsImage: {}
+                        }
+                    },
+                    xAxis : [
+                        {
+                            type : 'category',
+                            boundaryGap : false,
+                            data : data_time
+                        }
+                    ],
+                    yAxis : [
+                        {
+                            type : 'value'
+                        }
+                    ],
+                    series : [
+                        {
+                            name: sort,
+                            type:'line',
+                            stack: '总量',
+                            data: data_number
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+            }
+            /* 获取url参数 */
+            function getQueryString(name) {
+                var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
+                var r = window.location.search.substr(1).match(reg);
+                if (r != null) return unescape(r[2]); return null;
+            }
+            //显示当前日期按钮
+            var getstrDate= getQueryString("date");
+            switch(getstrDate){
+                case 'tody': $("#url_tody").css('color','#369bd7');break;
+                case 'yesterday': $("#url_yesterday").css('color','#369bd7');break;
+                case 'week': $("#url_week").css('color','#369bd7');break;
+                case 'month': $("#url_month").css('color','#369bd7');break;
+            }
+        </script>
+</div>
+<?php $this->load->view('ckad/footer')?>

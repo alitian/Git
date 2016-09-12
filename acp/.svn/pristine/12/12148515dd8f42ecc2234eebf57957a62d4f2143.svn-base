@@ -1,0 +1,16 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Api extends MD_Controller {
+
+    public function sms_status() {
+        if (isset($_REQUEST['msgid'])) {
+            $sql = "UPDATE md_sms SET return_status='{$_REQUEST['status']}' WHERE tel='{$_REQUEST['mobile']}' AND send_status LIKE '%{$_REQUEST['msgid']}%'";
+            $res = $this->db->query($sql);
+            file_put_contents('/data/www/uploads/sms.log', "\n" . date("Y-m-d H:i:s ") . json_encode($_REQUEST), FILE_APPEND);
+        }
+    }
+
+}

@@ -1,0 +1,202 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <ul class="nav nav-tabs">
+        <li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_main/post_recommend/1'; ?>">标签文字广告区</a></li>
+    </ul>
+    <div>
+        <h2>
+        </h2>
+    </div>
+    <hr>
+    <div>
+            <div>
+                <form action="/bbs_tag_promotion/tag_promotion_list" method="post" class="form-inline">
+                    <input type="text" name="tag_name" placeholder="输入要投放广告的标签">
+                    <button id="tag_search" type="submit" class="btn btn-info btn-sm">搜索</button>
+                </form>
+                <form action="" class="form-inline"  style="float: right;margin-top: -50px;">
+					<span style="margin-left:20px;">
+						<a href="<?php echo $site_url . 'bbs_tag_promotion/add_tag_promotion?t='.$tag_info['tag_id']; ?>" class="btn btn-info btn-sm">新增</a>
+					</span>
+                </form>
+
+            </div>
+        <p><h2><?=$tag_info['tag_name']?></h2></p>
+        <?php if($promotion_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="5%">编号</th>
+                        <th width="15%">推荐标题</th>
+                        <th>推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($promotion_list as $promotion_info): ?>
+                        <tr>
+                            <td><?=$promotion_info['id']?></td>
+                            <td><?= $promotion_info['title'] ?></td>
+                             <td><a href="<?=$promotion_info['links'] ?>" target="_blank"><?=$promotion_info['links'] ?></a></td>
+                            <td><a class="del" href="/bbs_tag_promotion/del_promotion/<?=$promotion_info['id']?>/<?=$promotion_info['object_id']?>">删除</a> | <a href="/bbs_tag_promotion/edit_promotion/<?= $promotion_info['id'] ?>">修改</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+
+            <!-- 显示帖子内容模态框 -->
+            <div id="view_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                    </div>
+                </div>
+            </div>
+
+
+
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<script>
+//    $("#edit_sortid").click(function(){
+//        var input_set = $(".sortid");
+//        var length = input_set.length;
+//
+//        // 定义2个对象，然后直接转换为json数组，发送给PHP
+//        var post_id_array = [];
+//        var post_sortid_array = [];
+//        var is_edit = false;
+//        for(var i = 0; i <length; i++){
+//
+//            // 还得再次检验，是否有非数字
+//            var sortid = $.trim(input_set[i].value);
+//            var num = i+1;
+//            if(sortid == ''){
+//                alert('第 ' + num + ' 条帖子的排序为空，请修正！');
+//                return false;
+//            }
+//            if(isNaN(sortid)){
+//                alert('第 ' + num + ' 条帖子的排序为非数字，请修正！');
+//                return false;
+//            }
+//            var post_id = parseInt(input_set[i].getAttribute('postid'));
+//            var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+//
+//            // 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+//            if(prev_sortid != sortid){
+//                is_edit = true;
+//            }
+//
+//            // 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+//            sortid = parseInt(sortid);
+//            post_id_array[i] = post_id;
+//            post_sortid_array[i] = sortid;
+//        }
+//        if(!is_edit){
+//            alert('未作任何修改');
+//            return false;
+//        }
+//        post_id_array = JSON.stringify(post_id_array);
+//        post_sortid_array = JSON.stringify(post_sortid_array);
+//        $('input[name=post_id_array]').val(post_id_array);
+//        $('input[name=post_sortid_array]').val(post_sortid_array);
+//    });
+//    $("#edit_sortid_t").click(function(){
+//        var input_set = $(".sortid");
+//        var length = input_set.length;
+//
+//        // 定义2个对象，然后直接转换为json数组，发送给PHP
+//        var post_id_array = [];
+//        var post_sortid_array = [];
+//        var is_edit = false;
+//        for(var i = 0; i <length; i++){
+//
+//            // 还得再次检验，是否有非数字
+//            var sortid = $.trim(input_set[i].value);
+//            var num = i+1;
+//            if(sortid == ''){
+//                alert('第 ' + num + ' 条帖子的排序为空，请修正！');
+//                return false;
+//            }
+//            if(isNaN(sortid)){
+//                alert('第 ' + num + ' 条帖子的排序为非数字，请修正！');
+//                return false;
+//            }
+//            var post_id = parseInt(input_set[i].getAttribute('postid'));
+//            var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+//
+//            // 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+//            if(prev_sortid != sortid){
+//                is_edit = true;
+//            }
+//
+//            // 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+//            sortid = parseInt(sortid);
+//            post_id_array[i] = post_id;
+//            post_sortid_array[i] = sortid;
+//        }
+//        if(!is_edit){
+//            alert('未作任何修改');
+//            return false;
+//        }
+//        post_id_array = JSON.stringify(post_id_array);
+//        post_sortid_array = JSON.stringify(post_sortid_array);
+//        $('input[name=post_id_array]').val(post_id_array);
+//        $('input[name=post_sortid_array]').val(post_sortid_array);
+//    });
+//    $(".sortid").blur(function(){
+//        var value = $(this).val();
+//        if(isNaN(value)){
+//            alert('只能填写数字');
+//            $(this).focus();
+//            return false;
+//        }
+//    });
+//
+//    $('.del').click(function(){
+//        if( ! confirm('你确定删除吗')){
+//            return false;
+//        }
+//    });
+//    <?php //if($type==1||$type==2): ?>
+//    $('#post_recommend_add').click(function(){
+//        var post_id = $('#post_id').val();
+//        var type =$(this).attr('data-id');
+//        if( ! post_id){
+//            alert('帖子ID不能为空!');
+//            return false;
+//        }else if(isNaN(post_id)){
+//            alert('帖子ID只能是数字!');
+//            return false;
+//        }
+//        location.href='/bbs_main/add_post_recommend/' + type+'/'+post_id;
+//    });
+//    <?php //endif; ?>
+<!---->
+<!--    --><?php //if($type==1): ?>
+//    // 展示帖子内容
+//    $("#view_post").on("hidden.bs.modal",function(){
+//        $(this).find('.modal-content').empty();
+//    });
+//
+//    // 加载模态框
+//    $('.view_post').click(function(){
+//        var url = $(this).attr('url');
+//        $('#view_post').modal();
+//        $('#view_post .modal-content').load(url);
+//    });
+//    <?php //endif;?>
+<!--</script>
+<?php $this->load->view('ckad/footer'); ?>

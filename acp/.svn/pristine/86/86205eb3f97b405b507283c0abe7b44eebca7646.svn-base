@@ -1,0 +1,190 @@
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<style>
+    .display-none {
+        display: none !important;
+    }
+
+    /** 区块 */
+    #stics-page-cnt {
+        margin-bottom: 21px;
+        border-top: 1px solid #dfdfdf;
+    }
+
+    /** 区块条幅 */
+    .stics-detail-banner {
+        margin-bottom: 21px;
+    }
+    .stics-detail-banner h4 {
+        padding: 10px 15px;
+        border-top: 1px solid #dfdfdf;
+        border-bottom: 1px solid #dfdfdf;
+        background-color: #f0f0f0;
+        color: #000;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    /**  */
+    .stics-result-table table.table tbody tr.summary>td {
+        background-color: #333333;
+        color: #fff;
+        font-weight: bold;
+    }
+    .stics-result-table table.table tbody tr.ref>td {
+        background-color: #F2DEDE;
+    }
+
+    /** 文本虚化 */
+    .blurry-text {
+        color:transparent;
+        text-shadow:0 0 5px rgba(0,0,0,0.5);
+    }
+
+    /** 加载动画 **/
+    .loading-status {
+        display: inline-block;
+    }
+    .spinner {
+        margin: 0 auto;
+        width: 50px;
+        height: 21px;
+        text-align: center;
+        font-size: 10px;
+        border-style: none !important;
+        border-width: 0 !important;
+    }
+    .spinner > div {
+        background-color: #67CF22;
+        height: 100%;
+        width: 6px;
+        display: inline-block;
+
+        -webkit-animation: stretchdelay 1.2s infinite ease-in-out;
+        animation: stretchdelay 1.2s infinite ease-in-out;
+    }
+    .spinner .rect2 {
+        -webkit-animation-delay: -1.1s;
+        animation-delay: -1.1s;
+    }
+    .spinner .rect3 {
+        -webkit-animation-delay: -1.0s;
+        animation-delay: -1.0s;
+    }
+    .spinner .rect4 {
+        -webkit-animation-delay: -0.9s;
+        animation-delay: -0.9s;
+    }
+    .spinner .rect5 {
+        -webkit-animation-delay: -0.8s;
+        animation-delay: -0.8s;
+    }
+    @-webkit-keyframes stretchdelay {
+      0%, 40%, 100% { -webkit-transform: scaleY(0.4) }
+      20% { -webkit-transform: scaleY(1.0) }
+    }
+    @keyframes stretchdelay {
+      0%, 40%, 100% {
+        transform: scaleY(0.4);
+        -webkit-transform: scaleY(0.4);
+      }  20% {
+        transform: scaleY(1.0);
+        -webkit-transform: scaleY(1.0);
+      }
+    }
+</style>
+
+
+<div id="stics-page-cnt" >
+    <div class="stics-detail-banner">
+        <h4>页面点击分布</h4>
+    </div>
+    <div class="stics-search">
+        <form class="form-search">
+            <select name="page">
+                <option value="0">选择页面</option>
+                <option value="1">www.modian.com</option>
+                <option value="2">pc端项目页</option>
+                <option value="3">m.modian.com</option>
+                <option value="4">m端项目页</option>
+            </select>
+            <div class="input-append date form_datetime">
+                <input type="text" class="input-small" name='day_end' placeholder="日期">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+            </div>
+            <button class="btn" type="submit">显示</button>
+            <div class="loading-status display-none">
+                <div class="spinner">
+                    <div class="rect1"></div>
+                    <div class="rect2"></div>
+                    <div class="rect3"></div>
+                    <div class="rect4"></div>
+                    <div class="rect5"></div>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="row-fluid stics-result-table display-none">
+    </div>
+</div>
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd",
+            pickTime: true
+        });
+
+        $('#stics-page-cnt .stics-result-table').on('click', 'table>tbody>tr.total', function(e) {
+            e.preventDefault();
+            var index = $(this).data('index');
+
+            if ((typeof sessionStorage[index] == 'undefined') || (parseInt(sessionStorage[index]) === 0)) {
+                $('#stics-page-cnt .stics-result-table table>tbody>tr.ref.'+index).removeClass('display-none');
+                sessionStorage[index] = '1';
+            } else {
+                $('#stics-page-cnt .stics-result-table table>tbody>tr.ref.'+index).addClass('display-none');
+                sessionStorage[index] = '0';
+            }
+        });
+
+        $('#stics-page-cnt form.form-search').submit(function(e) {
+            e.preventDefault();
+            var submit_btn = $('#stics-page-cnt form.form-search button[type="submit"]');
+            var loading_btn = $('#stics-page-cnt form.form-search .loading-status');
+            var result_area = $('#stics-page-cnt .stics-result-table');
+            submit_btn.attr("disabled", "disabled");
+            loading_btn.removeClass('display-none');
+            result_area.addClass('blurry-text');
+
+            var url = "/statistics/ajax_page_cnt";
+            var data = $(this).serialize();
+            $.ajax({
+                type: "POST",
+                url: url,
+                data: data,
+                dataType: "html",
+                success: function(res) {
+                    res = JSON.parse(res);
+                    result_area.html(res.errmsg);
+                    result_area.removeClass('display-none');
+                    result_area.removeClass('blurry-text');
+                    loading_btn.addClass('display-none');
+                    submit_btn.removeAttr("disabled");
+                },
+                error: function() {
+                    alert('出错了');
+                    result_area.removeClass('blurry-text');
+                    loading_btn.addClass('display-none');
+                    submit_btn.removeAttr("disabled");
+                }
+            });
+        });
+    });
+</script>
+
+
+<?php $this->load->view('ckad/footer'); ?>

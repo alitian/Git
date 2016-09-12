@@ -1,0 +1,14 @@
+#!/bin/bash
+date_beg="2014-05-01";
+date_end=`date +%Y-%m-%d`;
+
+beg_s=`date -d "${date_beg}" +%s`;
+end_s=`date -d "${date_end}" +%s`;
+ 
+while [ "$beg_s" -lt "$end_s" ]
+do
+    start_time=`date -d @$beg_s "+%Y-%m-%d"`
+    /ROOT/bin/php /home/luxueyong/www/acp.modianinc.com/acp/index.php cron backup_statistics_data $start_time
+    #echo $start_time
+    beg_s=`expr $beg_s + 86400`
+done

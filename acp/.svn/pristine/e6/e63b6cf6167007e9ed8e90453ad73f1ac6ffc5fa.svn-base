@@ -1,0 +1,346 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_promotion extends Acp_Controller 
+	{
+
+		public $perpage = 20;
+		public $list_image_max_height = 450;
+		public $list_image_max_width = 600;
+		public $detail_image_max_height = 173;
+		public $detail_image_max_width = 173;
+		public $compress_marker = '_compress';
+		public $list_marker = '_list';
+		public $thumb_marker = '_thumb';
+		public $type_arr = array(
+								'img_top',
+								'img_left', 
+								'img_right',
+								'text_first',
+								'text_second'
+							);
+
+		public function __construct()
+		{
+			parent::__construct();	
+			$this->load->model('bbs/bbs_m');
+			$this->load->helper('bbs_common');
+			$this->load->library('pagination');
+			$this->load->vars('type_arr', $this->type_arr);
+		}
+
+		public function get_total_rows($type = 'all')
+		{
+			$this->moxi_db->from('bbs_promotion');
+
+			if($type != 'all')
+				$this->moxi_db->where('type', $type);
+			$total_rows = $this->moxi_db->count_all_results();
+			return $total_rows;
+		}
+
+		public function get_promotion_list($nextpage, $perpage = 20, $type = 'all')
+		{
+			$offset = ($nextpage - 1) * $perpage;
+			$this->moxi_db->from('bbs_promotion');
+			if($type != 'all')
+				$this->moxi_db->where('type', $type);
+			$this->moxi_db->order_by('ctime DESC');
+			$this->moxi_db->limit($perpage, $offset);
+			$promotion_list = $this->moxi_db->get()->result_array();
+			return $promotion_list;
+		}
+
+		public function index($type = 'all', $nextpage = 1)
+		{
+			$type = $type ? (string) $type : 'all';
+			$nextpage = $nextpage ? (int) $nextpage : 1;
+			$promotion_list = $this->get_promotion_list($nextpage, $this->perpage, $type);
+			foreach($promotion_list as &$promotion_info){
+				if($promotion_info['pro_img']){
+					$promotion_info['pro_src'] = add_suffix(cdn_url($promotion_info['pro_img']), $this->compress_marker);
+				}
+			}
+			$total_rows = $this->get_total_rows($type);
+
+			// 当前页的链接，但是缺失 '分页页数'
+			$cur_url = "/bbs_promotion/index/$type";
+			$config = array(
+							'uri_segment' => 4, // 在url的第二段上选取分页页数
+							'base_url' => $cur_url,
+							'total_rows' => $total_rows,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$this->load->vars('type', $type);	
+			$this->load->vars('curpage', $nextpage);
+			$this->load->vars('promotion_list', $promotion_list);
+			$this->load->vars('pagination', $pagination);	
+			$this->load->view('bbs_promotion/index');
+		}
+	/*
+		CI之前的分页类，不支持 pathinfo 和 query_string 混合的形式，我们这种分页形式没法使用
+		public function index()
+		{
+			$type = $this->input->get('type') ? (string) $this->input->get('type') : '';
+			$nextpage = $this->input->get('nextpage') ? (string) $this->input->get('nextpage') : 1;
+			$promotion_list = $this->get_promotion_list($nextpage, $this->perpage, $type);
+			foreach($promotion_list as &$promotion_info){
+				if($promotion_info['pro_img']){
+					$promotion_info['pro_src'] = add_suffix(cdn_url($promotion_info['pro_img']), $this->compress_marker);
+				}
+			}
+			$total_rows = $this->get_total_rows($type);
+
+			// 当前页的链接，但是缺失 '分页页数'
+			$cur_url = "/bbs_promotion";
+			$config = array(
+							'uri_segment' => 2, // 在url的第二段上选取分页页数
+							'prefix' => "index?type=$type&nextpage=", 	// 提取分页页数时，将前缀过滤，得到页数
+							'base_url' => $cur_url,
+							'total_rows' => $total_rows,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$this->load->vars('type', $type);	
+			$this->load->vars('curpage', $nextpage);
+			$this->load->vars('promotion_list', $promotion_list);
+			$this->load->vars('pagination', $pagination);	
+			$this->load->view('bbs_promotion/index');
+		}
+	*/
+
+		public function add_promotion()
+		{
+
+			// 表单传递 'new'，表示新增记录
+			if($this->input->post('new')){
+				$type = (string)trim($this->input->post('type'));	
+				$sortid = (string)trim($this->input->post('sortid'));	
+				$sortid = $sortid ? $sortid : 1;
+				$pro_title = (string)trim($this->input->post('pro_title'));	
+				$pro_title = $pro_title ? $pro_title : '';
+				$pro_content = (string)trim($this->input->post('pro_content'));	
+				$pro_content = $pro_content ? $pro_content : '';
+				$pro_link = (string)trim($this->input->post('pro_link'));	
+				$pro_link = $pro_link ? $pro_link : '';
+				$pro_img = (string)trim($this->input->post('pro_img'));	
+				$pro_img = $pro_img ? $pro_img : '';
+				$insert_data = array(
+									'type' => $type,
+									'sortid' => $sortid,
+									'pro_title' => $pro_title,
+									'pro_content' => $pro_content,
+									'pro_link' => $pro_link,
+									'pro_img' => $pro_img,
+									'ctime' => time()
+								);
+
+				$insert_bool = $this->moxi_db->insert('bbs_promotion', $insert_data);
+				if($insert_bool){
+					$pro_id = $this->moxi_db->insert_id();
+					md_common::display_javascript('', '/bbs_promotion/edit_promotion/'.$pro_id);
+				}else{
+					md_common::display_javascript('新增失败!', '/bbs_promotion/add_promotion');
+				}
+			}else{
+				$this->load->view('bbs_promotion/add');	
+			}
+		}
+
+		public function edit_promotion($pro_id)
+		{
+			$pro_id = (int) $pro_id;
+			if($pro_id < 0)
+				md_common::display_javascript('非法参数!', '/bbs_promotion/index');
+
+			// 表单传递 'new'，表示新增记录
+			if($this->input->post('edit')){
+				$type = (string)trim($this->input->post('type'));	
+				$sortid = (string)trim($this->input->post('sortid'));	
+				$sortid = $sortid ? (int) $sortid : 0; 	
+				$pro_title = (string)trim($this->input->post('pro_title'));	
+				$pro_title = $pro_title ? $pro_title : '';
+				$pro_content = (string)trim($this->input->post('pro_content'));	
+				$pro_content = $pro_content ? $pro_content : '';
+				$pro_link = (string)trim($this->input->post('pro_link'));	
+				$pro_link = $pro_link ? $pro_link : '';
+				$pro_img = (string)trim($this->input->post('pro_img'));	
+				$pro_img = $pro_img ? $pro_img : '';
+				$update_data = array(
+									'type' => $type,
+									'sortid' => $sortid,
+									'pro_title' => $pro_title,
+									'pro_content' => $pro_content,
+									'pro_link' => $pro_link,
+									'pro_img' => $pro_img,
+									'mtime' => time()
+								);
+
+				$this->moxi_db->where('pro_id', $pro_id);
+				$update_bool = $this->moxi_db->update('bbs_promotion', $update_data);
+				if($update_bool){
+					md_common::display_javascript('', '/bbs_promotion/edit_promotion/'.$pro_id);
+				}else{
+					md_common::display_javascript('修改失败!', '/bbs_promotion/edit_promotion/'.$pro_id);
+				}
+			}else{
+				$this->moxi_db->from('bbs_promotion');
+				$this->moxi_db->where('pro_id', $pro_id);
+				$pro_info = $this->moxi_db->get()->row_array();
+				$compress_url = add_suffix(cdn_url($pro_info['pro_img']), $this->compress_marker);
+				$pro_info['pro_src'] = $compress_url;
+				$this->load->vars('pro_info', $pro_info);
+				$this->load->view('bbs_promotion/edit');	
+			}
+		}
+
+		public function del_promotion($pro_id)
+		{
+			$this->moxi_db->where('pro_id', $pro_id);
+			$update_bool = $this->moxi_db->update('bbs_promotion', array('sortid'=>0));
+
+			// 采用ajax返回
+			echo $update_bool ? 1 : 0;
+		}
+
+		/* 
+			多次上传图片，不对之前的图片进行删除操作
+		 */
+		public function upload()
+		{
+			$this->load->library('md_imagick');
+
+			// 图片上传input框name名
+			$input_file_name = 'upfile';
+			$attachment_path_prefix = 'bbs_promotion/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+			$db_path_prefix = 'uploads/' . $attachment_path_prefix;
+			$full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+			if(!file_exists($full_upload_path)){
+				mkdir($full_upload_path, 0777, TRUE);
+			}
+			$config = array(
+							'upload_path' => $full_upload_path,
+							'allowed_types' => 'gif|jpg|png|jpeg',
+							'encrypt_name' => TRUE,
+							'max_size' => '10000',
+							'max_width' => '102400',
+							'max_height' => '76800'
+						);
+			$this->load->library('upload', $config);
+			if( ! $this->upload->do_upload($input_file_name)){
+				$errmsg = $this->upload->display_errors();
+				echo "<script>alert('{$errmsg}')</script>";
+			}else{
+				$attachment_data = $this->upload->data();
+
+				// 得到原图的系统路径
+				$attachment_system_path = $attachment_data['full_path'];
+
+				/*
+					针对 IOS 的拍照图片的颠倒问题，解决
+				 */
+				rotate_image_if_necessary($attachment_system_path);
+
+				// 图片的系列处理，压缩图(compress)，列表页缩略图(list)，详情页缩略图(thumb) - 统一封装在 bbs_common_helper.php
+				$list_size = $this->list_image_max_width . 'x' . $this->list_image_max_height;
+				$detail_size = $this->detail_image_max_width . 'x' . $this->detail_image_max_height;
+				attachment_process($attachment_system_path, $this->compress_marker, $this->list_marker, $this->thumb_marker, $list_size, $detail_size);
+
+				// 存储在bbs_attachment数据表的路径
+				$db_path = $db_path_prefix . $attachment_data['file_name']; 		// 数据库存储的路径是以 'upload' 开头
+
+				// 原图的URL访问地址
+				$attachment_url = bbs_img_url($db_path);
+
+				// 压缩图的URL访问路径 - 用于PC端
+				$compress_url = add_suffix($attachment_url, $this->compress_marker);
+
+                //显示到页面那个预览图片的位置
+                $js = <<<EOT
+                		<script>
+                			top.document.getElementById('img_preview').setAttribute('src','$compress_url')
+                			top.document.getElementById('img_preview').style.display='inline-block';
+                			top.document.getElementById('default_text').style.display='none';
+                			top.document.getElementById('pro_img').value='$db_path';
+                		</script>;
+EOT;
+				echo $js;
+			}
+		}
+
+		public function edit_sortid()
+		{
+			$pro_id_array = (string) $this->input->post('pro_id_array', true);
+			$pro_sortid_array = (string) $this->input->post('pro_sortid_array', true);
+			$pro_id_array = json_decode($pro_id_array);
+			$pro_sortid_array = json_decode($pro_sortid_array);
+			$errmsg = '';
+
+			foreach($pro_id_array as $key => $pro_id){
+
+				// 当 sortid = 0 ，我们删除记录
+				$sortid = $pro_sortid_array[$key];
+				if(empty($sortid)){
+					$update_data = array(
+										'sortid' => 0
+									);
+				}else{
+					$update_data = array(
+										'sortid' => $sortid
+									);
+				}
+				$this->moxi_db->from('bbs_promotion');	
+				$this->moxi_db->where('pro_id', $pro_id);
+				$update_bool = $this->moxi_db->update('bbs_promotion', $update_data);
+				if(!$update_bool){
+					$errmsg = '更新第 ' . ($key+1) . ' 条推广排序失败！';
+					break;
+				}
+			}
+			md_common::display_javascript($errmsg, '/bbs_promotion/index');
+		}
+
+	}

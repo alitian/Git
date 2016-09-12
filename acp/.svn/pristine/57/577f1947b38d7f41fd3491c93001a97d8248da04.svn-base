@@ -1,0 +1,546 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_verify extends Acp_Controller {
+
+		public $site_url;
+		public $base_url;
+		public $uid;
+		public $perpage = 20;
+		public $pass_reason = array(
+								'广告营销',
+								'淫秽色情',
+								'不实信息',
+								'人身攻击',
+								'违法信息',
+								'泄漏隐私',
+								'虚假冒名',
+								'骚扰',
+								'其他'
+							);
+
+		public function __construct(){
+			parent::__construct();
+			
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+			$this->load->library("bbs_queue", array(TRUE));
+			$this->load->helper('url');
+			$this->base_url = base_url();
+			$this->site_url = site_url();
+			$this->load->model('bbs_verify_model');
+			$this->load->model('bbs/bbs_tag_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs/bbs_reply_m');
+			$this->load->model('bbs/bbs_misc_m');
+			$vars = array(
+						'base_url' => $this->base_url,
+						'site_url' => $this->site_url,
+						'pass_reason' => $this->pass_reason
+					);
+			$this->load->vars($vars);
+		}
+
+		/**
+		 *
+		 * 	帖子审核页面
+		 * 	@param 		int 	$nextpage
+		 *
+		 */
+		public function post($tag_id = 0, $post_status = 0, $time = 1, $nickname = 'null', $nextpage = 1)
+		{
+			$submit = $this->input->post('submit');
+			$toptag_list = $this->bbs_verify_model->get_toptag_list();
+				
+			$post_id = 0;
+			if($submit)
+			{
+				$post_status = $this->input->post('post_status') ?  (int) $this->input->post('post_status') : 0;
+
+				// 对于搜索分2种，如果直接指定了 post_id，只会出现一条数据，不考虑其他条件
+				$post_id = (int) trim($this->input->post('post_id')) ? (int) trim($this->input->post('post_id')) : 0;
+				if($post_id){
+					$post_list = $this->bbs_verify_model->get_post_by_post_id($post_id, $post_status);
+					$total_rows = count($post_list);
+				}else{
+					$nickname = trim($this->input->post('nickname')) ? trim($this->input->post('nickname')) : $nickname;
+					$tag_id = $this->input->post('tag_id') ? $this->input->post('tag_id') : $tag_id;
+					$time = $this->input->post('time') ? $this->input->post('time') : $time;
+					$post_list = $this->bbs_verify_model->get_post_list($this->perpage, $nextpage, $tag_id, $post_status, $time, $nickname);
+					$total_post = $this->bbs_verify_model->get_total_post($tag_id, $post_status, $nickname);
+				}
+			}else{
+				$nickname = urldecode($nickname);
+				$post_list = $this->bbs_verify_model->get_post_list($this->perpage, $nextpage, $tag_id, $post_status, $time, $nickname);
+				$total_post = $this->bbs_verify_model->get_total_post($tag_id, $post_status, $nickname);
+			}
+			$this->load->library('pagination');
+			$config = array(
+                            'uri_segment' => 7,
+							'base_url' => $this->site_url . "bbs_verify/post/$tag_id/$post_status/$time/$nickname",
+							'total_rows' => $total_post,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$vars = array(
+						'toptag_list' => $toptag_list,
+						'post_list' => $post_list,
+						'tag_id' => $tag_id,
+						'post_status' => $post_status,
+						'time' => $time,
+						'pagination' => $pagination,
+						'post_id' => $post_id,
+						'nickname' => $nickname
+					);
+					
+			$this->load->vars($vars);
+			$this->load->view('bbs_verify/post');
+		}
+
+		/**
+		 *
+		 * 	帖子审核通过
+		 *
+		 */
+		public function verify_post_successed()
+		{
+			$reason = '审核通过'; 			// 默认操作原因
+			$post_id = $this->input->post('post_id');
+			$update_set = array(
+						'isverified' => 1,			
+						'ctime' => time()		// ---------------------- 考虑是否将帖子的时间更新为审核通过的时间！
+					);
+			$update_bool = $this->bbs_post_m->update_post_record($post_id, $update_set);
+
+			// 如果更新失败，则后面就不用进行了，表示审核操作异常
+			if( ! $update_bool){
+				$return_data = array(
+									'status' => 0,
+									'content' => '审核异常'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			$tagids = $this->bbs_post_m->get_post_tagids($post_id);
+
+			/*
+				建立对应关系:
+					1.用户直接打的标签，得先建立对应关系
+					2.所有的父级推送，我们采用 '定时脚本' 和 '队列' 2种方式来实现
+			 */
+			/*
+			$post_tag_data = array();
+			$post_tag_data['post_id'] = $post_id;
+			$post_tag_data['ctime'] = time();
+			$user_tag_ids = explode(',', $tagids);
+			$this->bbs_post_m->add_post_tag_batch($post_tag_data, $user_tag_ids); 
+
+			// 更新标签帖子数
+			foreach($user_tag_ids as $tag_id){
+				$this->bbs_tag_m->update_tag_post_num($tag_id);
+			}
+			*/
+
+			/*
+				1.使用队列
+			 */
+			$this->bbs_queue->set_queue_name('moxi'); 		// 设置队列名
+			$data = array(
+						'post_id' => $post_id,
+						'tagids' => $tagids,
+						'ctime' => time() // --------------- 考虑建立对应关系时间，为审核通过时间，还是原发帖时间
+					);
+
+			// 该方法暂时没有返回参数，考虑是否使用原始的 Httpsqs
+			$this->bbs_queue->put($data, 'verify_post_successed');
+
+			$set_manager = array(
+							'manager_uid' => $this->uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => 6,
+							'manager_reason' => $reason,
+							'ctime' => time()
+						);
+			$log_bool = $this->bbs_misc_m->add_post_manager_log_record($set_manager);
+			if( ! $log_bool){
+				$return_data = array(
+									'status' => -2,
+									'content' => '更新帖子管理操作记录失败'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			// 审核成功的帖子，直接加积分！
+			$author_id = $this->bbs_post_m->get_post_author_id($post_id);
+			$this->md_common->add_user_score($author_id, SCORE_GROUP_POST, 0, FALSE);
+			$return_data = array(
+								'status' => 1,
+								'content' => '审核通过'
+							);
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *
+		 * 	帖子审核未通过
+		 *
+		 * 	$type - 指代不同的删除操作。$type = "delete" 表示：在已审核的列表中删除，会减积分，会减计数。$type = "fail" 表示：审核失败
+		 */
+		public function verify_post_failed($type)
+		{
+			$reason = trim($this->input->post('reason'));
+			$reason = $reason ? $reason : '删除帖子'; 		// 默认操作原因
+			$post_id = $this->input->post('post_id');
+
+			$update_set = array(
+						'isshow' => 0
+					);
+			if($type == 'delete'){
+				$update_set['isshow'] = 0;
+				$manager_type = 12; 	// 表示 "删除原有的已审核过的帖子"
+			}else{
+				$update_set['isverified'] = 0;
+				$manager_type = 7; 		// 表示 "删除未通过审核的帖子(审核未通过)"
+			}
+			$update_bool = $this->bbs_post_m->update_post_record($post_id, $update_set);
+
+			// 如果更新失败，则后面就不用进行了，表示审核操作异常
+			if( ! $update_bool){
+				$return_data = array(
+									'status' => 0,
+									'content' => '删除帖子异常'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			/**
+		  	 * 	规定！删除帖子，图片附件等，不进行删除！
+			 */
+
+			$set_manager = array(
+								'manager_uid' => $this->uid,
+								'manager_post_id' => $post_id,
+								'manager_type' => $manager_type,
+								'manager_reason' => $reason,
+								'ctime' => time()
+							);
+			$log_bool = $this->bbs_misc_m->add_post_manager_log_record($set_manager);
+			if( ! $log_bool){
+				$return_data = array(
+									'status' => -1,
+									'content' => '更新帖子管理操作记录失败'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			if($type == 'delete'){
+
+				/*
+					1.使用队列
+				 */
+				$this->bbs_queue->set_queue_name('moxi'); 		// 设置队列名
+				$data = array(
+							'post_id' => $post_id
+						);
+
+				// 该方法暂时没有返回参数，考虑是否使用原始的 Httpsqs
+				$this->bbs_queue->put($data, 'del_post');
+
+				// 删除帖子，减积分！
+				$author_id = $this->bbs_post_m->get_post_author_id($post_id);
+				$this->md_common->add_user_score($author_id, SCORE_GROUP_DEL_POST, 0, FALSE);
+			}
+			$return_data = array(
+								'status' => 1,
+								'content' => '删除帖子成功'
+							);
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *
+		 * 	回复审核页面
+		 * 	@param 		int 	$nextpage
+		 *
+		 */
+		public function reply($time = 1, $nickname = 'null', $post_id = '0', $reply_status = 0, $nextpage = 1)
+		{
+			$submit = $this->input->post('submit');
+			if($submit)
+			{
+				$reply_status = $this->input->post('reply_status') ? (int) $this->input->post('reply_status') : 0; 
+				$post_id =  trim($this->input->post('post_id')) ? (int) trim($this->input->post('post_id')) : 0;
+				$nickname = trim($this->input->post('nickname')) ? trim($this->input->post('nickname')) : $nickname;
+				$time = $this->input->post('time') ? $this->input->post('time') : $time;
+				$reply_list = $this->bbs_verify_model->get_reply_list($this->perpage, $nextpage, $time, $nickname, $post_id, $reply_status);
+				$total_reply = $this->bbs_verify_model->get_total_reply($nickname, $post_id, $reply_status);
+			}else{
+				$nickname = urldecode($nickname);
+				$reply_list = $this->bbs_verify_model->get_reply_list($this->perpage, $nextpage, $time, $nickname, $post_id, $reply_status);
+				$total_reply = $this->bbs_verify_model->get_total_reply($nickname, $post_id, $reply_status);
+			}
+
+			/* 获取推荐回复列表，比对回复，给回复添加 'isrecommend' 键 */
+			$recommend_reply_list = $this->bbs_verify_model->get_recommend_reply_list();
+			if ($recommend_reply_list)
+			{
+				foreach($reply_list as &$reply_info){
+					$reply_info['isrecommend'] = 0;
+					foreach($recommend_reply_list as $recommend_reply_info){
+						if ($reply_info['post_id'] == $recommend_reply_info['post_id'] && $reply_info['reply_id'] == $recommend_reply_info['reply_id'])
+						{
+							$reply_info['isrecommend'] = 1;
+							break;
+						}
+					}
+				}
+			}
+
+			$this->load->library('pagination');
+			$config = array(
+							'uri_segment' => 7,
+							'base_url' => $this->site_url . "bbs_verify/reply/$time/$nickname/$post_id/$reply_status",
+							'total_rows' => $total_reply,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$vars = array(
+						'reply_list' => $reply_list,
+						'time' => $time,
+						'pagination' => $pagination,
+						'nickname' => $nickname,
+						'post_id' => $post_id,
+						'reply_status' => $reply_status
+					);
+			$this->load->vars($vars);
+			$this->load->view('bbs_verify/reply');
+		}
+
+		/**
+		 *
+		 * 	回复审核通过
+		 *
+		 */
+		public function verify_reply_successed()
+		{
+			$reason = '审核通过'; 			// 默认操作原因
+			$post_id = (int) $this->input->post('post_id');
+			$reply_id = (int) $this->input->post('reply_id');
+			$reply_rid = (int) $this->input->post('reply_rid');
+			$return = $this->bbs_verify_model->verify_reply_successed($reason, $post_id, $reply_id, $this->uid, $reply_rid = 0);
+			switch($return){
+				case -3:
+					$return_data = json_encode(array(
+										'status' => -3,
+										'content' => '回复的二级回复数更新失败'
+									));
+					break;
+				case -2:
+					$return_data = json_encode(array(
+										'status' => -2,
+										'content' => '添加操作记录失败'
+									));
+					break;
+				case -1:
+					$return_data = json_encode(array(
+										'status' => -1,
+										'content' => '帖子的回复数更新失败'
+									));
+					break;
+				case 0:
+					$return_data = json_encode(array(
+										'status' => 0,
+										'content' => '审核异常'
+									));
+					break;
+				case 1:
+
+					// 审核成功的回复，直接加积分！
+					$author_id = $this->bbs_reply_m->get_reply_author_id($post_id, $reply_id);
+					$reply_info = $this->bbs_reply_m->get_reply_info($post_id, $reply_id);
+					$content_length = bbs_strlen(strip_tags(htmlspecialchars_decode($reply_info['content'], ENT_QUOTES)));
+					if($content_length >= 30){
+						$this->md_common->add_user_score($author_id, SCORE_GROUP_REPLY, 0, FALSE);
+					}
+					$return_data = json_encode(array(
+										'status' => 1,
+										'content' => '审核通过'
+									));
+					break;
+
+			}
+			echo $return_data;
+			exit;
+		}
+
+		/**
+		 *
+		 * 	回复审核未通过
+		 *
+		 * 	$type - 指代不同的删除操作。$type = "delete" 表示：在已审核的列表中删除，会减积分，会减计数。$type = "fail" 表示：审核失败
+		 */
+		public function verify_reply_failed($type)
+		{
+			$reason = trim($this->input->post('reason'));
+			$reason = $reason ? $reason : '删除回复'; 		// 默认操作原因
+			$post_id = $this->input->post('post_id');
+			$reply_id = $this->input->post('reply_id');
+			$return = $this->bbs_verify_model->verify_reply_failed($reason, $post_id, $reply_id, $this->uid, $type);
+			if($return){
+
+				if($type == 'delete'){
+
+					// 如果删除的是顶级回复，帖子的顶级回复数，也减1
+					$reply_table = $this->bbs_m->get_reply_table($post_id, $reply_id);
+					$where = array(
+								'post_id' => $post_id,
+								'reply_id' => $reply_id
+							);
+					$this->moxi_db->where($where);
+					$this->moxi_db->from($reply_table);
+					$reply_info = $this->moxi_db->get()->row_array();
+					if($reply_info['reply_rid'] == 0)
+						$this->bbs_post_m->update_post_reply_num($post_id, 0, -1);
+
+					// 审核失败的回复，减积分！
+					$author_id = $this->bbs_reply_m->get_reply_author_id($post_id, $reply_id);
+					$this->md_common->add_user_score($author_id, SCORE_GROUP_DEL_REPLY, 0, FALSE);
+
+					/*
+					删除回复积分不减
+
+					// 更新帖子的回复数
+			        $this->bbs_post_m->update_post_reply_num($post_id, 0, -1);
+
+					// 对于二级回复，还得更新一级回复的二级回复数
+					if ($reply_id){
+				        $this->bbs_post_m->update_post_reply_num($post_id, $reply_id, -1);
+				    }
+				    */
+
+				}
+				$return_data = json_encode(array(
+									'status' => 1,
+									'content' => '删除回复成功'
+								));
+			}else{
+				$return_data = json_encode(array(
+									'status' => 0,
+									'content' => '删除回复异常'
+								));
+			}
+			echo $return_data;
+			exit;
+		}
+
+		/**
+		 * 	回复推荐页面
+		 */
+		public function recommend_reply()
+		{
+			$post_id = (int) $this->input->post(post_id);
+			$reply_id = (int) $this->input->post(reply_id);
+			$type = (string) $this->input->post(type);
+			if (empty($post_id) || empty($reply_id))
+			{
+				$return_data = array(
+									'status' => -4,
+									'content' => '帖子ID和回复ID不能为空'
+								);
+			}
+
+			if ($type == 'add_recommend')
+			{
+				$return = $this->bbs_verify_model->add_recommend_reply($post_id, $reply_id);
+				if ($return == 1)
+				{
+					$return_data = array(
+										'status' =>  1,
+										'content' => '推荐回复成功'
+									);
+				}
+				elseif($return == -3)
+				{
+					$return_data = array(
+										'status' =>  -3,
+										'content' => '回复内容为空不能推荐(图片回复)'
+									);
+				}
+				else
+				{
+					$return_data = array(
+										'status' => -1,
+										'content' => '推荐回复失败'
+									);
+				}
+			} 
+			elseif($type == 'del_recommend') 
+			{
+				$bool = $this->bbs_verify_model->del_recommend_reply($post_id, $reply_id);
+				if ($bool)
+				{
+					$return_data = array(
+										'status' =>  2,
+										'content' => '取消推荐回复成功'
+									);
+				}
+				else
+				{
+					$return_data = array(
+										'status' => -2,
+										'content' => '取消推荐回复失败'
+									);
+				}
+			}
+			echo json_encode($return_data);
+			exit;
+		}
+
+	}

@@ -1,0 +1,127 @@
+<?php $this->load->view('ckad/header'); ?>
+
+<style>
+    .qrcode-maker {
+        width: 70%;
+        margin: 20px auto;
+    }
+    .qrcode-maker .row {
+        width: 100%;
+        margin: 10px 0;
+    }
+    .qrcode-maker .qrcode-maker-preview {
+        padding: 0 40px;
+        border: 1px solid #e9e9e9;
+    }
+    .qrcode-maker .qrcode-maker-preview:hover {
+        border-color: #ccc;
+        cursor: pointer;
+    }
+</style>
+<script>
+    $(function() {
+        // 去掉超链接或按钮点击时出现的虚线边框
+        $("body").on('focus', 'a,button', function(){this.blur()});
+    });
+</script>
+
+
+<div class="qrcode-maker row tabbable">
+    <ul class="nav nav-tabs">
+        <li <?= ($page=="common") ? 'class="active"' : ''; ?>><a href="#tab1" data-toggle="tab">普通二维码</a></li>
+        <li <?= ($page=="weixin") ? 'class="active"' : ''; ?>><a href="#tab2" data-toggle="tab">微信二维码</a></li>
+    </ul>
+    <?php if (isset($err_msg) && !empty($err_msg)): ?>
+    <div class="alert alert-error alert-dismissible" role="alert">
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <strong><?=$err_msg?></strong>
+    </div>
+    <?php endif;?>
+    <div class="tab-content">
+        <div class="tab-pane <?= ($page=="common") ? 'active' : ''; ?>" id="tab1">
+            <div class="row">
+                <div class="qrcode-maker-from span7">
+                    <form action="/main/qrcode_make" method="POST" enctype="multipart/form-data">
+                        <textarea name="qrcode_text" class="span12" rows="7"></textarea>
+                        <span class="help-block">
+                            <p>在上面输入框中输入文字内容或网址链接</p>
+                            <p>1. 当为需要打开的网址链接时，请确保链接前带有 <span class="label label-inverse">http://</span> 或 <span class="label label-inverse">https://</span></p>
+                            <p>2. 文本内容可随意填写</p>
+                        </span>
+                        <hr>
+
+                        <span class="label label-important">需要嵌入 logo 时点击选择 <i class="icon-hand-right"></i></span>
+                        <input type="file" name="logo" accept="image/*">
+                        <hr>
+
+                        <label class="radio inline">
+                            <input type="radio" name="level" value="L"> 7%容错率
+                        </label>
+                        <label class="radio inline">
+                            <input type="radio" name="level" value="M" checked> 15%容错率
+                        </label>
+                        <label class="radio inline">
+                            <input type="radio" name="level" value="Q"> 25%容错率
+                        </label>
+                        <label class="radio inline">
+                            <input type="radio" name="level" value="H"> 30%容错率
+                        </label>
+                        <hr>
+
+                        <button type="submit" class="btn btn-primary">获取二维码 <i class="icon-arrow-right"></i></button>
+                    </form>
+                </div>
+                <div class="qrcode-maker-preview span5">
+                    <?php if ($page=="common"): ?>
+                        <?php if (isset($succ_msg) && !empty($succ_msg)): ?>
+                            <div class="alert alert-success alert-dismissible" role="alert">
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                <strong><?=$succ_msg?></strong>
+                            </div>
+                        <?php endif; ?>
+                        <img src="<?=$preview?>" width="100%" alt="二维码">
+                    <?php else: ?>
+                        <img src="http://static.clewm.net/static/images/defqr_dd81ccc.png" width="100%" alt="二维码">
+                    <?php endif;?>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane <?= ($page=="weixin") ? 'active' : ''; ?>" id="tab2">
+            <div class="row">
+                <div class="qrcode-maker-from span7">
+                    <form action="/main/qrcode_make_weixin" method="POST">
+                        <input name="id" class="input-large" type="text" placeholder="场景ID">
+                        <select name="t" class="input-mini">
+                            <option value="1">临时</option>
+                            <option value="2">永久</option>
+                        </select>
+                        <input name="time" class="input-medium" type="text" placeholder="临时二维码有效期">
+                        <span class="help-block">
+                            <p>1. 场景值ID，临时二维码时为32位非0整型（4294967296），永久二维码时最大值为100000</p>
+                            <p>2. 临时二维码的取值建议大于 100000，100000以内的数字留给永久二维码使用</p>
+                            <p>3. 临时二维码的有效期最大为30天。单位以秒计算。</p>
+                        </span>
+                        <hr>
+                        <button type="submit" class="btn btn-primary">获取二维码 <i class="icon-arrow-right"></i></button>
+                    </form>
+                </div>
+                <div class="qrcode-maker-preview span5">
+                    <?php if ($page=="weixin"): ?>
+                        <?php if (isset($succ_msg) && !empty($succ_msg)): ?>
+                            <div class="alert alert-success alert-dismissible" role="alert">
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                <strong><?=$succ_msg?></strong>
+                            </div>
+                        <?php endif; ?>
+                        <img src="<?=$preview?>" width="100%" alt="二维码">
+                    <?php else: ?>
+                        <img src="http://static.clewm.net/static/images/defqr_dd81ccc.png" width="100%" alt="二维码">
+                    <?php endif;?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,6 @@
+<tr><td class="pro_id">项目ID</td><td class="pro_logo">项目logo</td><td class="pro_name">项目名称</td></tr>
+<?php if(count($res) > 0): ?>
+<?php foreach ($res as $key => $value): ?>
+	<tr><td class="pro_id"><?=$value['id'];?></td><td class="pro_logo"><?=$value['logo'];?></td><td class="pro_name"><?=$value['name'];?></td></tr>
+<?php endforeach;?>
+<?php endif;?>

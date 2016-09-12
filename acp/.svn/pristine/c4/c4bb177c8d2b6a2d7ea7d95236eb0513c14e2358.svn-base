@@ -1,0 +1,262 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<ul class="nav nav-tabs">
+		  	<li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_verify/post'; ?>">帖子</a></li>
+		  	<li role="presentation"><a href="<?php echo $site_url . 'bbs_verify/reply'; ?>">回复</a></li>
+		</ul>
+		<div>
+			<h2>	
+				帖子审核
+			</h2>
+		</div>
+		<hr>
+		<div>
+			<div>
+				<form name="filter" action="/bbs_verify/post" method="post" class="form-inline">
+					<input type="text" name="nickname" id="nickname" class="form-control input-sm" placeholder="请输入用户昵称">
+					<input type="text" name="post_id" id="post_id" class="form-control input-sm" placeholder="请输入帖子ID">
+					<span>
+						<select name="post_status" id="post_status">
+							<option value="0">未审核</option>	
+							<option value="1">已审核</option>	
+							<option value="2">已删除</option>	
+						</select>
+					</span>
+					<span>
+						<select name="tag_id" id="tag_filter" class="form-control input-sm">
+							<option value="0">所有标签</option>		
+							<?php
+								foreach($toptag_list as $toptag)
+								{
+									echo "<option value=".$toptag['tag_id'].">".$toptag['tag_name']."</option>";
+								}
+							?>
+						</select>
+					</span>
+					<p></p>
+					<span>
+						<select name="time" id="time_sort" class="form-control input-sm">
+							<option value="1">按时间倒序</option>		
+							<option value="2">按时间正序</option>		
+						</select>
+					</span>
+					<input type="hidden" value="1" name="submit">
+					<span>
+						<button type="submit" class="btn btn-primary btn-sm">查询</button>
+					</span>
+				</form>
+			</div>
+			<p></p>
+			<div>
+				<table class="table table-bordered">
+					<tr>
+						<th width="20%">发帖人</th>
+						<th>帖子标题</th>
+						<th width="20%">发帖时间</th>
+						<th width="15%">操作</th>
+					</tr>
+			<?php
+				foreach($post_list as $post)
+				{
+					echo "
+					<tr>
+						<td>{$post['user_info']['nickname']}</td>
+						<td><a style='cursor:pointer;' class='view_post' url='{$site_url}bbs_view/post/{$post['post_id']}'>{$post['subject']}</a></td>
+						<td>{$post['time']}</td>
+						<td>";
+						if($post_status == 2){
+							echo '已删除';
+							echo "<p class='text-center'><a style='cursor:pointer' data-pid='{$post['post_id']}' class='verify_revert' href='javascript:;'>恢复</a></p>";
+						}elseif($post_status == 1){
+							echo "<p class='text-center'><a style='cursor:pointer' post_id='{$post['post_id']}' class='verify_failed'>删除</a></p>";
+						}else{
+							echo "
+								<p class='text-center'><a style='cursor:pointer' post_id='{$post['post_id']}' class='verify_successed'>审核通过</a></p>
+								<p class='text-center'><a style='cursor:pointer' post_id='{$post['post_id']}' class='verify_failed'>删除</a></p>";
+						}
+						echo "
+						</td>
+					</tr>
+					";
+				}
+			?>
+				</table>
+			</div>
+		</div>
+		<hr>
+		<div class="text-center">
+			<?php echo $pagination; ?>
+		</div>
+	</div>
+	<div id="verify_failed" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							删除帖子
+						</h4>
+					</div>
+					<div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="no_reason">删除理由</label>
+						    <p style="clear:both;"></p>
+						    <hr>
+						    <div class="col-sm-8">
+								<?php
+								foreach($pass_reason as $key => $reason):
+								if($key == 0){
+									echo "<div style='margin-left:100px'><input type='radio' checked name='no_reason' style='margin-right:10px'> <span>$reason</span></div>";
+								}else{
+									echo "<div style='margin-left:100px'><input type='radio' name='no_reason' style='margin-right:10px'> <span>$reason</span></div>";
+								}
+								endforeach;
+								?>
+						    	<input type="hidden" name="post_id" value="">
+						    </div>
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="button" class="btn btn-primary" id="failed_btn">Save changes</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- 显示帖子内容模态框 -->
+	<div id="view_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+<script>
+	var url_successed = '<?php echo $site_url; ?>'+'bbs_verify/verify_post_successed';
+	var url_failed = '<?php echo $site_url; ?>'+'bbs_verify/verify_post_failed/' + '<?php if($post_status){ echo "delete";}else{echo "fail";} ?>';
+
+	// 加载模审核通过
+	$('.verify_successed').click(function(){
+		var obj = $(this);
+		var post_id = $(this).attr('post_id');
+		$.ajax({
+			url : url_successed,
+			type : 'post',
+			async : false,
+			dataType : 'json',
+			data : {
+				post_id : post_id
+			},
+			success : function(return_data){
+				switch(return_data.status){
+					case -2:
+					case -1:
+					case 0:
+						alert(return_data.content);
+						break;
+					case 1:
+						alert(return_data.content);
+						obj.parents('td').text('审核通过');
+						break;
+				}
+			}
+		});
+	});
+
+	// 模态框审核未通过
+	$("#verify_failed").on("hidden.bs.modal", function() {
+		var obj = $(this).find('[name=no_reason]').first();
+
+		// 使用prop()可能更有效
+		obj.siblings().prop('checked', null);
+		obj.prop('checked', 'checked');
+	});
+
+	// 加载模审核未通过
+	$('.verify_failed').click(function(){
+		var post_id = $(this).attr('post_id');
+		$('#verify_failed').modal();
+		$('#verify_failed').find('[name=post_id]').val(post_id);
+	});
+
+	$("#failed_btn").click(function(){
+		var reason = $.trim($('#verify_failed').find('[name=no_reason]:checked').next().text());
+		var post_id = $('#verify_failed').find('[name=post_id]').val();
+		$.ajax({
+			url : url_failed,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				reason : reason,
+				post_id : post_id
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -1:
+					case  0:
+						alert(return_data.content);
+						$('#verify_failed').modal('hide');
+						break;
+					case  1:
+						alert(return_data.content);
+						$('#verify_failed').modal('hide');
+						$('[post_id='+post_id+']').parents('td').text('已删除');
+						break;
+				}
+			}
+		});
+	});
+	
+	<!-- 通过js来控制select被选中 -->
+	$("#tag_filter").val("<?php echo ($tag_id ? $tag_id : 0); ?>");
+	$("#time_sort").val("<?php echo ($time ? $time : ''); ?>")	;
+	$("#post_id").val("<?php echo ($post_id ? $post_id : ''); ?>")	;
+	$('#post_status').val('<?php echo ($post_status ? $post_status : 0); ?>');
+	// 这里的判断条件也改为null
+	<?php 
+	if($nickname == 'null'){
+		echo '$("#nickname").val("")';
+	}else{
+		echo "$('#nickname').val('$nickname')";
+	}
+	?>
+
+    // 展示帖子内容
+    $("#view_post").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$('.view_post').click(function(){
+		var url = $(this).attr('url');
+		$('#view_post').modal();
+		$('#view_post .modal-content').load(url);
+	});
+	$(".verify_revert").click(function(){
+		var that = $(this);
+		var post_id = that.data('pid');
+		$.ajax({
+			url:'<?=site_url("bbs_verify/post_revert")?>',
+			type:'post',
+			dataType:'json',
+			data:{'post_id':post_id},
+			success:function(return_data){
+				if(return_data.status){
+					alert(return_data.msg);
+					$(that).text('已恢复');
+				}
+			}
+		});
+
+	})
+</script>
+<?php $this->load->view('ckad/footer'); ?>

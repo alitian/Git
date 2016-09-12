@@ -1,0 +1,307 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+/**
+ * 斗鱼定时充值脚本
+ */
+class Douyutv extends MD_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->model('Common');
+        $this->load->model('Product_m');
+        $this->load->model('User_m');
+        $this->load->model('Order_biz');
+        $this->load->library('md_common');
+        $this->load->helper('md_admin');
+        $this->config->load('plan');
+        $this->pro_id = $this->config->item('douyu_pro_id');
+        $this->secret = $this->config->item('douyu_secret');
+
+        $this->extendid = $this->config->item('douyu_extendid');
+
+        $this->user_reward = $this->config->item('douyu_user_reward');
+        $this->get_order_id = $this->config->item('douyu_order_id');
+        $this->get_order_time = $this->config->item('douyu_order_time');
+    }
+
+    /**
+     * 批量充值
+     * @return string [description]
+     */
+    public function user_reward()
+    {
+    	$backer_list = $this->get_backer_list();
+    	$total = 0;
+    	foreach ($backer_list as $key => $value) {
+    		$count = pow($value['times'],2)*10;
+    		$line = strtotime($value['send_time']."+ {$count} minutes");
+    		//if(strtotime("now") > $line && $value['times'] < 6 ) {
+    			$this->send_reward($value);
+				$total++;
+    		//}
+            if($total >= 50)
+                exit;
+		}
+		if($total > 0)
+			echo '['.date('Y-m-d H:i:s').']:ACTION:send_reward,total:'.$total."\n";
+    }
+
+    /**
+     * 查找已支付的斗鱼订单
+     * @return [type] [description]
+     */
+    private function get_backer_list()
+    {
+        $res = array();
+        if(empty($this->pro_id))
+            return $res;
+
+        $sql = "SELECT back.id AS orderId , 
+        douyu.third_id AS userId , 
+        back.amount AS backmoney , 
+        back.ctime AS buyTime , 
+        douyu.ip AS userIp,
+        back.user_id AS user_id,
+        douyu.if_send AS times,
+        douyu.send_time AS send_time
+        FROM md_recharge_log douyu
+		INNER JOIN md_product_back back ON back.pro_id = {$this->pro_id} AND back.id = douyu.back_id        
+        WHERE douyu.if_receive = 0 AND back.if_pay = 1";
+        $res = $this->db->query($sql)->result_array();
+		return $res;
+		
+    }
+
+    /**
+     * 单条记录充值
+     * @param  array $reward [订单详情]
+     * @return string        [description]
+     */
+    private function send_reward($reward)
+    {
+        $orderId = isset($reward['orderId']) ? intval($reward['orderId']) : '';
+        $userId  = isset($reward['userId']) ? trim($reward['userId']) : '';
+        $money   = isset($reward['backmoney']) ? intval($reward['backmoney']) : '';
+        $buyTime = isset($reward['buyTime']) ? (string) $reward['buyTime'] : '';
+        $userIp  = isset($reward['userIp']) ? (string) $reward['userIp'] : '';
+        $user_id = isset($reward['user_id']) ? intval($reward['user_id']) : '';
+
+        if(empty($orderId)) {echo "param invalid:orderId.";return false;}
+        if(empty($userId)) {echo "param invalid:userId.";return false;}
+        if(empty($money) || $money > 500) {echo "param invalid:money.";return false;}
+        if(empty($buyTime) || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/s', $buyTime) == 0) {echo "param invalid:buyTime";return false;}
+        if(empty($userIp) || !filter_var($userIp,FILTER_VALIDATE_IP)) {echo "param invalid:userIp";return false;}
+        if(empty($user_id)) {echo "param invalid:user_id";return false;}
+
+        $uri = $this->user_reward;
+        $back_id = $orderId;
+    	$para = array(
+    		'orderId' => $orderId,
+    		'userId' => $userId,
+    		'money' => $money,
+    		'buyTime' => $buyTime,
+    		'userIp' => $userIp,
+    		'remark' => '摩点订单',
+    		'extendId' => $this->extendid
+    		);
+    	$data = $this->secret($para);
+
+    	$return = $this->http_handle($uri,$data);
+    	$res = json_decode($return,TRUE);
+		$if_receive = (isset($res['result']) && ($res['result'] == 0 || $res['result'] == 212)) ? 1 : 0;
+		$receive_time = ($if_receive == 1) ? date("Y-m-d H:i:s") : "0000-00-00 00:00:00";
+		
+        $this->db->where('back_id',$back_id);
+		$this->db->from('md_recharge_log');
+		$query = $this->db->get();
+		$res = $query->row_array();
+
+		$update['content'] = serialize($data);
+		$update['if_send'] = $res['if_send'] + 1;
+		$update['if_receive'] = $if_receive;
+		$update['send_time'] = date("Y-m-d H:i:s");
+		$update['receive_time'] = $receive_time;
+		$this->db->where('id', $res['id']);
+    	$query = $this->db->update('md_recharge_log', $update);
+
+        if($if_receive == 1)
+        {
+            $this->Order_biz->set_oid($back_id)->update_status('201');
+            $up_data = array('post_time' => $update['send_time']);
+            $this->Common->update('md_product_back', array('id' => $back_id), $up_data);
+        } 
+
+        if($if_receive == 0 && $res['if_send'] == 3)
+        {
+            $to = '646316964@qq.com';
+            $title = 'Warning:DouYu Api cant be accessed';
+            $cont = serialize($return);
+            $mobile = '18500137847';
+            $message = '斗鱼接口异常';
+            $timeline = date("Y-m-d H:i:s",strtotime("-2 hours"));
+
+            $unit_key = md5($to . "_" . $title . "_" . $cont);
+            $sql = "SELECT COUNT(1) AS c FROM md_sendmail WHERE unit_key='{$unit_key}' AND ctime > '{$timeline}'";
+            $if_mail = $this->db->query($sql)->row_array();
+
+            if($if_mail['c'] == 0){
+                $this->Common->send_email($to, $title, $cont);
+                $this->Common->send_message($mobile, $message);
+            }
+        }
+
+    	$log = '['.date('Y-m-d H:i:s').']:ACTION:send_reward,'.'orderId:'.$orderId.',RETURN:'.$return."\n";
+    	echo $log; 
+    }
+
+    /**
+     * 根据订单id查询订单状态
+     * @param  int $orderId [摩点订单id]
+     * @return array          [description]
+     */
+    public function get_order_id($orderId)
+    {
+    	$uri = $this->get_order_id;
+
+    	$para = array(
+    		'orderId' => $orderId,
+    		'extendId' => $this->extendid
+    		);
+    	$data = $this->secret($para);
+
+    	$return = $this->http_handle($uri,$data);
+
+		$res = json_decode($return,TRUE);
+		return $res;
+    }
+
+    /**
+     * 根据时间段 批量查询订单
+     * @param  [string] $startTime [开始时间]
+     * @param  [string] $endTime   [结束时间]
+     * @return [array]            [description]
+     */
+    public function get_order_time($startTime, $endTime)
+    {
+    	$uri = $this->get_order_time;
+
+    	$para = array(
+    		'startTime' => $startTime,
+    		'endTime' => $endTime,
+    		'extendId' => $this->extendid
+    		);
+    	$data = $this->secret($para);
+
+    	$return = $this->http_handle($uri,$data);
+
+		$res = json_decode($return,TRUE);
+		return $res;
+    }
+
+    /**
+     * 视图 斗鱼订单详情
+     * @return [type] [description]
+     */
+    public function douyu_order()
+    {
+    	$data = array();
+    	if($_GET){
+    		$startTime = $this->input->get('stime') ? $this->input->get('stime') : date('Y-m-d H:i:s');
+	    	$endTime = $this->input->get('etime') ? $this->input->get('etime') : date('Y-m-d H:i:s');
+	    	$orderId = $this->input->get('orderId') ? $this->input->get('orderId') : '';
+
+	    	if(empty($orderId))
+	    	{
+	    		//验证时间合法性
+		        $partten_t = '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/s';
+		        if (preg_match($partten_t, $startTime) == 0 || preg_match($partten_t, $endTime) == 0)
+		            md_common::display_javascript("时间格式错误");
+
+		        $parse_c = date_parse($startTime);
+		        $parse_e = date_parse($endTime);
+
+		        if ($parse_c['warning_count'] || $parse_c['error_count'] || $parse_e['warning_count'] || $parse_e['error_count'])
+		            md_common::display_javascript("时间格式错误");
+
+		        $ctime = strtotime($startTime);
+		        $etime = strtotime($endTime);
+		        $t = time();
+		        if ($ctime > $etime)
+		            md_common::display_javascript("请选择正确的时间");
+
+		    	$res = $this->get_order_time($startTime, $endTime);
+		    	
+	    	}
+	    	else
+	    	{
+	    		$res = $this->get_order_id($orderId);
+	    	}
+	    	
+			if(isset($res['result']['id']))
+			{
+				$tmp = $res['result'];
+				unset($res['result']);
+				$res['result'][0] = $tmp;
+			}
+			$data['res'] = $res;
+    	}
+    	$title = array('id','orderId','userId','outNum','buyTime','userIp','remark','extendId');
+    	$data['title'] = $title;
+
+		$this->load->view('ckad/douyu_order',$data);
+    }
+
+
+    /**
+     * 数组遍历 对其中的值urlencode
+     * 
+     * */
+    private function walker(&$arr) {
+        foreach ($arr as $k => $v) {
+            if (is_array($v))
+                $arr[$k] = $this->walker($v);
+            else
+                $arr[$k] = urlencode($v);
+        }
+        return $arr;
+    }
+
+    /**
+     * 加密 -斗鱼提供
+     * @param  [array] $data [description]
+     * @return [array]       [description]
+     */
+    private function secret($data) {
+    	ksort($data);
+    	$str = http_build_query($data);
+    	$secret = $this->secret;
+    	$oauthcode = md5($str.$secret);
+    	$data['oauthcode'] = $oauthcode;
+    	return $data;
+    }
+
+    /**
+     * curl_post 向斗鱼发送请求
+     * @param  [string] $uri  [请求地址]
+     * @param  [array] $data [请求参数]
+     * @return [json]       [description]
+     */
+    private function http_handle($uri,$data)
+    {
+    	$ch = curl_init();
+    	curl_setopt ( $ch, CURLOPT_URL, $uri );
+		curl_setopt ( $ch, CURLOPT_POST, 1 );
+		curl_setopt ( $ch, CURLOPT_HEADER, 0 );
+		curl_setopt ( $ch, CURLOPT_RETURNTRANSFER, 1 );
+		curl_setopt ( $ch, CURLOPT_POSTFIELDS, $data );
+        curl_setopt ( $ch, CURLOPT_TIMEOUT, 5);  
+		$return = curl_exec ( $ch );
+		curl_close ( $ch );
+		return $return;
+    }
+
+}

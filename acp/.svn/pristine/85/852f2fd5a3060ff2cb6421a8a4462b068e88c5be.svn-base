@@ -1,0 +1,118 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<ul class="nav nav-tabs">
+		  	<li role="presentation"><a href="<?php echo $site_url . 'bbs_main_old/post_recommend'; ?>">帖子</a></li>
+		  	<li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_main_old/reply_recommend'; ?>">回复</a></li>
+		</ul>
+		<div>
+			<h2>	
+				WEB首页回复推荐
+			</h2>
+		</div>
+		<hr>
+		<p></p>
+		<div id="recommend_list">
+			<form action="<?= site_url("bbs_main_old/change_reply_recommend_weight"); ?>" method="post">
+			<?php
+				if($recommend_reply_list){
+					foreach($recommend_reply_list as $recommend_reply){
+						if(empty($recommend_reply['reply_content'])){
+							$recommend_reply['reply_content'] = '<span style="color:red;">图</span>';
+						}
+						$str =  <<<STR
+					        <div class="row">
+					          	<input type="text" class="form-control " style="width:30px" placeholder="排序" name="sortid" value="{$recommend_reply['sortid']}" recommend_id="{$recommend_reply['id']}" sortid="{$recommend_reply['sortid']}">
+				        		<a class="view_reply" style="padding-bottom:8px;margin-left:10px;cursor:pointer;" url="{$site_url}bbs_view/reply/{$recommend_reply['post_id']}/{$recommend_reply['reply_id']}">{$recommend_reply['reply_content']}</a>
+					        </div>
+					        <p></p>
+STR;
+						echo $str;
+						$str = '';
+					}
+				}
+			?>
+		</div>
+		<p></p>
+		<div>
+		<button id="add_recommend" class="btn btn-primary" style="float:left;margin-left:600px;">提交</button>
+		<input type="hidden" name="recommend_id_array" value="">
+		<input type="hidden" name="recommend_sortid_array" value="">
+		</form>
+	</div>
+	</div>
+
+	<!-- 显示帖子内容模态框 -->
+	<div id="view_reply" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+<script>
+
+    // 展示帖子内容
+    $("#view_reply").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$(document).on('click', '.view_reply', function(){
+		var url = $(this).attr('url');
+		$('#view_reply').modal();
+		$('#view_reply .modal-content').load(url);
+	});
+	$("#add_recommend").click(function(){
+		var input_set = $("input[name=sortid]");
+		var length = input_set.length;
+
+		// 定义2个对象，然后直接转换为json数组，发送给PHP
+		var recommend_id_array = [];
+		var recommend_sortid_array = [];
+		var is_edit = false;
+		for(var i = 0; i <length; i++){
+
+			// 还得再次检验，是否有非数字
+			var sortid = $.trim(input_set[i].value);
+			var num = i+1;
+            if(sortid == ''){ 
+                    alert('第 ' + num + ' 条回复的排序为空，请修正！'); 
+                    return false; 
+            }
+			if(isNaN(sortid)){
+				alert('第 ' + num + ' 条回复的排序为非数字，请修正！');
+				return false;
+			}
+			var recommend_id = parseInt(input_set[i].getAttribute('recommend_id'));
+			var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+
+			// 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+			if(prev_sortid != sortid){
+				is_edit = true;
+			}
+
+			// 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+			sortid = parseInt(sortid);
+			recommend_id_array[i] = recommend_id;
+			recommend_sortid_array[i] = sortid;
+		}
+		if(!is_edit){
+			alert('未作任何修改');
+			return false;
+		}
+		recommend_id_array = JSON.stringify(recommend_id_array);
+		recommend_sortid_array = JSON.stringify(recommend_sortid_array);
+		$('input[name=recommend_id_array]').val(recommend_id_array);
+		$('input[name=recommend_sortid_array]').val(recommend_sortid_array);
+	});
+
+	$("input[name=sortid]").blur(function(){
+		var value = $(this).val();
+		if(isNaN(value)){
+			alert('只能填写数字');
+			return false;
+		}
+	});
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

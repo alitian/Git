@@ -1,0 +1,81 @@
+<?php $this->load->view('ckad/header') ?>
+<script language='javascript'>
+    function setbar(num)
+    {
+        $("#bar").attr('style', 'width:' + num + '%');
+    }
+</script>
+<?php if (isset($error) && $error): ?>
+    <div class="alert alert-error">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Warning!</strong> <?= $error; ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($ok) && $ok): ?>
+    <div class="alert alert-success">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Well done!</strong> <?= $ok; ?>
+    </div>
+    <div class="progress progress-striped active">
+        <div class="bar" id="bar" style="width: 0%;"></div>
+    </div>
+<?php endif; ?>
+<form action="" method="post" enctype="multipart/form-data">
+    <table class="table table-bordered" style="width:60%">
+        <tr>
+            <th colspan="2">手動发送全站邮件与站内信</th>
+        </tr>
+        <tr>
+            <th style="width:30%;">类型:</th>
+            <td>
+                <label class="radio"><input type='checkbox' name="type[]" value='1' /> 站内信</label>
+                <label class="radio"><input type='checkbox' name="type[]" value='2' /> 邮件</label>
+            </td>
+        </tr>
+        <tr>
+            <th>excel发送Email类型:<br />【用此类型只需填验证码】</th>
+            <td>
+                <input type="file" name="import_file" id="import_file" /><br />(Excel定制每条消息) <a href="/static/other/mail_m.xls">模板下载</a>
+            </td>
+        </tr>
+        <tr>
+            <th>测试:</th>
+            <td>
+                用户ID:<input type="text" name='test_uid' id='test_uid' /><br />
+                用户EMail:<input type="text" name='test_email' id='test_email' />
+            </td>
+        </tr>
+        <tr>
+            <th>标题:</th>
+            <td>
+                <input type="text" name='title' id='title' />
+            </td>
+        </tr>
+        <tr>
+            <th>內容:</th>
+            <td>
+                <textarea name="content" style="width:90%"></textarea>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                验证码:
+            </td>
+            <td>
+                <img src="/init/captcha_code?name=mobile_acptcha" /><input type="text" name="vcode" style="width:50px;" maxlength="4" />
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <input type="submit" class="btn btn-primary" value="确认发送" />
+            </td>
+        </tr>
+    </table>
+</form>
+<table class="table">
+    <tr><th>发送时间</th><th>发送人</th><th>发送内容</th></tr>
+    <?php foreach ($logs as $log): ?>
+        <tr><td><?= $log['send_time'] ?></td><td><?= $log['email'] ?></td><td><?= $log['content'] ?></td></tr>
+    <?php endforeach; ?>
+</table>
+<?php $this->load->view('ckad/footer') ?>

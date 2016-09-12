@@ -1,0 +1,505 @@
+<?php $css_version = '20150723'; ?>
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/react/react.min.js" type="text/javascript"></script>
+
+<style>
+    .stics-banner,
+    .stics-detail-banner {
+        margin-bottom: 21px;
+    }
+    .stics-banner h4,
+    .stics-detail-banner h4 {
+        padding: 10px 15px;
+        border-top: 1px solid #dfdfdf;
+        border-bottom: 1px solid #dfdfdf;
+        background-color: #f0f0f0;
+        color: #000;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .overview-item,
+    .stics-detail-item {
+        margin-bottom: 21px;
+    }
+    .overview-item h4,
+    .stics-detail-item {
+        padding: 20px;
+        border: 1px solid #dfdfdf;
+        background-color: #f5f5f5;
+    }
+    .overview-item h4 {
+        color: #223318;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .stics-detail-item {
+        height: 300px;
+    }
+
+    .stics-detail {
+        border-top: 1px solid #dfdfdf;
+    }
+    .stics-detail .stics-search {
+        margin-bottom: 30px;
+    }
+    .stics-detail .stics-search .btn-toolbar .btn-group {
+        vertical-align: middle;
+    }
+
+    .display-none {
+        display: none !important;
+    }
+
+    #pro_detail_view_2 {
+        background-color: #fff;
+        overflow: auto;
+    }
+    table.table > caption {
+        text-align: left;
+        font-size: 18px;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 7px;
+    }
+    .table tbody tr.summary>td {
+        background-color: #333333;
+        color: #fff;
+        font-weight: bold;
+    }
+
+    .loading {
+        background-color: #f5f5f5 !important;
+    }
+
+</style>
+
+<!-- <div id="stics-banner" class="stics-banner">
+    <h4><?=$banner?></h4>
+</div> -->
+
+<div id="stics-loudou" >
+    <div class="stics-banner">
+        <h4>项目漏斗</h4>
+    </div>
+    <div class="stics-search">
+        <form class="form-search">
+            <input type="text" name="pro_id" class="input-mini search-query" placeholder="项目ID">
+            <div class="input-append date form_datetime">
+                <input type="text" class="input-small" name='day_start' placeholder="开始时间">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+            </div>
+            <div class="input-append date form_datetime">
+                <input type="text" class="input-small" name='day_end' placeholder="截至时间">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+            </div>
+            <input type="text" name="mdsf" class="input-medium search-query" placeholder="渠道">
+            <input type="text" name="mdsff" class="input-medium search-query" placeholder="来源">
+            <button class="btn" type="submit">显示</button>
+        </form>
+    </div>
+    <div class="row-fluid stics-result-table">
+    </div>
+</div>
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd",
+            pickTime: true
+        });
+    });
+    $('#stics-loudou form.form-search').submit(function(e) {
+        e.preventDefault();
+        var url = "/statistics/ajax_pro_stat";
+        var data = $(this).serialize();
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: data,
+            dataType: "html",
+            success: function(res) {
+                res = JSON.parse(res);
+                $('#stics-loudou .stics-result-table').html(res.errmsg);
+            },
+            error: function() {
+                alert('出错了');
+            }
+        });
+    });
+</script>
+
+
+
+<div id="stics-detail">
+    <!-- here goes the react content -->
+</div>
+
+<script src="http://echarts.baidu.com/build/dist/echarts.js"></script>
+<script type="text/javascript">
+    // 路径配置
+    require.config({
+        paths: {
+            echarts: 'http://echarts.baidu.com/build/dist'
+        }
+    });
+
+    //
+    var myChart = new Object();
+    require(
+        [
+            'echarts',
+            'echarts/chart/line'
+        ], function (ec) {
+            myChart.pro_detail_view_1 = ec.init(document.getElementById('pro_detail_view_1'));
+            // myChart.pro_detail_view_2 = ec.init(document.getElementById('pro_detail_view_2'));
+            myChart.pro_detail_view_3 = ec.init(document.getElementById('pro_detail_view_3'));
+            myChart.pro_detail_view_4 = ec.init(document.getElementById('pro_detail_view_4'));
+            myChart.pro_detail_view_5 = ec.init(document.getElementById('pro_detail_view_5'));
+            myChart.pro_detail_view_6 = ec.init(document.getElementById('pro_detail_view_6'));
+
+            // loading_stics_detail_item_chart();
+        }
+    );
+
+
+    // 加载中 ...
+    var loading_stics_detail_item_chart = function() {
+        $.each(myChart, function(i, cht) {
+            cht.showLoading({
+                text: '不要着急、数据马上来了...',
+            });
+        });
+    };
+
+    // 更新折线图表
+    var update_stics_detail_chart_line = function(selector, chartd) {
+        // console.log(chartd);
+        var tmcd = new Object();
+        tmcd.title = chartd.title;
+        tmcd.subtitle = chartd.subtitle;
+        tmcd.xAxis = chartd.xd;
+        switch(selector) {
+        case 'pro_detail_view_1':
+            tmcd.series = [
+                {
+                    name: chartd.yd.pv.title,
+                    type : 'line',
+                    data : chartd.yd.pv.data,
+                    markPoint : {
+                        data : [
+                            {type : 'max', name: '最大值'},
+                            {type : 'min', name: '最小值'}
+                        ]
+                    },
+                    markLine : {
+                        data : [
+                            {type : 'average', name: '平均值'}
+                        ]
+                    }
+                },
+                {
+                    name: chartd.yd.uv.title,
+                    type : 'line',
+                    data : chartd.yd.uv.data,
+                    markPoint : {
+                        data : [
+                            {type : 'max', name: '最大值'},
+                            {type : 'min', name: '最小值'}
+                        ]
+                    },
+                    markLine : {
+                        data : [
+                            {type : 'average', name: '平均值'}
+                        ]
+                    }
+                }
+            ];
+            break;
+        default:
+            tmcd.series = [
+                {
+                    name: tmcd.title,
+                    type : 'line',
+                    data : chartd.yd,
+                    markPoint : {
+                        data : [
+                            {type : 'max', name: '最大值'},
+                            {type : 'min', name: '最小值'}
+                        ]
+                    },
+                    markLine : {
+                        data : [
+                            {type : 'average', name: '平均值'}
+                        ]
+                    }
+                }
+            ];
+        }
+
+        require(
+            [
+                'echarts',
+                'echarts/chart/line'
+            ], function (ec) {
+                myChart[selector] = ec.init(document.getElementById(selector));
+                myChart[selector].setOption({
+                    title: {
+                        text: tmcd.title,
+                        subtext: tmcd.subtitle
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            dataView : {show: true, readOnly: false},
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    tooltip : {
+                        trigger: 'axis'
+                    },
+                    calculable : true,
+                    xAxis : [
+                        {
+                            type : 'category',
+                            boundaryGap : false,
+                            data : tmcd.xAxis
+                        }
+                    ],
+                    yAxis : [
+                        {
+                            type : 'value',
+                            scale: true,
+                            axisLabel : {
+                                formatter: '{value}'
+                            }
+                        }
+                    ],
+                    series : tmcd.series
+                });
+            }
+        );
+    };
+
+    // 更新饼图图表
+    var update_stics_detail_chart_pie = function(selector, chartd) {
+        // console.log(chartd);
+        var tmcd = new Object();
+        tmcd.title = chartd.title;
+        tmcd.subtitle = chartd.subtitle;
+        switch(selector) {
+        default:
+            tmcd.series = [
+                {
+                    name : tmcd.title,
+                    type : 'pie',
+                    radius : '55%',
+                    center : ['50%', '60%'],
+                    data : chartd.data,
+                    itemStyle : {
+                        normal: {
+                            label : {
+                                formatter: function (params) {
+                                    return params.name + ':' + params.value + '(' + (params.percent - 0).toFixed(0) + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            ];
+        }
+
+        require(
+            [
+                'echarts',
+                'echarts/chart/pie'
+            ], function (ec) {
+                myChart[selector] = ec.init(document.getElementById(selector));
+                myChart[selector].setOption({
+                    title : {
+                        text: tmcd.title,
+                        subtext: tmcd.subtitle
+                    },
+                    tooltip : {
+                        trigger: 'item',
+                        formatter: "{a} <br/>{b} : {c} ({d}%)"
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            dataView : {show: true, readOnly: false},
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    calculable : true,
+                    series : tmcd.series
+                });
+            }
+        );
+    };
+
+    // var update_stics_detail_chart_bar = function(selector, title, subtitle, adata) {
+    //     require(
+    //         [
+    //             'echarts',
+    //             'echarts/chart/bar'
+    //         ], function (ec) {
+    //             myChart[selector] = ec.init(document.getElementById(selector));
+    //             myChart[selector].setOption({
+    //                 title : {
+    //                     text: title,
+    //                     subtext: subtitle
+    //                 },
+    //                 tooltip : {
+    //                     trigger: 'axis',
+    //                     axisPointer : {            // 坐标轴指示器，坐标轴触发有效
+    //                         type : 'shadow'        // 默认为直线，可选为：'line' | 'shadow'
+    //                     },
+    //                     formatter: function (params){
+    //                         return params[0].name + '<br/>'
+    //                                + params[0].seriesName + ' : ' + params[0].value + '%<br/>'
+    //                                + params[1].seriesName + ' : ' + params[1].value + '%<br/>'
+    //                                + params[2].seriesName + ' : ' + params[2].value + '%';
+    //                     }
+    //                 },
+    //                 toolbox: {
+    //                     show : true,
+    //                     feature : {
+    //                         saveAsImage : {show: true}
+    //                     }
+    //                 },
+    //                 calculable : true,
+    //                 xAxis : [
+    //                     {
+    //                         type : 'category',
+    //                         data : adata.x
+    //                     }
+    //                 ],
+    //                 yAxis : [
+    //                     {
+    //                         type : 'value'
+    //                     }
+    //                 ],
+    //                 series : [
+    //                     {
+    //                         name:adata.y_web.title,
+    //                         type:'bar',
+    //                         stack: '总量',
+    //                         itemStyle : { normal: {label : {show: true, position: 'insideRight'}}},
+    //                         data:adata.y_web.data
+    //                     },
+    //                     {
+    //                         name:adata.y_wap.title,
+    //                         type:'bar',
+    //                         stack: '总量',
+    //                         itemStyle : { normal: {label : {show: true, position: 'insideRight'}}},
+    //                         data:adata.y_wap.data
+    //                     },
+    //                     {
+    //                         name:adata.y_app.title,
+    //                         type:'bar',
+    //                         stack: '总量',
+    //                         itemStyle : { normal: {label : {show: true, position: 'insideRight'}}},
+    //                         data:adata.y_app.data
+    //                     }
+    //                 ]
+    //             });
+    //         }
+    //     );
+    // };
+
+    // var update_stics_detail_char_bar_back = function(selector, title, subtitle, ydata) {
+    //     require(
+    //         [
+    //             'echarts',
+    //             'echarts/chart/bar',
+    //             'echarts/chart/line'
+    //         ], function (ec) {
+    //             myChart[selector] = ec.init(document.getElementById(selector));
+    //             var option = {
+    //                 title : {
+    //                     text: title,
+    //                     subtext: subtitle
+    //                 },
+    //                 tooltip : {
+    //                     trigger: 'axis',
+    //                     axisPointer : {            // 坐标轴指示器，坐标轴触发有效
+    //                         type : 'shadow'        // 默认为直线，可选为：'line' | 'shadow'
+    //                     },
+    //                     formatter: function (params){
+    //                         return params[0].name + '<br/>'
+    //                                + params[0].seriesName + ' : ' + params[0].value + '<br/>'
+    //                                + params[1].seriesName + ' : ' + params[1].value;
+    //                     }
+    //                 },
+    //                 toolbox: {
+    //                     show : true,
+    //                     feature : {
+    //                         saveAsImage : {show: true}
+    //                     }
+    //                 },
+    //                 calculable : true,
+    //                 xAxis : [
+    //                     {
+    //                         type : 'category',
+    //                         data : ydata.x
+    //                     }
+    //                 ],
+    //                 yAxis : [
+    //                     {
+    //                         type : 'value',
+    //                         name : ydata.y_succ.title,
+    //                         boundaryGap: [0, 0.1]
+    //                     },
+    //                     {
+    //                         type : 'value',
+    //                         name : ydata.y_per.title,
+    //                         axisLabel : {
+    //                             formatter: '{value} %'
+    //                         }
+    //                     }
+    //                 ],
+    //                 series : [
+    //                     {
+    //                         name: ydata.y_succ.title,
+    //                         type:'bar',
+    //                         stack: 'sum',
+    //                         itemStyle: {
+    //                             normal: {
+    //                                 barBorderColor: 'tomato',
+    //                                 barBorderWidth: 6,
+    //                                 barBorderRadius:0,
+    //                                 label : {
+    //                                     show: true,
+    //                                     position: 'top',
+    //                                     textStyle: {
+    //                                         color: 'tomato'
+    //                                     }
+    //                                 }
+    //                             }
+    //                         },
+    //                         data: ydata.y_succ.data
+    //                     },
+    //                     {
+    //                         name: ydata.y_per.title,
+    //                         type:'line',
+    //                         yAxisIndex: 1,
+    //                         data: ydata.y_per.data
+    //                     }
+    //                 ]
+    //             };
+
+
+    //             myChart[selector].setOption(option);
+    //     });
+    // };
+</script>
+
+
+
+<script src="<?= static_url(); ?>js/react/comp_bulid/statistics_pro_detail.js?v=<?=$css_version?>" type="text/javascript"></script>
+
+<?php $this->load->view('ckad/footer'); ?>

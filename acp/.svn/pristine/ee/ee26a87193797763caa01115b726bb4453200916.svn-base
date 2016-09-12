@@ -1,0 +1,172 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<div>
+			<h2>	
+				界面管理
+			</h2>
+		</div>
+		<hr>
+		<div>
+			<div>
+				<form class="form-inline">
+				<span>
+					<select name="type" id="type" class="form-control input-sm">
+						<?php
+							foreach($type_arr as $type_key => $type_val)
+							{
+								if($type_val == $type)
+									echo "<option value=".$type_val." selected>".$type_key."</option>";
+								else
+									echo "<option value=".$type_val.">".$type_key."</option>";
+							}
+						?>
+					</select>
+				</span>
+				<?php if($type == 'product'): ?>
+					<span style="margin-left:50px;">
+						输入项目ID：<input type="text" value="" placeholder="请输入项目ID" class="form-control" id="product_id"/>
+					</span>
+					<span style="margin-left:20px;">
+						<a href="javascript:;" id="product_add" class="btn btn-info btn-sm">新增</a>
+					</span>
+				<?php else: ?>
+					<span style="margin-left:50px;">
+						<a href="/bbs_promotion/add_promotion/<?= $type ?>" class="btn btn-info btn-sm">新增</a>
+					</span>
+				<?php endif; ?>
+				</form>
+			</div>
+			<p></p>
+			<?php if($promotion_list): ?>
+			<div>
+				<style>
+					td {
+						vertical-align:middle !important;
+						text-align:center !important;
+					}
+				</style>
+				<table class="table table-bordered">
+					<tr>
+						<th width="5%">权重</th>
+						<?php if($type != 'text'): ?>
+						<th width="20%">推荐图</th>
+						<?php endif; ?>
+						<th>推荐文字</th>
+						<th width="15%">推荐链接</th>
+						<th width="15%">操作</th>
+					</tr>
+				<?php foreach($promotion_list as $promotion_info): ?>
+					<tr>
+						<td><input sortid="<?= $promotion_info['sortid'] ?>" pro_id="<?= $promotion_info['pro_id'] ?>" type="text" class="sortid" value="<?= $promotion_info['sortid'] ?>" style="width:40px;margin-bottom:0px;"></td>
+						<?php if($type != 'text'): ?>
+						<td><?php if($promotion_info['pro_img']) echo "<img src='{$promotion_info['pro_src']}' />"; ?></td>
+						<?php endif; ?>
+						<td><?= $promotion_info['pro_title'] ?></td>
+						<td><?= $promotion_info['pro_link'] ?></td>
+						<td><a class="del" href="/bbs_promotion/del_promotion/<?= $promotion_info['pro_id'] ?>">删除</a> | <a href="/bbs_promotion/edit_promotion/<?= $type ?>/<?= $promotion_info['pro_id'] ?>/<?= $curpage ?>">修改</a></td>
+					</tr>
+				<?php endforeach; ?>
+				</table>
+			</div>
+			<div>
+				<form action="/bbs_promotion/edit_sortid/<?= $type ?>" method="post">
+					<input type="hidden" name="pro_id_array">	
+					<input type="hidden" name="pro_sortid_array">	
+					<button id="edit_sortid" type="submit" class="btn btn-info btn-sm">批量修改权重</button>
+				</form>
+			</div>
+			<?php else: ?>
+				<div>暂无内容</div>
+			<?php endif; ?>
+		</div>
+		<?php if($pagination): ?>
+		<hr>
+		<div class="text-center">
+			<?php echo $pagination; ?>
+		</div>
+		<?php endif; ?>
+	</div>
+	<script>
+		var type = '<?= $type ?>';
+		$('#type').change(function(){
+			var type = $('#type').val();	
+			var jump_url = '/bbs_promotion/index/' + type;
+			location.href=jump_url;
+		});
+		$("#edit_sortid").click(function(){
+			var input_set = $(".sortid");
+			var length = input_set.length;
+
+			// 定义2个对象，然后直接转换为json数组，发送给PHP
+			var pro_id_array = [];
+			var pro_sortid_array = [];
+			var is_edit = false;
+			for(var i = 0; i <length; i++){
+
+				// 还得再次检验，是否有非数字
+				var sortid = $.trim(input_set[i].value);
+				var num = i+1;
+	            if(sortid == ''){ 
+	                    alert('第 ' + num + ' 条推广的权为空，请修正！'); 
+	                    return false; 
+	            }
+				if(isNaN(sortid)){
+					alert('第 ' + num + ' 条推广的权重为非数字，请修正！');
+					return false;
+				}
+				var pro_id = parseInt(input_set[i].getAttribute('pro_id'));
+				var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+
+				// 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+				if(prev_sortid != sortid){
+					is_edit = true;
+				}
+
+				// 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+				sortid = parseInt(sortid);
+				pro_id_array[i] = pro_id;
+				pro_sortid_array[i] = sortid;
+			}
+			if(!is_edit){
+				alert('未作任何修改');
+				return false;
+			}
+			pro_id_array = JSON.stringify(pro_id_array);
+			pro_sortid_array = JSON.stringify(pro_sortid_array);
+			$('input[name=pro_id_array]').val(pro_id_array);
+			$('input[name=pro_sortid_array]').val(pro_sortid_array);
+		});
+	
+		$(".sortid").blur(function(){
+			var value = $(this).val();
+			if(isNaN(value)){
+				alert('只能填写数字');
+				$(this).focus();
+				return false;
+			}
+		});
+
+		$('.del').click(function(){
+			if( ! confirm('你确定删除吗')){
+				return false;
+			}
+		});
+
+		$('#product_add').click(function(){
+			var pro_id = $('#product_id').val();
+			if( ! pro_id){
+				alert('项目ID不能为空!');
+				return false;
+			}else if(isNaN(pro_id)){
+				alert('项目ID只能是数字!');
+				return false;
+			}
+			location.href='/bbs_promotion/add_promotion/'+type+'/'+pro_id;
+		});
+	</script>
+<?php $this->load->view('ckad/footer'); ?>

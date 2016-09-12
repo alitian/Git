@@ -1,0 +1,89 @@
+<?php $this->load->view('ckad/header') ?>
+
+<style type="text/css">
+    body {
+        background-color: #fff;
+    }
+    .deliver-detail-wrap {
+        font-size: 14px;
+    }
+
+    .deliver-detail-wrap h1 {
+        background-color: #f8f8f8;
+        color: #000;
+        font-size: 18px;
+        padding: 20px;
+        border-bottom: 1px solid #dfdfdf;
+    }
+
+    .deliver-detail-wrap .detail-list {
+        margin: 0 20px;
+    }
+
+    .deliver-detail-wrap .detail-list li {
+        padding: 10px 20px;
+        border-bottom: 1px solid #dfdfdf;
+    }
+
+    .deliver-detail-wrap .detail-list li h2 {
+        font-size: 16px;
+        color: #000;
+        font-weight: bold;
+        padding-bottom: 3px;
+    }
+
+    .deliver-detail-wrap .detail-list li a {
+        color: #00cdff;
+        font-size: 14px;
+    }
+
+    .deliver-detail-wrap .tips {
+        background-color: #f8f8f8;
+        color: #000;
+        padding: 20px;
+        border-top: 1px solid #dfdfdf;
+        margin-top: -1px;
+    }
+</style>
+
+
+<div class="deliver-detail-wrap">
+    <h1 class="title">发货详情</h1>
+    <ul class="detail-list">
+        <li>
+            <h2>订单</h2>
+            <p>订单编号：<?= $back['id']; ?></p>
+            <p>回报方式：<?= $if_address_array[$reward['if_address']]; ?></p>
+        </li>
+        <?php if ($back['check_support'] != 'on'): ?>
+            <li>
+                <h2>收件人</h2>
+                <p>姓名：<?= $back['address_name']; ?></p>
+                <p>手机号：<?= $back['address_mobile']; ?></p>
+                <p>邮箱：<?= $back['address_email']; ?></p>
+            </li>
+            <?php foreach ($delivery_list as $delivery): ?>
+            <?php
+                $dlv = json_decode(str_replace("\n","<br />",$delivery['info']), true);
+                if ($delivery['type'] == '1') { ?>
+                    <li>
+                        <h2>快递信息</h2>
+                        <p>快递单号：<?= $dlv['post_number']; ?></p>
+                        <p>快递公司：<?= $dlv['post_company']; ?>（<a target="_blank" href="http://www.kuaidi100.com/chaxun?com=<?= $dlv['post_company']; ?>&nu=<?= $dlv['post_number']; ?>">去官网查看物流信息</a>）</p>
+                        <p>发货时间：<?= $delivery['ctime']; ?></p>
+                        <p>备注：<?= $dlv['post_aside']; ?></p>
+                    </li>
+            <?php } else { ?>
+                    <li>
+                        <h2>发码信息</h2>
+                        <p>券码：<?= $dlv['game_code']; ?></p>
+                        <p>发货时间：<?= $delivery['ctime']; ?></p>
+                        <p>备注：<?= $dlv['game_code_aside']; ?></p>
+                    </li>
+            <?php } ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </ul>
+</div>
+
+<?php $this->load->view('ckad/footer'); ?>

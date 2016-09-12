@@ -1,0 +1,39 @@
+<?php
+//error_reporting(E_ALL);
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Test_rdcron extends CI_Controller {
+
+    function test() {
+        $this->load->library('rmq');
+        $i=0;
+        $test_data = rand(1,10000);
+        Rmq::set('rmq_test_data', $test_data);
+        while(true){
+            if($i > 10){
+                break;
+            }
+            $i++;
+            sleep(2);
+            $test_data02 = 'asdfg'.rand(1,10000);
+            Rmq::set('rmq_test_data02', $test_data02);
+        }
+        echo "test OK";
+        
+//        $this->load->library("Md_redis");
+//        $test_arr = array('test' => '1234');
+//        $cache_key = "reservapro_test";
+//        $pro_data = serialize($test_arr);
+//        error_log(var_export('redis_push:' . $pro_data . "\n", true), 3, "/tmp/redis_test_data.log");
+//        $this->md_redis->sAdd($cache_key, $pro_data);
+//        $key_exists = $this->md_redis->Exists($cache_key);//判断key是否存在
+//        if(!$key_exists){//不存在
+//            return false;
+//        }else{
+//            $data = $this->md_redis->sMembers($cache_key);//获取所有值 
+//        } 
+//        var_dump($data);exit;
+    }
+
+}

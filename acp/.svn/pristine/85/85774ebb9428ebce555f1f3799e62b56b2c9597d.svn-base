@@ -1,0 +1,101 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<!--<a href='http://m.modian.com/index/set_to_html' target="_blank">刷新首页</a>-->
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/bottom_status/index">首页底部</a>
+        </li>
+    </ul>
+</div>
+<div>
+    <h2>【<?php echo $all_son[0]['title'];?>】子类排序</h2>
+</div>
+<div>
+    <?php if ($all_son): ?>
+    <form action="" method="post">
+        <div>
+            <style>
+                td, th{
+                    vertical-align:middle !important;
+                    text-align:center !important;
+                }
+            </style>
+            <table id="son_bottom_sort" class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th width="5%">权重</th>
+                        <th width="5%">子类ID</th>
+                        <th width="15%">子类标题</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($all_son as $key=>$val){?>
+                        <tr>                      
+                            <td width="5%"><input max='3' maxlength='3' style='width:20px;' type='text' value='<?php echo $val['son_list_num'];?>' name='bottom_sort[<?php echo $val['son_title'];?>]' id='bottom_sort_<?php echo $val['son_id'];?>' class='bottom_sort' son_id='<?php echo $val['son_id'];?>' /></td>
+                            <td width="5%"><?php echo $val['son_id'];?></td>
+                            <td width="15%"><?php echo $val['son_title'];?></td>
+                            <?php if($val['son_if_show'] == 1){ ?>
+                                <td width="15%"><a href="/bottom_status/down_bottom/<?php echo $val['fater_id'];?>/<?php echo $val['son_id'];?>">下线</a></td> 
+                            <?php }else{?>
+                                <td width="15%"><a href="/bottom_status/up_bottom/<?php echo $val['fater_id'];?>/<?php echo $val['son_id'];?>">上线</a></td>                                 
+                            <?php }?>
+                        </tr>
+                    <?php }?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+    </form>
+</div>
+<div>
+        <button id="edit_sortid_t"  type="submit" class="btn btn-info btn-sm">批量修改权重</button>
+</div>
+
+<?php $this->load->view('ckad/footer'); ?>
+
+<script  type="text/javascript">       
+$("#edit_sortid_t").click(function(){
+    var sort_input = $('.bottom_sort');
+    var length = sort_input.length;
+    var son_id_arr = [];
+    var son_sort_arr = [];
+    for(var i = 0;i <length ; i++){
+        var sort = $.trim(sort_input[i].value);
+        var son_id = parseInt(sort_input[i].getAttribute('son_id'));
+        var num = i+1;
+        if(sort == ''){
+            alert('第' +num+'行排序为空！' );
+            return false;
+        }
+        if(isNaN(sort)){
+            alert('第' +num+'行排序非数字！' );
+            return false;
+        }
+        son_id_arr[i] = son_id;
+        son_sort_arr[i] = sort;      
+    }
+    var son_bottom_id = JSON.stringify(son_id_arr);
+    var son_bottom_sort = JSON.stringify(son_sort_arr);
+    $.ajax({
+                    type:"POST",
+                    traditional :true,
+                    url:"/bottom_status/ajax_son_bottom_sort",
+                    dataType: "json",
+                    data: {
+                        fater_id:<?php echo $all_son[0]['fater_id'];?>,
+                        son_bottom_sort_arr:son_bottom_sort,
+                        son_bottom_id_arr:son_bottom_id,
+                    },
+                    dataType:'json',
+                    success:function(data){
+                        alert(data.message);
+                        location.replace(data.from_url);
+                    }
+                });
+});
+</script>

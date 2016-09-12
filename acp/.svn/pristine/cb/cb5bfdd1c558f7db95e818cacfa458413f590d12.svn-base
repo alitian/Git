@@ -1,0 +1,51 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div class="row">
+        <div>
+            <h1>微信关键字管理</h1>
+            <hr>
+            <div class="form-container">
+                <form action="/main/add_keyword" method="post" enctype="multipart/form-data" role="form">
+                    <div class="form-group">
+                        <label for="name">规则名:</label>
+                        <input type="text" class="form-control" id="name" placeholder="请输入名称" name="rule_name" value="<?=$keyword_info["rule_name"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="keyword">关键字:</label>
+                        <input type="text" class="form-control" id="keyword" placeholder="请输入名称" name="keyword" value="<?=$keyword_info["keyword"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="reply_content">回复内容:</label>
+                        <script type="text/plain" id="reply_content" name="reply_content"><?=$keyword_info["reply_content"]?></script>
+                    </div>
+                    <div style="height:40px;"></div>
+                    <input type="hidden" name="id" value="<?=$keyword_info["id"]?>">
+                    <input type="hidden" name="is_new" value="1">
+                    <button type="submit" class="btn btn-primary btn-lg">提交</button>
+                    <button type="reset" class="btn btn- btn-lg">取消</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 引入百度编辑器替换 -->
+<script>
+
+    // 定义了百度编辑器访问后端服务器地址
+    var UE_KEWORD_SERVERURL = "/main/upload_kw_attachment";
+
+    // 定义公共的静态文件路径，用于编辑器中的路径引入(我们在ueditor.all.js中使用到了)
+//    var STATIC_URL = '<?//= $static_url ?>//';
+    $(function() {
+        var ue = UE.getEditor('reply_content', {
+            toolbars: [
+                [
+                    'emotion','link', 'simpleupload'
+                ]
+            ]
+        });
+    });
+</script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.config.js?t=20150918"></script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.all.js?t=20150421"></script>
+<?php $this->load->view('ckad/footer'); ?>

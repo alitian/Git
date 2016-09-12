@@ -1,0 +1,430 @@
+<?php $this->load->view('ckad/header'); ?>
+<script src="<?= static_url(); ?>js/react/react.min.js" type="text/javascript"></script>
+
+<style>
+    .stics-banner,
+    .stics-detail-banner {
+        margin-bottom: 21px;
+    }
+    .stics-banner h4,
+    .stics-detail-banner h4 {
+        padding: 10px 15px;
+        border-top: 1px solid #dfdfdf;
+        border-bottom: 1px solid #dfdfdf;
+        background-color: #f0f0f0;
+        color: #000;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .overview-item,
+    .stics-detail-item {
+        margin-bottom: 21px;
+    }
+    .overview-item h4,
+    .stics-detail-item {
+        padding: 20px;
+        border: 1px solid #dfdfdf;
+        background-color: #f5f5f5;
+    }
+    .overview-item h4 {
+        color: #223318;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .stics-detail-item {
+        height: 300px;
+    }
+
+    .stics-detail {
+        border-top: 1px solid #dfdfdf;
+    }
+    .stics-detail .stics-search {
+        margin-bottom: 30px;
+    }
+    .stics-detail .stics-search .btn-toolbar .btn-group {
+        vertical-align: middle;
+    }
+
+    .display-none {
+        display: none !important;
+    }
+
+    #back_2 {
+        background-color: #fff;
+        overflow: auto;
+    }
+    table.table > caption {
+        text-align: left;
+        font-size: 18px;
+        color: #aaa;
+        margin-bottom: 7px;
+    }
+
+</style>
+
+
+<div id="stics-banner" class="stics-banner">
+    <h4><?=$banner?></h4>
+</div>
+
+<div id="stics-overview" class="stics-overview">
+    <div class="row-fluid overview-group">
+        <div class="span3 overview-item"><h4>累计注册用户：<span><?=$user_reg_all?></span></h4></div>
+        <div class="span3 overview-item"><h4>累计融资额：<span><?=$pro_back_all?></span></h4></div>
+        <div class="span3 overview-item"><h4>项目总数：<span><?=$pro_passed_all?></span></h4></div>
+        <div class="span3 overview-item"><h4>项目成功率：<span><?=$pro_success_percent?>%</span></h4></div>
+    </div>
+    <div class="row-fluid overview-group">
+        <div class="span3 overview-item"><h4>今日新增注册：<span><?=$user_reg_today?></span></h4></div>
+        <div class="span3 overview-item"><h4>今日融资额：<span><?=$pro_back_today?></span></h4></div>
+        <div class="span3 overview-item"><h4>今日成功订单数：<span><?=$back_success_today?></span></h4></div>
+        <div class="span3 overview-item"><h4>同时在线项目数：<span><?=$pro_online_today?></span></h4></div>
+    </div>
+</div>
+
+<div id="stics-detail">
+    <!-- here goes the react content -->
+</div>
+
+<script src="http://echarts.baidu.com/build/dist/echarts.js"></script>
+<script type="text/javascript">
+    // 路径配置
+    require.config({
+        paths: {
+            echarts: 'http://echarts.baidu.com/build/dist'
+        }
+    });
+
+    //
+    var myChart = new Object();
+    require(
+        [
+            'echarts',
+            'echarts/chart/line'
+        ], function (ec) {
+            myChart.user_1 = ec.init(document.getElementById('user_1'));
+            myChart.user_2 = ec.init(document.getElementById('user_2'));
+            myChart.user_3 = ec.init(document.getElementById('user_3'));
+            myChart.user_4 = ec.init(document.getElementById('user_4'));
+            myChart.back_1 = ec.init(document.getElementById('back_1'));
+            // myChart.back_2 = ec.init(document.getElementById('back_2'));
+            myChart.back_3 = ec.init(document.getElementById('back_3'));
+            myChart.back_4 = ec.init(document.getElementById('back_4'));
+            myChart.back_5 = ec.init(document.getElementById('back_5'));
+
+            loading_stics_detail_item_chart();
+        }
+    );
+
+
+    // 加载中 ...
+    var loading_stics_detail_item_chart = function() {
+        $.each(myChart, function(i, cht) {
+            cht.showLoading({
+                text: '正在努力的读取数据中...',
+            });
+        });
+    };
+
+    // 更新折线图表
+    var update_stics_detail_chart_line = function(selector, title, subtitle, xd, yd) {
+        require(
+            [
+                'echarts',
+                'echarts/chart/line'
+            ], function (ec) {
+                myChart[selector] = ec.init(document.getElementById(selector));
+                myChart[selector].setOption({
+                    title: {
+                        text: title,
+                        subtext: subtitle
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    tooltip : {
+                        trigger: 'axis'
+                    },
+                    calculable : true,
+                    xAxis : [
+                        {
+                            type : 'category',
+                            boundaryGap : false,
+                            data : xd
+                        }
+                    ],
+                    yAxis : [
+                        {
+                            type : 'value',
+                            scale: true,
+                            axisLabel : {
+                                formatter: '{value}'
+                            }
+                        }
+                    ],
+                    series : [
+                        {
+                            name: title,
+                            type : 'line',
+                            data : yd,
+                            markPoint : {
+                                data : [
+                                    {type : 'max', name: '最大值'},
+                                    {type : 'min', name: '最小值'}
+                                ]
+                            },
+                            markLine : {
+                                data : [
+                                    {type : 'average', name: '平均值'}
+                                ]
+                            }
+                        }
+                    ]
+                });
+            }
+        );
+    };
+
+    var update_stics_detail_chart_pie = function(selector, title, subtitle, xdata) {
+        require(
+            [
+                'echarts',
+                'echarts/chart/pie'
+            ], function (ec) {
+                myChart[selector] = ec.init(document.getElementById(selector));
+                myChart[selector].setOption({
+                    title : {
+                        text: title,
+                        subtext: subtitle
+                    },
+                    tooltip : {
+                        trigger: 'item',
+                        formatter: "{a} <br/>{b} : {c} ({d}%)"
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    calculable : true,
+                    series : [
+                        {
+                            name : title,
+                            type : 'pie',
+                            radius : '55%',
+                            center : ['50%', '60%'],
+                            data : xdata,
+                            itemStyle : {
+                                normal: {
+                                    label : {
+                                        formatter: function (params) {
+                                            return params.name + ':' + params.value + '(' + (params.percent - 0).toFixed(0) + '%)';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                });
+            }
+        );
+    };
+
+    var update_stics_detail_chart_bar = function(selector, title, subtitle, adata) {
+        require(
+            [
+                'echarts',
+                'echarts/chart/bar'
+            ], function (ec) {
+                myChart[selector] = ec.init(document.getElementById(selector));
+                myChart[selector].setOption({
+                    title : {
+                        text: title,
+                        subtext: subtitle
+                    },
+                    tooltip : {
+                        trigger: 'axis',
+                        axisPointer : {            // 坐标轴指示器，坐标轴触发有效
+                            type : 'shadow'        // 默认为直线，可选为：'line' | 'shadow'
+                        },
+                        formatter: function (params){
+                            return params[0].name + '<br/>'
+                                   + params[0].seriesName + ' : ' + params[0].value/10 + '%<br/>'
+                                   + params[1].seriesName + ' : ' + params[1].value/10 + '%<br/>'
+                                   + params[2].seriesName + ' : ' + params[2].value/10 + '%';
+                        }
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    calculable : true,
+                    xAxis : [
+                        {
+                            type : 'category',
+                            data : adata.x
+                        }
+                    ],
+                    yAxis : [
+                        {
+                            type : 'value',
+                            axisLabel : {
+                                formatter: function(value) { return value/10 + '%'}
+                            }
+                        }
+                    ],
+                    series : [
+                        {
+                            name:adata.y_web.title,
+                            type:'bar',
+                            stack: '总量',
+                            itemStyle : {
+                                normal: {
+                                    label : {
+                                        show: true,
+                                        position: 'insideRight',
+                                        formatter: function (params) {
+                                            return params.value/10;
+                                        }
+                                    }
+                                }
+                            },
+                            data:adata.y_web.data
+                        },
+                        {
+                            name:adata.y_wap.title,
+                            type:'bar',
+                            stack: '总量',
+                            itemStyle : {
+                                normal: {
+                                    label : {
+                                        show: true,
+                                        position: 'insideRight',
+                                        formatter: function (params) {
+                                            return params.value/10;
+                                        }
+                                    }
+                                }
+                            },
+                            data:adata.y_wap.data
+                        },
+                        {
+                            name:adata.y_app.title,
+                            type:'bar',
+                            stack: '总量',
+                            itemStyle : {
+                                normal: {
+                                    label : {
+                                        show: true,
+                                        position: 'insideRight',
+                                        formatter: function (params) {
+                                            return params.value/10;
+                                        }
+                                    }
+                                }
+                            },
+                            data:adata.y_app.data
+                        }
+                    ]
+                });
+            }
+        );
+    };
+
+    var update_stics_detail_char_bar_back = function(selector, title, subtitle, ydata) {
+        require(
+            [
+                'echarts',
+                'echarts/chart/bar',
+                'echarts/chart/line'
+            ], function (ec) {
+                myChart[selector] = ec.init(document.getElementById(selector));
+                var option = {
+                    title : {
+                        text: title,
+                        subtext: subtitle
+                    },
+                    tooltip : {
+                        trigger: 'axis',
+                        axisPointer : {            // 坐标轴指示器，坐标轴触发有效
+                            type : 'shadow'        // 默认为直线，可选为：'line' | 'shadow'
+                        },
+                        formatter: function (params){
+                            return params[0].name + '<br/>'
+                                   + params[0].seriesName + ' : ' + params[0].value + '<br/>'
+                                   + params[1].seriesName + ' : ' + params[1].value;
+                        }
+                    },
+                    toolbox: {
+                        show : true,
+                        feature : {
+                            saveAsImage : {show: true}
+                        }
+                    },
+                    calculable : true,
+                    xAxis : [
+                        {
+                            type : 'category',
+                            data : ydata.x
+                        }
+                    ],
+                    yAxis : [
+                        {
+                            type : 'value',
+                            name : ydata.y_succ.title,
+                            boundaryGap: [0, 0.1]
+                        },
+                        {
+                            type : 'value',
+                            name : ydata.y_per.title,
+                            axisLabel : {
+                                formatter: '{value} %'
+                            }
+                        }
+                    ],
+                    series : [
+                        {
+                            name: ydata.y_succ.title,
+                            type:'bar',
+                            stack: 'sum',
+                            itemStyle: {
+                                normal: {
+                                    barBorderColor: 'tomato',
+                                    barBorderWidth: 6,
+                                    barBorderRadius:0,
+                                    label : {
+                                        show: true,
+                                        position: 'top',
+                                        textStyle: {
+                                            color: 'tomato'
+                                        }
+                                    }
+                                }
+                            },
+                            data: ydata.y_succ.data
+                        },
+                        {
+                            name: ydata.y_per.title,
+                            type:'line',
+                            yAxisIndex: 1,
+                            data: ydata.y_per.data
+                        }
+                    ]
+                };
+
+
+                myChart[selector].setOption(option);
+        });
+    };
+</script>
+
+<script src="<?= static_url(); ?>js/react/comp_bulid/statistics.js?v=20151027" type="text/javascript"></script>
+
+<?php $this->load->view('ckad/footer'); ?>

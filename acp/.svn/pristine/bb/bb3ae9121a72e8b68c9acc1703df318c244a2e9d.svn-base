@@ -1,0 +1,5 @@
+<ul class="nav nav-tabs" role="tablist">
+    <li role="presentation"<?php if ($type == '首页活动区'):?> class="active"<?php endif;?>><a href="/weidashang/wds_first_recom">首页活动区</a></li>
+    <li role="presentation"<?php if ($type == '首页项目区'):?> class="active"<?php endif;?>><a href="/weidashang/weidashang_pro_manage">首页项目区</a></li>
+    <li role="presentation"<?php if ($type == '首页轮播图'):?> class="active"<?php endif;?>><a href="/weidashang/wds_carouse_pic">首页轮播图</a></li>
+</ul>

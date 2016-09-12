@@ -1,0 +1,161 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+    input[type='text'] {
+        width: 600px;
+    }
+</style>
+<div class="container">
+    <div>
+        <h1>
+            <?php
+            switch ($type) {
+                case '1':
+                    echo '项目主题推荐';
+                    break;
+                case '4':
+                    echo '新增帮助主题';
+                    break;
+                case '5':
+                    echo '新增微打赏帮助主题';
+                    break;
+            }
+            ?>
+        </h1>
+    </div>
+    <hr>
+    <p></p>
+    <form id="pro_form" action="/md_app_rcmd/add_item_topic/<?= $type ?>" method="post" enctype="multipart/form-data">
+<!--        <div class="form-group">-->
+<!--            <label class="col-sm-2 control-label" for="sortid">权重</label>-->
+<!--            <div class="col-sm-10">-->
+<!--                <input class="form-control" type="text" id="sortid" placeholder="0" name="weight" style="width:40px" >-->
+<!--            </div>-->
+<!--        </div>-->
+        <?php if($type==1):?>
+        <div class="form-group">
+            <label class="col-sm-2 control-label" for="pro_title">推荐主题&nbsp;</label>
+            <div class="col-sm-10">
+                <input class="form-control" type="text" id="pro_title" placeholder="请输入推荐主题,建议不超过10个字" name="title" value="<?=$topic_info['title']?>">
+            </div>
+        </div>
+        <?php else:?>
+            <div class="form-group">
+                <label class="col-sm-2 control-label" for="pro_title">标题&nbsp;</label>
+                <div class="col-sm-10">
+                    <input class="form-control" type="text" id="pro_title" placeholder="请输入标题" name="title" value="<?=$intro_info['title']?>">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="col-sm-2 control-label" for="pro_title">链接&nbsp;</label>
+                <div class="col-sm-10">
+                    <input class="form-control" type="text" id="links"  name="links" value="<?=$intro_info['links']?>">
+                </div>
+            </div>
+            <input type="hidden" name="id" value="<?=$intro_info['id']?>">
+        <?php endif;?>
+        <input type="hidden" name="cate_id" value="<?=$topic_info['cate_id']?>">
+        <input type="hidden" name="new" value="1">
+        <input type="hidden" name="cover" id="pro_img" value="<?= $topic_info['icon']?>">
+    </form>
+        <?php if($type==1):?>
+        <p></p>
+        <div class="form-group">
+            <label class="col-sm-2 control-label" for="img_preview">推荐图(100像素*100像素)</label>
+            <?php if ($topic_info['icon']): ?>
+                <div class="col-sm-10" style="text-align:center;width:600px">
+                    <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px"></p>
+                    <img style="vertical-align:middle;max-width:100%;" id="img_preview" src="<?= cdn_url($topic_info['icon']) ?>">
+                </div>
+            <?php else:?>
+                <div class="col-sm-10" style="text-align:center;width:600px">
+                    <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px">暂无图片</p>
+                    <img style="vertical-align:middle;max-width:100%;display:none;" id="img_preview">
+                </div>
+            <?php endif ?>
+
+        </div>
+        <p style="height:20px;"></p>
+        <form id="up_form" action="md_app_rcmd/upload/1" method="post" enctype="multipart/form-data" target="winupload">
+            <div class="form-group">
+                <!-- <h3>点击上传按钮上传图片</h3> -->
+            </div>
+            <p></p>
+            <input class="form-control" type="file" id="upfile" name="upfile">
+        </form>
+
+        <iframe src="" style="display:none" name="winupload"></iframe>
+        <?php endif;?>
+
+    <button type="submit" class="btn btn-primary" id="add_pro">提交</button>
+    <input type="hidden" name="isupload" value="0">
+    <input type="hidden" name="check_upload" id="check_upload" value="0">
+</div>
+<script>
+    $('#upfile').change(function(){
+        $("input[name='isupload']").val(1);
+        $("#check_upload").val(0);
+        $('#up_form').submit();
+    });
+    $('#add_pro').click(function(){
+//        if(isNaN($.trim($('#sortid').val()))){
+//            alert('权重只能为数字!');
+//            return false;
+//        }
+//
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+<!---->
+        <?php if($type==4):?>
+            if( ! $.trim($('#links').val())){
+                alert('推荐链接不能为空！');
+                return false;
+            }
+            if(!CheckUrl($("#links").val())){
+                alert('请输入正确的URL地址');
+                return false;
+            }
+        <?endif;?>
+
+        <?php if($type==1):?>
+        if($("input[name='isupload']").val()==1){
+            if($('#check_upload').val()!=1){
+                alert('图片正在上传中！');
+                return false;
+            }
+        }
+        if( ! $.trim($('#pro_img').val())){
+            alert('推荐图不能为空！');
+            return false;
+        }
+        <?endif;?>
+//        var src_width = $("#img_preview").width();
+//        var src_height = $("#img_preview").height();
+//        if(src_height!=null&&src_height!=0){
+//            if(src_width<215||src_height<135){
+//                alert('图片尺寸太小,请重新上传');
+//                return false;
+//            }
+//        }
+//
+//        var src_width = $("#img_preview").width();
+//        var src_height = $("#img_preview").height();
+//        if(src_height!=null){
+//            if(src_width<302||src_height<302){
+//                alert('图片尺寸太小,请重新上传');
+//                return false;
+//            }
+//        }
+        $('#pro_form').submit();
+    });
+    function CheckUrl(str) {
+        var RegUrl = new RegExp();
+        RegUrl.compile("^[A-Za-z]+://[A-Za-z0-9-_]+\\.[A-Za-z0-9-_%&\?\/.=]+$");
+        if (!RegUrl.test(str)) {
+            return false;
+        }
+        return true;
+    }
+</script>
+<?php $this->load->view('ckad/footer'); ?>

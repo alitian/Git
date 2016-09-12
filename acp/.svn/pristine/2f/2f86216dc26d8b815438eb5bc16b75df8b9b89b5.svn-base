@@ -1,0 +1,131 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <ul class="nav nav-tabs">
+            <li role="presentation" <?php if ($type==1) echo 'class="active"'; ?>><a href="<?php echo $site_url . 'md_app_rcmd/item_topic_list/1'; ?>">APP首页-项目推荐区</a></li>
+            <li role="presentation" <?php if ($type==2) echo 'class="active"'; ?> ><a href="<?php echo $site_url . 'md_app_rcmd/app_rcmd_list/2'; ?>">APP首页-轮播图</a></li>
+            <li role="presentation" <?php if ($type==4) echo 'class="active"'; ?> ><a href="<?php echo $site_url . 'md_app_rcmd/item_topic_list/4'; ?>">APP文字帮助</a></li>
+    </ul>
+    <div>
+        <h2>
+            <!-- 根据  22类型来显示  -->
+            <?php
+            switch ($type) {
+                case '1':
+                    echo '项目推荐区-'.$cate_name;
+                    break;
+                case '2':
+                    echo 'APP首页-轮播图';
+                    break;
+            }
+            ?>
+
+        </h2>
+<!--        分表之后 区分轮播图和链接-->
+        <input type="hidden"  name="type" value="<?php if($type==1){echo 2;}else{echo 3;}?>">
+    </div>
+    <div>
+            <div style="margin-top: 10px">
+                <?php if($type==1):?>
+                    <form action="md_app_rcmd/do_add_pro/<?=$type?>/<?= $cate_id ?>/<?= $curpage ?>" class="form-inline" id="item_form" method="post">
+                            <span style="font-size: 1.2rem">输入项目ID&nbsp;&nbsp;</span><input type="text" name="pro_id">
+                            <a href="javascript:;" class="btn btn-info btn-sm" id="add_item">新增</a>
+                    </form>
+                <?php else:?>
+                    <form action="" class="form-inline">
+						<a href="<?php echo $site_url . 'md_app_rcmd/do_add_pro/' . $type; ?>" class="btn btn-info btn-sm">添加</a>
+                    </form>
+                <?php endif;?>
+                <span style="float:right;margin-top: -50px;">
+				<a href="/md_app_rcmd/update_all_record_by_type/<?php if($type==1){echo 2;}else{echo 3;}?>/<?=$cate_id?>"><button class="btn btn-info">同步到首页</button></a>
+			</span>
+            </div>
+        <p></p>
+        <?php if($app_rcmd_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="5%">权重</th>
+                        <th>推荐图</th>
+                        <th>推荐标题</th>
+                        <th>推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($app_rcmd_list as $rcmd_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $rcmd_info['weight'] ?>" postid="<?= $rcmd_info['id'] ?>" type="text" class="sortid" value="<?= $rcmd_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?php if($rcmd_info['pic']) echo "<img src='".cdn_url($rcmd_info['pic'])."' width='170px' height='80px'/>"; ?></td>
+                            <td><?= $rcmd_info['title'] ?></td>
+                            <td><?= $rcmd_info['links'] ?></td>
+                            <td><a class="del" href="javascript:;" data-id="<?=$rcmd_info['id']?>">删除</a>  |
+                                    <a href="/md_app_rcmd/edit_banner/<?= $rcmd_info['id'] ?>/<?=$type?>/<?=$cate_id?>">编辑</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    var type = parseInt($("input[name='type']").val());
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('postid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_app_rcmd/change_weight')?>",
+            data : {'id':id,'weight':value,'type':type}, //这儿type 2表示为项目/轮播图权重编辑
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_app_rcmd/del_app_rcmd')?>",
+            data:{'id':id,'type':type},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

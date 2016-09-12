@@ -1,0 +1,54 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('special_subj/ssubj_editor_nav'); ?>
+
+<link rel="stylesheet" type="text/css" href="/static/css/bootstrap-switch.min.css">
+<script type="text/javascript" src="/static/js/bootstrap-switch.min.js"></script>
+
+<style>
+    #ssubj-modules {
+        list-style: none;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    #ssubj-modules > li > .well {
+        background-color: #fdfdfd;
+    }
+    #ssubj-modules > li > .well > .module-drag-sort {
+        font: bold 20px Sans-Serif;
+        color: #5F9EDF;
+        cursor: move;
+        cursor: -webkit-grab;
+        cursor: -moz-grab;
+    }
+</style>
+
+<ul id="ssubj-modules">
+    <li><?php $this->load->view('special_subj/module_lottery'); ?></li>
+    <li><?php $this->load->view('special_subj/module_vote'); ?></li>
+    <li><?php $this->load->view('special_subj/module_update'); ?></li>
+    <li><?php $this->load->view('special_subj/module_billboard'); ?></li>
+    <li><?php $this->load->view('special_subj/module_coo_partner'); ?></li>
+    <li><?php $this->load->view('special_subj/module_comments'); ?></li>
+    <li><?php $this->load->view('special_subj/module_video_live'); ?></li>
+    <li><?php $this->load->view('special_subj/module_ssubj_info'); ?></li>
+    <li><?php $this->load->view('special_subj/module_backer_list'); ?></li>
+</ul>
+
+<script>
+    $(function() {
+        // 模块开关组件设置
+        // 初始化页面模块开关
+        $('#ssubj-modules .well .switch input[type="checkbox"]').each(function() {
+            $(this).bootstrapSwitch();
+        });
+        // 依据操作设置模块开关
+        $('#ssubj-modules .well .switch input[type="checkbox"]').on('switch-change', function (e, data) {
+            if (data.value) {
+                $(this).parent().parent().parent().parent().find('div.module-detail').show(300);
+            } else {
+                $(this).parent().parent().parent().parent().find('div.module-detail').hide(300);
+            }
+        });
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

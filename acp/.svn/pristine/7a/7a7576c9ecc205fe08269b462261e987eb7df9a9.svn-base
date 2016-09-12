@@ -1,0 +1,22 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Test extends MD_Controller {
+
+    public function index() {
+        $this->load->model('Common');
+        if ($_POST['m'] && $_POST['c']) {
+            $this->Common->send_message($_POST['m'], $_POST['c'], 'reg');
+//            $v = $this->md_sms->send_sms($_POST['m'], $_POST['c']);
+//            print_r($v);
+        }
+        echo '<form class="upload_form" method="post" action="">'
+        . '手机号：<input type="text" name="m" value="'.$_POST['m'].'" />'
+        . '短信内容：<input type="text" name="c" value="'.$_POST['c'].'" /> '
+        . '<input type="submit" value="保存" />'
+        . '</from>';
+    }
+
+}

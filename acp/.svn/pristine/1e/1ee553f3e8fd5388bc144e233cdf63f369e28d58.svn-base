@@ -1,0 +1,1737 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Cron extends Deamon_Controller {
+
+    public function bilibili_online() {
+        $url = 'http://www.bilibili.com/';
+        $ch = curl_init();
+        $options = array(
+            CURLOPT_URL => $url,
+            CURLOPT_HEADER => false,
+            CURLOPT_RETURNTRANSFER => true,
+        );
+        curl_setopt_array($ch, $options);
+        curl_setopt($ch, CURLOPT_ENCODING, "gzip");
+        $data = array();
+        $dat = curl_exec($ch);
+        preg_match('/<span\s+class=\"web-online\">在线:(\d+)<\/span>/i', $dat, $res);
+        $data['ctime'] = date("Y-m-d H:i:s");
+        if ($res) {
+            $data['online_num'] = $res[1];
+        }
+        preg_match('/\">正在观看:(\d+)<\/a>/i', $dat, $res);
+        if ($res) {
+            $data['play_num'] = $res[1];
+        }
+        $this->db->insert("bilibili_online_state", $data);
+        curl_close($ch);
+    }
+
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $other_db = $this->config->item('other_db');
+        if ($other_db) {
+            foreach ($other_db as $key => $value) {
+                $this->$key = &DB($value);
+            }
+        }
+        $this->db->read_main = true;
+        $this->load->helper('url');
+        $this->load->library('md_edm');
+        $this->load->model('Product_m');
+        $this->load->model('Common');
+        $this->load->model('Order_biz');
+        $this->load->model('Prorder_m');
+        $this->config->load('plan');
+        $this->load->model('Statistics_m');
+        $this->load->helper('date');
+        $this->load->model('common');
+        $this->load->model('Edm_user_m');
+        $this->load->model('Edm_product_m');
+    }
+
+    public function index_to_html() {
+        echo _gc('domain_wap', 'domain') . "/index.php/index/set_to_html";
+        file_get_contents(_gc('domain_wap', 'domain') . "/index.php/index/set_to_html");
+        echo _gc('domain_zhongchou', 'domain') . "/index/set_to_html";
+        file_get_contents(_gc('domain_zhongchou', 'domain') . "/index/set_to_html");
+        echo 'ok';
+    }
+
+    public function about_to_html() {
+        $url = array(
+            _gc('domain_zhongchou', 'domain') . '/about/index?id=2',
+            _gc('domain_zhongchou', 'domain') . '/about/index?id=3',
+            _gc('domain_zhongchou', 'domain') . '/about/index?id=16',
+            _gc('domain_zhongchou', 'domain') . '/about/index?id=4',
+            _gc('domain_zhongchou', 'domain') . '/about/index?id=5',
+            _gc('domain_zhongchou', 'domain') . '/about/index/2?id=6',
+            _gc('domain_zhongchou', 'domain') . '/about/index/2?id=13',
+            _gc('domain_zhongchou', 'domain') . '/about/index/2?id=14',
+            _gc('domain_zhongchou', 'domain') . '/about/index/2?id=15',
+            _gc('domain_zhongchou', 'domain') . '/about/index/4?id=17',
+            _gc('domain_zhongchou', 'domain') . '/i/links',
+        );
+        foreach ($url as $u) {
+            file_get_contents($u);
+        }
+    }
+
+    public function to_html() {
+        md_memcache::flush();
+        $sql = "SELECT p.id FROM `md_product` p LEFT JOIN `md_product_update` pu ON p.id=pu.pro_id WHERE p.if_show=1 AND category<>'摩点测试专用' AND (UNIX_TIMESTAMP(end_time)>(UNIX_TIMESTAMP()-3600*24*90) OR UNIX_TIMESTAMP(pu.ctime)>(UNIX_TIMESTAMP()-3600*24*90)) GROUP BY id";
+        $result = $this->db->query($sql)->result_array();
+        $base_url = _gc('main_site_url', 'config');
+        $no_html = array('475', '1031');
+        foreach ($result as $item) {
+            if (!in_array($item['id'], $no_html)) {
+                file_get_contents(_gc('domain_zhongchou', 'domain') . "/p/set_to_html/{$item['id']}");
+            }
+        }
+    }
+
+    public function to_html_by_pid($pid) {
+        $base_url = _gc('main_site_url', 'config');
+        echo file_get_contents("{$base_url}/p/set_to_html/{$pid}");
+    }
+
+    public function test() {
+        $this->load->library('md_payment_weixin');
+        $this->md_payment_weixin->refund('wx_141229P00475B0021927e7', 1, $info);
+        print_r($info);
+    }
+
+    function get_bounces() {
+        $this->load->library('mailer');
+        for ($i = 0; $i < 10000000; $i+=100) {
+            $res = $this->mailer->sendcloud_blacklist(10, 'default', $i);
+            if ($res === false) {
+                echo $i . "break\n";
+                break;
+            }
+        }
+        for ($i = 0; $i < 10000000; $i+=100) {
+            $res = $this->mailer->sendcloud_blacklist(10, 'tg', $i);
+            if ($res === false) {
+                echo $i . "break\n";
+                break;
+            }
+        }
+    }
+
+    function sendmail_yx() {
+        $this->sendmail_edm('tg');
+    }
+
+    function sendmail_mx() {
+        $this->new_sendmail_edm('tg');
+    }
+
+    function edmOrderHelp() {
+        require_once BASEPATH . 'libraries/ipush/Ipush_factory.php';
+        $obj = new Ipush_factory("Ipush_weixin");
+        $wx_push = $obj->instance();
+        //一小时内未支付订单Edm提醒
+        echo $start = date("Y-m-d H:i:s", strtotime('-1 hour') - 1800);
+        echo $end = date("Y-m-d H:i:s", time() - 1800);
+        $sql = "SELECT bak.ctime,bak.pro_id,bak.user_id as id,if_pay,bak.id as back_id,usr.email,bak.address_mobile as mobile,pro.short_title FROM md_product_back bak
+INNER JOIN md_users usr ON usr.id=bak.user_id
+INNER JOIN md_product pro ON pro.id=bak.pro_id
+WHERE bak.ctime>'{$start}' AND if_pay IN (1,0)
+ORDER BY if_pay";
+        $result = $this->db->query($sql)->result_array();
+        $sended = $no_pay = $pay = array();
+        foreach ($result as $item) {
+            switch ($item['if_pay']) {
+                case '1':
+                    $pay[] = $item['id'];
+                    break;
+                case '0':
+
+                    if (!in_array($item['id'], @$sended) && $item['ctime'] < $end) {
+                        @$sended[] = $item['id'];
+                        $no_pay[] = $item;
+                    }
+                    break;
+            }
+        }
+        foreach ($no_pay as $user) {
+            if (!in_array($user['id'], $pay)) {
+                $replace['#pro_name#'] = $user['short_title'];
+                $this->md_edm->send_edm(12, $user, $replace);
+                //微信通知
+                $ress = $wx_push->set_queue(0)->send_unpay_notice($user['back_id']);
+            }
+        }
+    }
+
+    function new_sendmail_edm($type = 'tg') {
+        echo $start = date("Y-m-d H:i:s");
+        $edm = $this->load->database('edm', true);
+        $this->load->library('mailer');
+        $where = $type == 'tg' ? " AND type=1 " : " AND type=0 ";
+        $sql = "SELECT * FROM md_sendmail WHERE status=0 {$where} LIMIT 200";
+        $result = $edm->query($sql)->result_array();
+        $black_mail = $this->config->item('email_black');
+        $black_mail = $black_mail ? $black_mail : array();
+        $i = 1;
+        foreach ($result as $item) {
+            if (!in_array($item['email'], $black_mail)) {
+                $r = $this->mailer->sendmail_custom($item['email'], $item['subject'], $item['content'], $type);
+                if ('success' == $r) {
+                    $data['status'] = 1;
+                } else {
+                    $data['status'] = 2;
+                    $data['error'] = json_encode($r);
+                }
+            } else {
+                $data['status'] = 2;
+                $data['error'] = '黑名单中邮件';
+            }
+            $data['send_time'] = date("Y-m-d H:i:s");
+            echo "{$i}:{$item['email']}\n";
+//            $edm->update('md_sendmail', array('id' => $item['id']), $data);
+            $update_sql = "update `md_sendmail` set status=" . $data["status"] . ",error='" . $data["error"] . "',send_time='" . $data['send_time'] . "' where id=" . $item['id'] . "";
+            $edm->query($update_sql);
+            $i++;
+        }
+        echo $start . " ==> " . date("Y-m-d H:i:s");
+        echo 'hh ' . count($result);
+    }
+
+    function sendmail_edm($type = 'tg') {
+        echo $start = date("Y-m-d H:i:s");
+        $edm = $this->load->database('edm', true);
+        $this->load->library('mailer');
+        $where = $type == 'tg' ? " AND type=1 " : " AND type=0 ";
+        $sql = "SELECT * FROM md_sendmail WHERE status=0 {$where} LIMIT 200";
+        $result = $edm->query($sql)->result_array();
+        $black_mail = $this->config->item('email_black');
+        $black_mail = $black_mail ? $black_mail : array();
+        $i = 1;
+        foreach ($result as $item) {
+            if (!in_array($item['email'], $black_mail)) {
+                $r = $this->mailer->sendmail_cloud($item['email'], $item['subject'], $item['content'], $type);
+                if ('success' == $r) {
+                    $data['status'] = 1;
+                } else {
+                    $data['status'] = 2;
+                    $data['error'] = json_encode($r);
+                }
+            } else {
+                $data['status'] = 2;
+                $data['error'] = '黑名单中邮件';
+            }
+            $data['send_time'] = date("Y-m-d H:i:s");
+            echo "{$i}:{$item['email']}\n";
+            //$edm->update('md_sendmail', array('id' => $item['id']), $data);
+            $update_sql = "update md_sendmail set status=" . $data["status"] . ",error='" . $data["error"] . "',send_time='" . $data['send_time'] . "' where id=" . $item['id'] . "";
+            $edm->query($update_sql);
+            $i++;
+        }
+        echo $start . " ==> " . date("Y-m-d H:i:s");
+        echo 'hh ' . count($result);
+    }
+
+    function sendmailxx($type = 'default') {
+        echo $start = date("Y-m-d H:i:s");
+        $this->load->library('mailer');
+        $where = $type == 'tg' ? " AND type=1 " : " AND type=0 ";
+        $sql = "SELECT * FROM md_sendmail WHERE status=0 {$where} LIMIT 200";
+        $result = $this->db->query($sql)->result_array();
+        $black_mail = $this->config->item('email_black');
+        $black_mail = $black_mail ? $black_mail : array();
+        $i = 1;
+        foreach ($result as $item) {
+            if (!in_array($item['email'], $black_mail)) {
+                $r = $this->mailer->sendmail_cloud($item['email'], $item['subject'], $item['content'], $type);
+                if ('success' == $r) {
+                    $data['status'] = 1;
+                } else {
+                    $data['status'] = 2;
+                    $data['error'] = json_encode($r);
+                }
+            } else {
+                $data['status'] = 2;
+                $data['error'] = '黑名单中邮件';
+            }
+            $data['send_time'] = date("Y-m-d H:i:s");
+            echo "{$i}:{$item['email']}\n";
+            $this->Common->update('md_sendmail', array('id' => $item['id']), $data);
+            $i++;
+        }
+        echo $start . " ==> " . date("Y-m-d H:i:s");
+        echo 'hh ' . count($result);
+    }
+
+    /**
+     * 拉取指定日期的对账单
+     * @author zhewang@modian.com
+     * @param type $date '2014-06-11'
+     */
+    public function _pull($date, $type = 'alipay_erp') {
+        $path = dirname(dirname(dirname(dirname(__FILE__))));
+        require($path . "/payment/{$type}/alipay.config.php");
+        $this->_alipay_config = $alipay_config;
+        if (!isset($alipay_config)) {
+            
+        }
+        $page = 1;
+        $parameter = array(
+            "service" => "account.page.query",
+            "partner" => trim($this->_alipay_config['partner']),
+            "page_no" => $page,
+//            'page_size' => 5,//测试多页时用到
+            "gmt_start_time" => $date . ' 00:00:00',
+            "gmt_end_time" => $date . ' 23:59:59',
+            "_input_charset" => trim(strtolower($this->_alipay_config['input_charset']))
+        );
+        $alipaySubmit = new AlipaySubmit($this->_alipay_config);
+        $common = new Common();
+        $result = $common->delete('md_pay_record_alipay', "trans_date LIKE '{$date}%'");
+
+        do {
+            $parameter['page_no'] = $page;
+            try {
+                $html_text = $alipaySubmit->buildRequestHttp($parameter);
+            } catch (Exception $e) {
+                echo $e->getMessage();
+            }
+
+            $doc = new DOMDocument();
+            $doc->loadXML($html_text);
+            if ($doc->getElementsByTagName('is_success')->item(0)->nodeValue == 'F') {
+                echo ($date . '分页' . $page . '获取失败');
+                exit;
+            }
+            $accountQuerys = $doc->getElementsByTagName('AccountQueryAccountLogVO');
+            $columName = array(
+                'balance' => '0',
+                'income' => '0',
+                'outcome' => '0',
+                'trans_date' => '',
+                'sub_trans_code_msg' => '',
+                'trans_code_msg' => '',
+                'merchant_out_order_no' => '',
+                'trans_out_order_no' => '',
+                'bank_name' => '',
+                'bank_account_no' => '',
+                'bank_account_name' => '',
+                'memo' => '',
+                'buyer_account' => '',
+                'seller_account' => '',
+                'seller_fullname' => '',
+                'currency' => '',
+                'deposit_bank_no' => '',
+                'goods_title' => '',
+                'iw_account_log_id' => '',
+                'trans_account' => '',
+                'other_account_email' => '',
+                'other_account_fullname' => '',
+                'other_user_id' => '',
+                'partner_id' => '',
+                'service_fee' => '0',
+                'service_fee_ratio' => '0',
+                'total_fee' => '0',
+                'trade_no' => '',
+                'trade_refund_amount' => '0',
+                'sign_product_name' => '',
+                'rate' => ''
+            );
+            foreach ($accountQuerys as $item) {
+                $newRow = array();
+                foreach ($columName as $colName => $defaultValue) {
+                    $newRow[$colName] = $item->getElementsByTagName($colName)->item(0)->nodeValue ? $item->getElementsByTagName($colName)->item(0)->nodeValue : $defaultValue;
+                }
+                $result = $common->add('md_pay_record_alipay', $newRow);
+            }
+            if ($doc->getElementsByTagName('has_next_page')->item(0)->nodeValue == 'F') {
+                break;
+            }
+            $page++;
+        } while (true);
+    }
+
+    function pull_ali() {
+        $this->load->library('md_payment_weixin');
+        $path = dirname(dirname(dirname(dirname(__FILE__))));
+        require_once($path . "/payment/alipay_forcard/lib/alipay_submit.class.php");
+        echo $datetime = date('Y-m-d', strtotime('-1 day'));
+        $this->_pull($datetime);
+        $this->_pull($datetime, 'alipay_forcard');
+        $common = new Common();
+        $datetime = date('Y-m-d', strtotime('-1 day'));
+        $result = $common->delete('md_pay_record_weixin', "pay_time LIKE '{$datetime}%'");
+        $datetime = date('Ymd', strtotime('-1 day'));
+        $rows = $this->md_payment_weixin->bill($datetime);
+        foreach ($rows as $row) {
+            $this->db->insert("md_pay_record_weixin", $row);
+        }
+    }
+
+    /**
+     * 项目归档
+     */
+    function pro_archive() {
+        $sql = "SELECT pro.*,arc.pro_id FROM md_product pro
+LEFT JOIN md_product_archive arc ON pro.id=arc.pro_id
+WHERE pro.if_show=1 AND pro.end_time<now()
+HAVING ISNULL(pro_id)";
+        $res = $this->db->query($sql)->result_array();
+        $count = count($res);
+        foreach ($res as $item) {
+            $pro_info = $this->Product_m->get_product_info($item['id'], '', 1);
+            $rewards = $this->Product_m->get_product_backer_list($item['id']);
+            $insert['pro_id'] = $item['id'];
+            $insert['end_time'] = $item['end_time'];
+            $insert['amount_total'] = $pro_info['has_backed'];
+            $insert['back_num'] = $pro_info['has_backed_num'];
+            $insert['goal'] = $pro_info['install_money'];
+            $insert['rewards_info'] = serialize($rewards);
+            $insert['is_send_edm'] = '2';
+            $this->db->insert("md_product_archive", $insert);
+            $base_url = _gc('main_site_url', 'config');
+            file_get_contents("{$base_url}/p/set_to_html/{$insert['pro_id']}");
+        }
+        echo "归档 {$count} 个项目";
+    }
+
+    /**
+     * 更新订单状态 超过一小时将订单变更为失效
+     */
+    function update_order_status() {
+        $sql = "SELECT id FROM md_product_back WHERE if_pay=0 AND ctime<DATE_SUB(NOW(),INTERVAL 20 MINUTE)";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $item) {
+            $this->Order_biz->set_oid($item['id']);
+            $this->Order_biz->update_status('104');
+        }
+        echo 'ok-' . count($result);
+    }
+
+    /**
+     * 项目结束后发送确认邮件
+     */
+    function project_end() {
+        require_once BASEPATH . 'libraries/ipush/Ipush_factory.php';
+        $obj = new Ipush_factory("Ipush_weixin");
+        $wx_push = $obj->instance();
+
+        $sql = "SELECT mp.*,mpa.amount_total as back_amount FROM md_product mp
+INNER JOIN md_product_archive mpa ON mp.id=mpa.pro_id
+WHERE mpa.is_send_edm=2";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $item) {
+            $this->db->update("md_product_archive", array('is_send_edm' => '1'), array('pro_id' => $item['id']));
+            $item['install_money'] = explode('|', $item['install_money']);
+            $item['install_money'] = $item['install_money'][0];
+            //不分期
+            $this->Order_biz->batch_update_status_by_proid($item['id'], '0', '104');
+            if ($item['back_amount'] >= $item['install_money']) {
+                $this->Order_biz->batch_update_status_by_proid_status($item['id'], '103', '200');
+                $this->md_edm->send_creator_pro_success($item['id']);
+                $this->md_edm->send_backer_pro_success($item['id']);
+                //微信通知
+//                $ress = $wx_push->set_queue(1)->send_creator_pro_success($item['id']);
+                $ress = $wx_push->set_queue(0)->send_backer_pro_success($item['id']);
+            } else {
+                $this->Order_biz->batch_update_status_by_proid_status($item['id'], '103', '403');
+                $this->md_edm->send_backer_pro_failed($item['id']);
+                $this->md_edm->send_creator_pro_failed($item['id']);
+            }
+            echo "项目:{$item['id']}\n";
+        }
+        echo 'ok';
+    }
+
+    function sendweixin() {
+        require_once BASEPATH . 'libraries/ipush/Ipush_factory.php';
+        $obj = new Ipush_factory("Ipush_weixin");
+        $wx_push = $obj->instance();
+        $date = date("Y-m-d H:i:s", strtotime('-10 hour') - 1800);
+        $up_pro = "SELECT u.ctime, u.id, u.pro_id FROM md_product_update u inner join md_product p on u.pro_id = p.id WHERE p.if_show=1 AND u.ctime>'{$date}' AND u.id = (SELECT MAX(id) FROM md_product_update WHERE pro_id = u.pro_id)";
+        $result = $this->db->query($up_pro)->result_array();
+        error_log(var_export($result, true), 3, "/tmp/up_pro.log");
+        foreach ($result as $pro) {
+            //发更新微信给下单的用户
+            $res = $wx_push->set_queue(0)->send_pro_update($pro['id']);
+
+            //发更新微信给关注用户
+            $ress = $wx_push->set_queue(0)->send_pro_update_unpay($pro['id']);
+        }
+    }
+
+    function sendedm() {
+        $log_file = LOG_DIR . 'sendedm/sendedm_' . date("Ymd") . '.log';
+        error_log("\n" . date("Y-m-d H:i:s") . "开始sendEdm", 3, $log_file);
+        $this->load->helper('util');
+        //发更新邮件是避免重复发送back_id代替更新Id+100000000
+        //发更新邮件给下单的用户
+        error_log("\n" . date("Y-m-d H:i:s") . "开始发更新邮件给下单的用户", 3, $log_file);
+        $date = date("Y-m-d H:i:s", time() - 3600 * 24);
+        $sql = "SELECT ud.pro_id,ud.id as update_id,usr.id,ud.id+100000000 as back_id,usr.email,ud.content as update_content,ud.title as update_title,case when usr.mobile<>'' then usr.mobile else usr.tel end as mobile,pro.`short_title` as pro_name,case when usr.nickname<>'' then usr.nickname ELSE usr.username END as nickname FROM md_product_update ud
+INNER JOIN md_product pro ON ud.pro_id=pro.id
+INNER JOIN md_product_back bak ON bak.pro_id=pro.id
+INNER JOIN md_users usr ON bak.user_id=usr.id
+WHERE bak.if_pay=1 AND ud.if_show=1 AND ud.ctime>'{$date}'
+GROUP BY id,pro_name";
+
+        $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(\/uploads\/ueditor\/(?:.*?)|uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+        $result = $this->db->query($sql)->result_array();
+
+        foreach ($result as $user) {
+            $replace_img = $replace = array();
+
+            preg_match_all($pattern, $user['update_content'], $matches);
+            foreach ($matches[1] as $k => $v) {
+                $replace_img[] = cdn_url($v, 'p', 'fix');
+            }
+            $content = unserialize($user['update_content']);
+            if (is_array($content)) {
+                $user['update_content'] = $user['update_title'];
+            } else {
+                $user['update_content'] = str_replace($matches[1], $replace_img, $user['update_content']);
+            }
+            $replace['#nickname#'] = $user['nickname'];
+            $replace['#pro_name#'] = $user['pro_name'];
+            $replace['#update_content#'] = html_entity_decode($user['update_content']);
+            $replace['#update_title#'] = $user['update_title'];
+            //$short_url = short_url("http://m.modian.com/project/update/{$user['pro_id']}.html?_mdsf=SMS_PUSH_UPDATE");
+            $short_url = short_url("http://m.modian.com/main/update_detail/{$user['pro_id']}/{$user['update_id']}?_mdsf=SMS_PUSH_UPDATE");
+
+            $replace['#update_link#'] = $short_url['url_short'];
+            $this->md_edm->send_edm(11, $user, $replace);
+        }
+        //发更新邮件给关注未下单的用户
+        error_log("\n" . date("Y-m-d H:i:s") . "开始发更新邮件给关注未下单的用户", 3, $log_file);
+        $date = date("Y-m-d H:i:s", time() - 3600 * 24);
+        $sql = "SELECT ud.pro_id,ud.id as update_id,ud.id+100000000 as back_id,usr.id,usr.email,ud.content as update_content,ud.title as update_title,case when usr.mobile<>'' then usr.mobile else usr.tel end as mobile,pro.`short_title` as pro_name,case when usr.nickname<>'' then usr.nickname ELSE usr.username END as nickname FROM md_product_update ud
+INNER JOIN md_product_favors fav ON ud.pro_id=fav.pro_id
+INNER JOIN md_product pro ON fav.pro_id=pro.id
+INNER JOIN md_users usr ON fav.user_id=usr.id
+WHERE usr.id NOT IN (SELECT user_id FROM md_product_back WHERE if_pay=1 AND pro_id=ud.pro_id) AND ud.ctime>'{$date}'
+GROUP BY id";
+        $result = $this->db->query($sql)->result_array();
+        $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(\/uploads\/ueditor\/(?:.*?)|uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+
+        foreach ($result as $user) {
+            $replace_img = $replace = array();
+
+            preg_match_all($pattern, $user['update_content'], $matches);
+            foreach ($matches[1] as $k => $v) {
+                $replace_img[] = cdn_url($v, 'p', 'fix');
+            }
+            $content = unserialize($user['update_content']);
+            if (is_array($content)) {
+                $user['update_content'] = $user['update_title'];
+            } else {
+                $user['update_content'] = str_replace($matches[1], $replace_img, $user['update_content']);
+            }
+            $replace['#nickname#'] = $user['nickname'];
+            $replace['#pro_name#'] = $user['pro_name'];
+            $replace['#update_content#'] = html_entity_decode($user['update_content']);
+            $replace['#update_title#'] = $user['update_title'];
+            //$short_url = short_url("http://m.modian.com/project/update/{$user['pro_id']}.html?_mdsf=SMS_PUSH_UPDATE");
+            $short_url = short_url("http://m.modian.com/main/update_detail/{$user['pro_id']}/{$user['update_id']}?_mdsf=SMS_PUSH_UPDATE");
+            $replace['#update_link#'] = $short_url['url_short'];
+
+            $this->md_edm->send_edm(13, $user, $replace);
+        }
+        //发送24小时未支付订单召回
+        error_log("\n" . date("Y-m-d H:i:s") . "开始发送24小时未支付订单召回", 3, $log_file);
+        $date = date("Y-m-d H:i:s", time() - 3600 * 24);
+        $sql = "SELECT usr.id,pro.id as pro_id,bak.amount,usr.email,bak.address_mobile as mobile,bak.id as back_id,pro.`short_title` as pro_name,case when usr.nickname<>'' then usr.nickname ELSE usr.username END as nickname FROM md_product_back bak
+INNER JOIN md_product pro ON bak.pro_id=pro.id
+INNER JOIN md_users usr ON bak.user_id=usr.id
+WHERE if_pay=0 AND bak.ctime>'{$date}'
+GROUP BY id,pro_id,back_id
+ORDER BY pro_id,bak.user_id,bak.amount desc;";
+        $result = $this->db->query($sql)->result_array();
+        $sended = array();
+        foreach ($result as $user) {
+            $replace = array();
+            $key = $user['id'] . "_" . $user['pro_id'];
+            if (!in_array($key, $sended)) {
+                $replace['#nickname#'] = $user['nickname'];
+                $replace['#pro_name#'] = $user['pro_name'];
+                $replace['#pay_link#'] = _gc('domain_zhongchou', 'domain') . "/pay/?pid={$user['back_id']}&id={$user['pro_id']}";
+                $this->md_edm->send_edm(10, $user, $replace);
+                $sended[] = $key;
+            }
+        }
+        //发货通知邮件
+        error_log("\n" . date("Y-m-d H:i:s") . "发货通知邮件", 3, $log_file);
+        $date = date("Y-m-d", strtotime('-1 day'));
+        if ($date) {
+            $sql = "SELECT
+	bak.id AS back_id,
+	bak.address_email AS email,
+	bak.address_mobile AS mobile,
+	bak.user_id AS id,
+	bak.address_name AS nickname,
+	pro.`name` as pro_name,
+	pro.short_title as short_name,
+	pro.id as pro_id,
+        bak.if_post
+FROM
+	md_product_back bak
+INNER JOIN md_users usr ON usr.id = bak.user_id
+INNER JOIN md_product pro ON pro.id=bak.pro_id
+WHERE
+	post_time LIKE '{$date}%';
+";
+            $result = $this->db->query($sql)->result_array();
+            foreach ($result as $user) {
+                $replace = array();
+                $replace['#nickname#'] = $user['nickname'];
+                $replace['#pro_name#'] = $user['short_name'] ? $user['short_name'] : $user['pro_name'];
+                if ($user['if_post'] == 1) {
+                    $this->md_edm->send_edm(1, $user, $replace);
+                } else {
+                    $this->md_edm->send_edm(9, $user, $replace);
+                }
+            }
+        }
+        //发货后第十天提醒用户确认收货
+        error_log("\n" . date("Y-m-d H:i:s") . "发货后第十天提醒用户确认收货", 3, $log_file);
+        $date = date("Y-m-d", strtotime('-10 day'));
+        if ($date) {
+            $sql = "SELECT
+	bak.id AS back_id,
+	bak.address_email AS email,
+	bak.address_mobile AS mobile,
+	bak.user_id AS id,
+	bak.address_name AS nickname,
+	pro.`name` as pro_name,
+	pro.short_title as short_name,
+	pro.id as pro_id
+FROM
+	md_product_back bak
+INNER JOIN md_users usr ON usr.id = bak.user_id
+INNER JOIN md_product pro ON pro.id=bak.pro_id
+WHERE
+	if_post=1 AND post_time LIKE '{$date}%' AND receive_time='0000-00-00 00:00:00';";
+            $result = $this->db->query($sql)->result_array();
+            foreach ($result as $user) {
+                $replace = array();
+                $replace['#nickname#'] = $user['nickname'];
+                $replace['#pro_name#'] = $user['short_name'] ? $user['short_name'] : $user['pro_name'];
+                $this->md_edm->send_edm(2, $user, $replace);
+            }
+        }
+        //发货后第16天
+        error_log("\n" . date("Y-m-d H:i:s") . "发货后第16天", 3, $log_file);
+        $date = date("Y-m-d", strtotime('-16 day'));
+        if ($date) {
+            $sql = "SELECT
+	bak.id AS back_id,
+	bak.address_email AS email,
+	bak.address_mobile AS mobile,
+	bak.user_id AS id,
+	bak.address_name AS nickname,
+	pro.`name` as pro_name,
+	pro.short_title as short_name,
+	pro.id as pro_id
+FROM
+	md_product_back bak
+INNER JOIN md_users usr ON usr.id = bak.user_id
+INNER JOIN md_product pro ON pro.id=bak.pro_id
+WHERE
+	if_post=1 AND post_time LIKE '{$date}%' AND receive_time='0000-00-00 00:00:00';";
+            $result = $this->db->query($sql)->result_array();
+            foreach ($result as $user) {
+                $replace = array();
+                $replace['#nickname#'] = $user['nickname'];
+                $replace['#pro_name#'] = $user['short_name'] ? $user['short_name'] : $user['pro_name'];
+                $this->Order_biz->update_status('202', $user['back_id']);
+                $this->Common->update('md_product_back', array('id' => $user['back_id'], 'if_post' => '1'), array('receive_time' => date("Y-m-d H:i:s"), 'if_receive' => 1));
+                $this->md_edm->send_edm(3, $user, $replace);
+            }
+        }
+        echo 'ok';
+        error_log("\n" . date("Y-m-d H:i:s") . "结束", 3, $log_file);
+    }
+
+    function update_order() {
+        set_time_limit(0);
+        $date = date("Y-m-d", strtotime('-1 day'));
+        $sql = "SELECT *,duration-DATEDIFF('{$date} 23:59:59',start_time) as remain_days,(SELECT sum(amount) FROM md_product_back WHERE pro_id=md_product.id AND if_pay=1) as back_amount FROM md_product WHERE if_show=1";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $item) {
+            $item['install_money'] = explode('|', $item['install_money']);
+            $item['install_money'] = $item['install_money'][0];
+            //处理结束的项目邮件发送
+            if ($item['remain_days'] <= '0') {
+                $this->Order_biz->batch_update_status_by_proid($item['id'], '0', '104');
+                //不分期
+                if ($item['back_amount'] >= $item['install_money']) {
+                    echo "yes" . $item['id'] . "|";
+                    $this->Order_biz->batch_update_status_by_proid($item['id'], '1', '200');
+                } else {
+                    echo "no" . $item['id'] . "|";
+                    $this->Order_biz->batch_update_status_by_proid($item['id'], '1', '403');
+                }
+            }
+        }
+        echo 'ok';
+    }
+
+    function tuikuan($pro_id) {
+        $this->Order_biz->batch_update_status_by_proid($pro_id, '1', '403');
+        echo 'ok';
+    }
+
+    function chenggong($pro_id) {
+        $this->Order_biz->batch_update_status_by_proid($pro_id, '1', '200');
+        echo 'ok';
+    }
+
+    function finance_alert($before = 30) {
+        $date = date("Y-m-d 00:00:00", strtotime("-{$before} day"));
+        $maillist = $this->config->item('warning_mail');
+        $maillist = $maillist['finance'];
+        print_r($maillist);
+        //查询重复支付订单
+        $sql = "SELECT bak.*,(SELECT count(1) FROM md_pay WHERE bak.id=back_id AND status=1) as c FROM md_product_back bak WHERE ctime>'{$date}' having c>1";
+        $result = $this->db->query($sql)->result_array();
+        $tables = '';
+        foreach ($result as $back) {
+            $sql = "SELECT * FROM md_pay WHERE back_id={$back['id']}";
+            $pay = $this->db->query($sql)->result_array();
+        }
+        print_r($result);
+    }
+
+    // 1000用户
+    function a_1000_users() {
+        $filename = BASEPATH . '../uploads/1000_order/1000_users.xls';
+        // $filename = iconv('utf-8', 'gbk', $filename);
+        $arr_title = array('id', 'email', 'pic_num', 'rspn_man', 'nickname');
+        $userdas = $this->Prorder_m->_read_from_excel($filename, $arr_title);
+        unset($userdas['0']);    // 去掉标题
+        // 更新已经存在用户的相应信息
+        $sql = 'SELECT * FROM md_users WHERE email LIKE "%@nick.com"';
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $key => $row) {
+            $email = $row['email'];
+
+            $nickname = $row['nickname'];
+            foreach ($userdas as $i => $v) {
+                if ($v['email'] == $email) {
+                    $nickname = $v['nickname'];
+                    $icon = 'uploads/1000_order/icon/user_' . $v['pic_num'] . '.jpg';
+                    unset($userdas[$i]);
+
+                    $platform = 'system';
+                    $ip_address = '10.0.0.1';
+                    $password = '8423df6cc15210cc178cde54b541fb4c'; // 密码: 123456
+
+                    $sql = "UPDATE md_users SET icon='$icon',
+                                                nickname='$nickname',
+                                                platform='$platform',
+                                                ip_address='$ip_address',
+                                                password='$password'
+                                WHERE email='$email'";
+                    echo $sql . '<br>';
+                    $this->db->query($sql);  //////////////////////////////////////////
+                }
+            }
+        }
+
+        // 生成剩余用户
+        $users = count($userdas);
+        if ($users < 1)
+            exit('no need to generate users');
+
+        for ($i = 0; $i < $users; ++$i)
+            $reg_time[] = $this->Prorder_m->random_date('2014-07-12 12:23:11');
+        sort($reg_time);
+
+        $values = '';
+        $index = 0;
+        foreach ($userdas as $row) {
+
+            $email = $row['email'];
+
+            $username = explode('@', $email);
+            $username = $username['0'];
+
+            $nickname = $row['nickname'];
+            $icon = 'uploads/1000_order/icon/user_' . $row['pic_num'] . '.jpg';
+            $platform = 'system';
+            $ip_address = '10.0.0.1';
+            $password = '8423df6cc15210cc178cde54b541fb4c'; // 密码: 123456
+            $ctime = $reg_time[$index];
+            $last_login = $this->Prorder_m->random_date($ctime);
+
+            $values .= "('$username','$email','$nickname','$icon', '$platform', '$ip_address', '$password','$ctime','$last_login'),";
+
+            ++$index;
+        }
+        $values = rtrim($values, ',');
+        $values .= ';';
+
+        $sql = "INSERT INTO `md_users` (`username`, `email`, `nickname`, `icon`, `platform`, `ip_address`, `password`, `ctime`, `last_login`) VALUES $values";
+        echo $sql;
+        $this->db->query($sql);  //////////////////////////////////////////////
+    }
+
+    function log_insert() {
+        $this->load->library('Md_log');
+        while ($value = Md_log::get()) {
+            $insert['log_time'] = strtotime($value['time']);
+            $insert['level'] = $value['level'];
+            $insert['message'] = json_encode($value['message']);
+            $insert['tag'] = $value['tag'];
+            print_r($value);
+            $this->log_db->insert('md_loging', $insert);
+        }
+        echo 'ok';
+    }
+
+    // 给中奖用户发信息
+    // 您支持#act_name#时抽取的#luck_num#号码，获得了#prize_info#。
+    // 我们将在项目成功结束后统一发放。请关注官微modian001了解发放情况。
+    function send_msg_4_luck_winner($act_id = null) {
+        // $act_id = 1; // 测试
+        if (null !== $act_id) {
+            $this->load->library('md_edm');
+            $this->load->library('md_activity');
+
+            $act_info = $this->md_activity->get_activity_info($act_id);
+            $ctime = date("Y-m-d {$act_info['day_end']}", strtotime("-1 day"));
+
+            if ($act_info['start_time'] <= $ctime && $ctime <= $act_info['end_time']) {
+                $luck_winner = $this->md_activity->get_luck_winner($act_id, $ctime, true);
+                foreach ($luck_winner as $ii => $winner) {
+                    $user['id'] = $winner['user_id'];
+                    $user['mobile'] = $winner['mobile'];
+                    $replace['#act_name#'] = $winner['act_name'];
+                    $replace['#luck_num#'] = $winner['luck_num'];
+                    $replace['#prize_info#'] = "{$winner['prize_name']}";
+                    // var_dump($user);
+                    // var_dump($replace);
+                    $this->md_edm->send_edm(8, $user, $replace);
+                }
+            }
+        }
+        echo 'ok';
+    }
+
+    public function set_easyfund_refund_wait() {
+        $time = strtotime('-30 days');
+        $time = date("Y-m-d H:i:s", $time);
+        $sql = "UPDATE md_easyfund SET if_refund=1
+            WHERE end_time < '{$time}' AND if_withdraw=0 AND if_refund=0"; //更新需要退款的项目为需要退款
+        $this->db->query($sql);
+        $sql = "SELECT ef.id AS id FROM md_easyfund ef WHERE ef.if_refund=1";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        foreach ($rows as $row) {
+            $sql = "SELECT SUM(bak.amount) AS total
+            FROM md_easyfund_back bak WHERE (bak.ez_id='{$row['id']}' AND bak.if_pay=1 AND bak.status=103)"; //计算众筹总金额
+            $query = $this->db->query($sql);
+            $res = $query->row_array();
+            if ($res['total'] > 0) {
+                $sql_2 = "UPDATE md_easyfund_back SET if_refund=1 WHERE ez_id={$row['id']} AND if_pay=1 AND status=103 AND if_refund!=2"; //更新该项目ID下的已支付的订单为需要退款
+                $this->db->query($sql_2);
+            } else {
+                $sql_3 = "UPDATE md_easyfund SET if_refund=0 WHERE id={$row['id']}";
+                $this->db->query($sql_3);
+                continue;
+            }
+        }
+    }
+
+    /**
+     * 定时推送APP_PUSH
+     */
+    public function send_app_push() {
+        $this->load->library("app_push/Jpush");
+        $sql = "SELECT * FROM md_app_push_log WHERE android_push_done=0 AND ios_push_done=0 LIMIT 1000 ";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        if (count($rows) > 0) {
+            foreach ($rows as $key => $val) {
+                $audience = array();
+                $audience[] = (string) $val['user_id'];
+                if (!empty($val['content']) && !empty($val['android_trans_data'])) {
+                    $this->jpush->set_audience_data($audience)->send_notify($val['content'], $val['android_trans_data'], $val['title'], $sound = 'default', $badge = '+1');
+                    $update_sql = "UPDATE md_app_push_log SET ios_push_done=1,android_push_done=1 WHERE id={$val['id']}";
+                    $this->db->query($update_sql);
+                }
+            }
+        }
+        echo "OK";
+        exit();
+    }
+
+    public function repair_refund() {
+        $sql = "SELECT ef.id AS id FROM md_easyfund ef WHERE ef.if_refund=2";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        foreach ($rows as $row) {
+            $sql_2 = "UPDATE md_easyfund_back SET if_refund=2 WHERE ez_id={$row['id']} AND if_pay=1 AND status=103"; //更新该项目ID下的已支付的订单为需要退款
+            $this->db->query($sql_2);
+        }
+    }
+
+    // 刷新微信 access_token
+    // 刷新微信 jsapi_ticket
+    public function refresh_wx_access_token() {
+        $this->load->library('md_weixin_api');
+        print_r($this->md_weixin_api->get_access_token(true));
+        print_r($this->md_weixin_api->get_jsapi_ticket(true));
+    }
+    public function if_wx_access_token_vaild($openid='') {
+        require_once(dirname(BASEPATH) . '/system/libraries/md_memcache.php');
+        $cache_key = sprintf("wx_common_access_token_%s", 'wx67f2e191aead66f7');
+        $access_token = md_memcache::get($cache_key);
+        $access_token = unserialize($access_token);
+        if (!isset($access_token['access_token'])) {
+            echo date('Y-m-d H:i:s').":\tno access_token".':'.json_encode($access_token)."\n";
+            exit;
+        }
+        // print_r($access_token);
+
+        $new_token['refresh_day'] = date('d');
+        if (intval($access_token['refresh_day']) == intval($new_token['refresh_day']))
+            $new_token['refresh_count'] = intval($access_token['refresh_count']) + 1;
+        else
+            $new_token['refresh_count'] = 1;
+        // print_r($new_token);
+
+        $url = 'https://api.weixin.qq.com/cgi-bin/user/info';
+        $opt = array(
+            'access_token' => $access_token['access_token'],
+            'openid'       => $openid,
+            'lang'         => 'zh_CN'
+        );
+        $url = $url.'?'.http_build_query($opt);
+
+        // print_r(json_decode($this->curl_ssl_request($url), true));
+        $user_info = json_decode($this->curl_ssl_request($url), true);
+        if (isset($user_info['openid'])) {
+            echo date('Y-m-d H:i:s').":\tok\n";
+            exit;
+        } else {
+            echo date('Y-m-d H:i:s').":\t".json_encode($user_info)."\n";
+            exit;
+        }
+    }
+    public function curl_ssl_request($url, $argv='', $second=30)
+    {
+        $framework_path = dirname(BASEPATH);
+
+        $ch = curl_init();
+        //超时时间
+        curl_setopt($ch,CURLOPT_TIMEOUT,$second);
+        //这里设置代理，如果有的话
+        //curl_setopt($ch,CURLOPT_PROXY, '8.8.8.8');
+        //curl_setopt($ch,CURLOPT_PROXYPORT, 8080);
+        curl_setopt($ch,CURLOPT_URL, $url);
+        curl_setopt($ch,CURLOPT_SSL_VERIFYPEER,FALSE);
+        curl_setopt($ch,CURLOPT_SSL_VERIFYHOST,FALSE);
+        //设置header
+        curl_setopt($ch,CURLOPT_HEADER,FALSE);
+        //要求结果为字符串且输出到屏幕上
+        curl_setopt($ch,CURLOPT_RETURNTRANSFER,TRUE);
+        //设置证书
+        //使用证书：cert 与 key 分别属于两个.pem文件
+        //默认格式为PEM，可以注释
+        curl_setopt($ch,CURLOPT_SSLCERTTYPE,'PEM');
+        curl_setopt($ch,CURLOPT_SSLCERT, $framework_path . '/payment/weixin/cacert/apiclient_cert.pem');
+        //默认格式为PEM，可以注释
+        curl_setopt($ch,CURLOPT_SSLKEYTYPE,'PEM');
+        curl_setopt($ch,CURLOPT_SSLKEY, $framework_path . '/payment/weixin/cacert/apiclient_key.pem');
+
+        if(!empty($argv)) {
+            //post提交方式
+            curl_setopt($ch,CURLOPT_POST, true);
+            curl_setopt($ch,CURLOPT_POSTFIELDS, $argv);
+        }
+
+        $data = curl_exec($ch);
+        //返回结果
+        if($data){
+            curl_close($ch);
+            return $data;
+        }
+        else {
+            $error = curl_errno($ch);
+            echo "curl出错，错误码:$error"."<br>";
+            echo "<a href='http://curl.haxx.se/libcurl/c/libcurl-errors.html'>错误原因查询</a><br>";
+            curl_close($ch);
+            return false;
+        }
+    }
+
+    // 生成统计数据
+    // 指定时间前一天数据，默认今天生成昨天数据
+    public function backup_statistics_data($time = '') {
+        if (empty($time))
+            $time = date("Y-m-d H:i:s");
+
+        $d = date('Y-m-d 00:00:00', strtotime("-1 day", strtotime($time)));
+        if ($d <= date('Y-m-d 00:00:00')) {
+            $insert_d_stics = array(
+                'ctime' => $time,
+                'dtime' => $d,
+                'user_register' => $this->Statistics_m->count_day_num('md_statistics', 'user_register', $d, 1),
+                'all_financing' => $this->Statistics_m->count_day_num('md_statistics', 'all_financing', $d, 1),
+                'back_success' => $this->Statistics_m->count_day_num('md_statistics', 'back_success', $d, 1),
+                'pro_passed' => $this->Statistics_m->count_day_num('md_statistics', 'pro_passed', $d, 1),
+                'pro_success' => $this->Statistics_m->count_day_num('md_statistics', 'pro_success', $d, 1),
+            );
+            $this->Statistics_m->empty_statistics_info('md_statistics', array('dtime' => $d));
+            $this->Statistics_m->insert_statistics_info('md_statistics', $insert_d_stics);
+
+            $insert_d_user = array(
+                'ctime' => $time,
+                'dtime' => $d,
+                'user_reg_from_web' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_from_web', $d, 1),
+                'user_reg_from_wap' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_from_wap', $d, 1),
+                'user_reg_from_app' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_from_app', $d, 1),
+                'user_reg_way_weibo' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_way_weibo', $d, 1),
+                'user_reg_way_weixin' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_way_weixin', $d, 1),
+                'user_reg_way_qq' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_way_qq', $d, 1),
+                'user_reg_way_modian' => $this->Statistics_m->count_day_num('md_statistics_user', 'user_reg_way_modian', $d, 1),
+            );
+            $this->Statistics_m->empty_statistics_info('md_statistics_user', array('dtime' => $d));
+            $this->Statistics_m->insert_statistics_info('md_statistics_user', $insert_d_user);
+
+            $insert_d_back = array(
+                'ctime' => $time,
+                'dtime' => $d,
+                'back_all' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_all', $d, 1),
+                'back_unique_user' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_unique_user', $d, 1),
+                'back_from_app' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_from_app', $d, 1),
+                'back_from_web' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_from_web', $d, 1),
+                'back_from_wap' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_from_wap', $d, 1),
+                'back_pay_alipay' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_alipay', $d, 1),
+                'back_pay_weixin' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_weixin', $d, 1),
+                'back_pay_ABC' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_ABC', $d, 1),
+                'back_pay_CCB' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_CCB', $d, 1),
+                'back_pay_CMBC' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_CMBC', $d, 1),
+                'back_pay_SPDB' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_SPDB', $d, 1),
+                'back_pay_ICBCB2C' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_ICBCB2C', $d, 1),
+                'back_pay_SPABANK' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_SPABANK', $d, 1),
+                'back_pay_CMB' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_CMB', $d, 1),
+                'back_pay_CIB' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_CIB', $d, 1),
+                'back_pay_GDB' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_GDB', $d, 1),
+                'back_pay_COMM' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_COMM', $d, 1),
+                'back_pay_BOCBTB' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_BOCBTB', $d, 1),
+                'back_pay_POSTGC' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_POSTGC', $d, 1),
+                'back_pay_CITIC_DEBIT' => $this->Statistics_m->count_day_num('md_statistics_back', 'back_pay_CITIC_DEBIT', $d, 1),
+            );
+            $this->Statistics_m->empty_statistics_info('md_statistics_back', array('dtime' => $d));
+            $this->Statistics_m->insert_statistics_info('md_statistics_back', $insert_d_back);
+
+            $insert_d_pro = array(
+                'ctime' => $time,
+                'dtime' => $d,
+                'pro_finish' => $this->Statistics_m->count_day_num('md_statistics_pro', 'pro_finish', $d, 1),
+            );
+            $this->Statistics_m->empty_statistics_info('md_statistics_pro', array('dtime' => $d));
+            $this->Statistics_m->insert_statistics_info('md_statistics_pro', $insert_d_pro);
+
+            echo "[{$time} - done of backup_statistics_data {$d}]\n";
+        }
+
+        return 0;
+    }
+
+    public function send_md_daily_statistics_email($if_boss = 0) {
+        $data['title'] = '全站概览';
+        $data['banner'] = '全站概览';
+        $time = date("Y-m-d H:i:s");
+
+        $data['user_reg_today'] = $this->Statistics_m->count_day_num('md_statistics', 'user_register', $time);
+        $data['user_reg_all'] = $data['user_reg_today'] + $this->Statistics_m->count_history_num('md_statistics', 'user_register', $time);
+
+        $data['pro_back_today'] = $this->Statistics_m->count_day_num('md_statistics', 'all_financing', $time);
+        $data['pro_back_all'] = number_format($data['pro_back_today'] + $this->Statistics_m->count_history_num('md_statistics', 'all_financing', $time), 2);
+        $data['back_success_today'] = $this->Statistics_m->count_day_num('md_statistics', 'back_success', $time);
+
+        $data['pro_passed_all'] = $this->Statistics_m->count_day_num('md_statistics', 'pro_passed', $time) + $this->Statistics_m->count_history_num('md_statistics', 'pro_passed', $time);
+        $data['pro_success_all'] = $this->Statistics_m->count_day_num('md_statistics', 'pro_success', $time) + $this->Statistics_m->count_history_num('md_statistics', 'pro_success', $time);
+        if (empty($data['pro_passed_all']))
+            $data['pro_success_percent'] = 0;
+        else
+            $data['pro_success_percent'] = number_format(($data['pro_success_all'] / $data['pro_passed_all']) * 100, 2);
+
+        $data['pro_online_today'] = $this->Statistics_m->count_online_pro($time);
+
+        $data['stics_user_info']['reg_new'] = $this->Statistics_m->get_user_register_info(0, 0);
+        $data['stics_user_info']['reg_addup'] = $this->Statistics_m->get_user_register_info(1, 0);
+        $data['stics_user_info']['reg_from'] = $this->Statistics_m->get_barchart_from_info(0, 'md_statistics_user');
+        $data['stics_user_info']['reg_way'] = $this->Statistics_m->get_user_register_way_info(0);
+        $data['stics_user_info']['back_info'] = $this->Statistics_m->get_back_barchart_info(0);
+        $data['stics_user_info']['back_unit'] = $this->Statistics_m->get_back_barchart_info(0);
+        $data['stics_user_info']['back_pay'] = $this->Statistics_m->get_back_pay_way_info(0);
+        $data['stics_user_info']['back_from'] = $this->Statistics_m->get_barchart_from_info(0, 'md_statistics_back');
+        $data['stics_user_info']['all_financing'] = $this->Statistics_m->get_all_financing_info(0);
+
+        $log_file = date('Y-m-d') . '.html';
+        $log_place = realpath(BASEPATH . '../uploads/daily_statistics/') . '/' . $log_file;
+        $page_content = $this->load->view('statistics/daily_info', $data, true);
+        echo $log_place;
+        file_put_contents($log_place, $page_content . PHP_EOL);
+
+        $to_email = 'zhding@modian.com';
+        $to_title = "摩点统计数据-{$time}";
+        $to_content = '<table border="1" style="margin-left:auto;margin-right:auto;">
+                            <tr>
+                                <td>累计注册用户：' . $data['user_reg_all'] . '</td>
+                                <td>累计融资额：' . $data['pro_back_all'] . '</td>
+                                <td>项目总数：' . $data['pro_passed_all'] . '</td>
+                                <td>项目成功率：' . $data['pro_success_percent'] . '</td>
+                            </tr>
+                            <tr>
+                                <td>今日新增注册：' . $data['user_reg_today'] . '</td>
+                                <td>今日融资额：' . $data['pro_back_today'] . '</td>
+                                <td>今日成功订单数：' . $data['back_success_today'] . '</td>
+                                <td>同时在线项目数：' . $data['pro_online_today'] . '</td>
+                            </tr>
+                        </table>
+                        <div style="text-align:center;">
+                            <a href="' . _gc('main_site_url', 'config') . '/uploads/daily_statistics/' . $log_file . '" target="_blank"><h4>点我查看更多内容</h4></a>
+                        </div>';
+        $this->common->send_email($to_email, $to_title, $to_content);
+        if ($if_boss == 1) {
+            $this->common->send_email('gangcao@modian.com', $to_title, $to_content);
+            $this->common->send_email('slhuang@modian.com', $to_title, $to_content);
+        }
+    }
+
+    // 更新项目更新类型字段值
+    public function update_pro_update_type() {
+        $up_d = array();
+
+        $this->db->select('id, content');
+        $this->db->from('md_product_update');
+        $res = $this->db->get()->result_array();
+        foreach ($res as $row) {
+            $content = unserialize($row['content']);
+            if (is_array($content)) {
+                $up_d[] = array(
+                    'id' => $row['id'],
+                    'type' => 1
+                );
+            } else {
+                $up_d[] = array(
+                    'id' => $row['id'],
+                    'type' => 0
+                );
+            }
+        }
+
+        if (!empty($up_d)) {
+            $this->db->update_batch('md_product_update', $up_d, 'id');
+            echo 'ok';
+        }
+    }
+    
+    public function send_edm_mail() {
+        $ci = &get_instance();
+        $ci->load->model('Common');
+        $state = 3; //邮件待发送
+        $edm_info = $this->Edm_user_m->get_edm_sendstate($state);
+        if (empty($edm_info)) {
+            $state = 4; //邮件待发送
+            $edm_info = $this->Edm_user_m->get_edm_sendstate($state);
+            if (!$edm_info) {
+                echo '未查询到要发送的邮件信息';
+                return false;
+            } else {
+                $info_id = $edm_info["id"];
+                $send_user = $edm_info["send_user"];
+                $title = $edm_info["email_title"];
+                $file = LOG_DIR . "edm/edm_" . $info_id . ".text";
+            }
+        } else {
+            $info_id = $edm_info["id"];
+            $send_user = $edm_info["send_user"];
+            $title = $edm_info["email_title"];
+            $file = LOG_DIR . "edm/edm_" . $info_id . ".text";
+            file_put_contents($file, $send_user);
+        }
+
+        $pro_arr = explode(",", $edm_info["pro_id"]);
+        $template = $edm_info["content_template"];
+
+        $refund_email = $this->Edm_user_m->get_refund_email();
+        $send_user_arr = explode(",", $send_user);
+
+        $effect_alluser_arr = array();
+        $effect_user_arr = array();
+        $effect_leftuser_arr = array();
+        foreach ($send_user_arr as $key => $val) {
+            //退订邮件不再发送
+            if (!empty($val) && !in_array($val, $refund_email) && valid_email($val)) {
+                $effect_alluser_arr[] = $val;
+            }
+        }
+        $per_page = 8000;
+        $max_num = count($effect_alluser_arr);
+        $total_num = ceil($max_num / $per_page) > 1 ? ceil($max_num / $per_page) : "1";
+        if ($total_num > 1) {
+            $effect_user_arr = array_slice($effect_alluser_arr, 0, $per_page);
+            $effect_leftuser_arr = array_slice($effect_alluser_arr, $per_page, $max_num);
+        } else {
+            $effect_user_arr = $effect_alluser_arr;
+        }
+
+        foreach ($effect_user_arr as $k => $v) {
+            if ($edm_info ["pro_id"] == '全部') {
+                $sub_content = $this->custom_topic_template($info_id, $v);
+            } else {
+                if (count($pro_arr) > 1) {
+                    $sub_content = $this->custom_more_template($info_id, $v);
+                } elseif (count($pro_arr) == 1) {
+                    $sub_content = $this->custom_single_template($info_id, $v);
+                }
+            }
+            $ci->Common->edm_send_email($v, $title, $sub_content, 1, $info_id);
+        }
+
+        $this->load->database();
+
+        if ($total_num == 1) {
+            $this->Edm_user_m->update_edm_statue($info_id, 2);
+            $file_handle = fopen($file, "r");
+            while (!feof($file_handle)) {
+                $line = fgets($file_handle);
+            }
+            fclose($file_handle);
+            $this->Edm_user_m->update_send_user($info_id, $line);
+        } else {
+            $user_str = implode(",", $effect_leftuser_arr);
+            $this->Edm_user_m->update_send_user($info_id, $user_str);
+            $this->Edm_user_m->update_edm_statue($info_id, 4);
+        }
+
+        echo 'hh ' . count($effect_user_arr);
+    }
+
+    public function custom_single_template($info_id, $user) {
+        $data = array();
+        $info_id = isset($info_id) ? intval($info_id) : "";
+        //$email_info = $this->Edm_user_m->get_edm_info($info_id);
+
+        $cache_key = sprintf('%s', "modiancustomsingle" . $info_id . "info");
+        if (md_memcache::get($cache_key)) {
+            $email_info = md_memcache::get($cache_key);
+        } else {
+            $email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+            md_memcache::set($cache_key, $email_info_arr, 3600 * 2);
+            $email_info = md_memcache::get($cache_key);
+        }
+        $pro_id = intval($email_info["pro_id"]);
+        $pro_name = $email_info["pro_name"];
+        $pro_content = $email_info["item_content"];
+        $pro_des = mb_strimwidth($pro_content, 0, 230, '...');
+        $reward_id = $email_info["item_num"]; //项目排版样式
+        $rewards_asc = $email_info["serial_num"]; //项目排序
+
+        $title = $email_info["email_title"];
+
+        //$data = $this->Edm_product_m->get_product_rewards_by_product($pro_id,$reward_id,$rewards_asc);
+
+        $cache_key = sprintf('%s', "modiancustomsingle" . $pro_id . "" . $reward_id . "edm");
+        if (md_memcache::get($cache_key)) {
+            $data = md_memcache::get($cache_key);
+        } else {
+            $data_arr = $this->Edm_product_m->get_product_rewards_by_product($pro_id, "", $rewards_asc);
+            md_memcache::set($cache_key, $data_arr, 3600 * 2);
+            $data = md_memcache::get($cache_key);
+        }
+
+        //预览邮件时默认不显示用户昵称,用XXX代替
+        if (isset($user)) {
+            //站内用户调取用户昵称，站外用户直接用邮箱
+            $data["send_user_email"] = $user;
+            if ($email_info["user_side"] == 1) {
+                $user_temp = $this->Edm_user_m->get_username_email($user);
+                if ($user_temp) {
+                    $data["send_user"] = $user_temp;
+                }
+            } else {
+                $data["send_user"] = $user;
+            }
+        } else {
+            $data["send_user"] = "XXX";
+        }
+        $mo_pass = "modianedm1234";
+        $unit_key = md5($user . '_' . $mo_pass);
+
+        $data["theme_id"] = $info_id;
+        $data["side"] = $email_info["user_side"];
+        $data["email_contents"] = $email_info["email_contents"];
+        $data["tag"] = isset($email_info["tag"]) ? $email_info["tag"] : "";
+        $tag = str_replace(";", "-", $data["tag"]);
+        $pro_tag = str_replace(",", "-", $tag);
+        $upload_url = _gc('cdn_url', 'config');
+
+        $str_content = '<!DOCTYPE html>';
+        $str_content .='<html>';
+        $str_content .='<head>';
+        if (!empty($title)) {
+
+            $str_content .='<title>' . $title . '</title>';
+        }
+        $str_content .='</head>';
+        $str_content .='<body style="display: block;  margin: 8px;">';
+        $str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url(http://www.modian.com/static/new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left top;"></div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+        $str_content .='<a href="http://www.modian.com"><img src="http://www.modian.com/static/new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+        $str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+        $str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width: 700px;">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        if (!empty($data["email_contents"])) {
+            $str_content .='<tr><td>';
+            $str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">' . $data["email_contents"] . '</div>';
+            $str_content .='</tr></td>';
+            $str_content .='<tr><td>';
+            $str_content .='<div style="width: 100%;text-align: center;margin-top: 2px;">';
+            $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="width:700px">';
+            $str_content .='</div>';
+            $str_content .='</tr></td>';
+        }
+
+        if (!empty($email_info)) {
+            if ($email_info["item_num"] == 1) {
+                $str_content .='<tr>';
+                $str_content .='<th><a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '"><img style="width:700px; height:500px;margin-top: 30;" src="http://i2.modian.com/' . $data['logo'] . '"></a></th>';
+                $str_content .='</tr>';
+                $str_content .='<tr><td>';
+                $str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">' . $pro_name . '</p>';
+                $str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">' . $pro_des . '</p>';
+                $str_content .='<a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '" style="height: 21px;width:81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding:8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+                $str_content .='</td></tr>';
+            } elseif ($email_info["item_num"] == 2) {
+                $str_content .='<tr>';
+                $str_content .='<td>';
+                $str_content .='<div style="float:left;margin-top: 10px"><a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '"><img style="width:330px; height:261px;margin-left: 123px; margin-top: 17px;" src="http://i2.modian.com/' . $data['logo'] . '"></a></div>';
+                $str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height:54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600;line-height: 1.5;margin-top:10px">' . $pro_name . '</p>';
+                $str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top: 13px;line-height: 2;">' . $pro_des . '</p>';
+                $str_content .='<a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '"  style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding:8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+                $str_content .='</td>';
+                $str_content .='</tr>';
+            }
+        }
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+        $str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+        $str_content .='<img src="http://www.modian.com/static/new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+        $str_content .='<footer style="margin-top: 0px;">';
+        $str_content .='<section class="container setOn">';
+        $str_content .='<div class="outher setOn">';
+        $str_content .='<p class="icp">拒收摩点网信息，请';
+        $str_content .='<a href="http://www.modian.com/user/email_refund?email=' . $user . '&unit_key=' . $unit_key . '" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+        $str_content .='</div>';
+        $str_content .='<div class="outher setOn" style="margin-top:30px">';
+        $str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+        $str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+        $str_content .='</div>';
+        $str_content .='</section>';
+        $str_content .='</footer>';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="margin-top:40px;width: 100%;height:1.5%;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left bottom;"></div>';
+        $str_content .='</tr></td>';
+        $str_content .='</table>';
+        $str_content .='</body>';
+        $str_content .='</html>';
+
+        if (isset($user)) {
+            return $str_content;
+        } else {
+            echo $str_content;
+        }
+    }
+
+    public function custom_more_template($info_id, $user) {
+        $data = array();
+        $product_list = array();
+        //$email_info = $this->Edm_user_m->get_edm_info($info_id);
+
+        $cache_key = sprintf('%s', "modiancustommore" . $info_id . "info");
+        if (md_memcache::get($cache_key)) {
+            $email_info = md_memcache::get($cache_key);
+        } else {
+            $email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+            md_memcache::set($cache_key, $email_info_arr, 3600 * 2);
+            $email_info = md_memcache::get($cache_key);
+        }
+
+        $proId_str = $email_info["pro_id"];
+        $proId_name = $email_info["pro_name"];
+        $proId_asc = $email_info["serial_num"];
+        $proId_ui = $email_info["item_num"];
+        $prId_des = $email_info["item_content"];
+        $side = $email_info["user_side"];
+
+        $cache_key = sprintf('%s', "modiancustommore" . $info_id . "edm");
+        if (md_memcache::get($cache_key)) {
+            $data["product_list"] = md_memcache::get($cache_key);
+        } else {
+            $product_list = $this->Edm_product_m->get_product_arr($proId_str, $proId_asc, $proId_ui, $prId_des, $proId_name);
+            md_memcache::set($cache_key, $product_list, 3600 * 2);
+            $data["product_list"] = md_memcache::get($cache_key);
+        }
+
+        //预览邮件时默认不显示用户昵称,用XXXX代替
+        if (isset($user)) {
+            $data["send_user_email"] = $user;
+            if ($side == 1) {
+                $user_temp = $this->Edm_user_m->get_username_email($user);
+                if ($user_temp) {
+                    $data["send_user"] = $user_temp;
+                } else {
+                    $data["send_user"] = $user;
+                }
+            } elseif ($side == 2) {
+                $data["send_user"] = $user;
+            }
+        } else {
+            $data["send_user"] = "XXXX";
+        }
+        $mo_pass = "modianedm1234";
+        $unit_key = md5($user . '_' . $mo_pass);
+
+        $data["email_title"] = $email_info["email_title"];
+        $data["email_contents"] = $email_info["email_contents"];
+        $data["theme_id"] = $info_id;
+        $data["side"] = $email_info["user_side"];
+        $data["tag"] = isset($email_info["tag"]) ? $email_info["tag"] : "";
+        $tag = str_replace(";", "-", $data["tag"]);
+        $pro_tag = str_replace(",", "-", $tag);
+        $upload_url = _gc('cdn_url', 'config');
+
+        $str_content = '<!DOCTYPE html>';
+        $str_content .='<html>';
+        $str_content .='<head>';
+
+        if (!empty($data["email_title"])) {
+
+            $str_content .='<title>' . $data["email_title"] . '</title>';
+        }
+
+        $str_content .='</head>';
+        $str_content .='<body style="display: block;  margin: 8px;">';
+        $str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url(http://www.modian.com/static/new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left top;"></div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+        $str_content .='<a href="http://www.modian.com"><img src="http://www.modian.com/static/new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+        $str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+        $str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px;">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        if (!empty($data["email_contents"])) {
+            $str_content .='<tr><td>';
+            $str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">' . $data["email_contents"] . '</div>';
+            $str_content .='</tr></td>';
+            $str_content .='<tr><td>';
+            $str_content .='<div style="width: 100%;text-align: center;margin-top: 2px;">';
+            $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="width:700px">';
+            $str_content .='</div>';
+            $str_content .='</tr></td>';
+        }
+        if (!empty($data["product_list"])) {
+            foreach ($data["product_list"] as $key => $val) {
+                if ($key == 0) {
+                    if ($val['product_ui'] == 1) {
+                        $str_content .='<tr>';
+                        $str_content .='<th><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" ><img style="width:700px; height:500px;margin-top: 30;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></th>';
+                        $str_content .='</tr>';
+                        $str_content .='<tr><td>';
+                        $str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">' . $val['product_name'] . '</p>';
+                        $str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">' . $val['product_des'] . '</p>';
+                        $str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" style="height: 21px;width: 81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+                        $str_content .='</td></tr>';
+                    } elseif ($val['product_ui'] == 2) {
+                        $str_content .='<tr>';
+                        $str_content .='<td>';
+                        $str_content .='<div style="float: left;margin-top: 10px"><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"><img style="width:330px; height:261px;margin-left: 123px;  margin-top: 17px;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></div>';
+                        $str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height: 54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600;line-height: 1.5;margin-top: 10px;">' . $val['product_name'] . '</p>';
+                        $str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top:13px;line-height: 2;">' . $val['product_des'] . '</p>';
+                        $str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"  style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+                        $str_content .='</td>';
+                        $str_content .='</tr>';
+                    }
+                } else {
+                    $str_content .='<tr>';
+                    $str_content .='<td style="text-align: center;">';
+                    $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top:33px;width:700px">';
+                    $str_content .='</td></tr>';
+                    if ($val['product_ui'] == 1) {
+                        $str_content .='<tr>';
+                        $str_content .='<th><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"><img style="margin-top:30px;width:700px; height:500px;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></th>';
+                        $str_content .='</tr>';
+                        $str_content .='<tr><td>';
+                        $str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">' . $val['product_name'] . '</p>';
+                        $str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">' . $val['product_des'] . '</p>';
+                        $str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" style="height: 21px;width: 81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+                        $str_content .='</td></tr>';
+                    } elseif ($val['product_ui'] == 2) {
+                        $str_content .='<tr>';
+                        $str_content .='<td>';
+                        $str_content .='<div style="float:left;margin-top: 10px"><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"><img style="width:330px; height:261px;margin-left: 123px;  margin-top: 17px;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></div>';
+                        $str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height: 54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600; width:360px;line-height: 1.5;margin-top: 10px;">' . $val['product_name'] . '</p>';
+                        $str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top: 13px;line-height: 2;">' . $val['product_des'] . '</p>';
+                        $str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+                        $str_content .='</td>';
+                        $str_content .='</tr>';
+                    }
+                }
+            }
+        }
+
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+        $str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+        $str_content .='<img src="http://www.modian.com/static/new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+        $str_content .='<footer style="margin-top: 0px;">';
+        $str_content .='<section class="container setOn">';
+        $str_content .='<div class="outher setOn">';
+        $str_content .='<p class="icp">拒收摩点网信息，请';
+        $str_content .='<a href="http://www.modian.com/user/email_refund?email=' . $user . '&unit_key=' . $unit_key . '" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+        $str_content .='</div>';
+        $str_content .='<div class="outher setOn" style="margin-top:30px">';
+        $str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+        $str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+        $str_content .='</div>';
+        $str_content .='</section>';
+        $str_content .='</footer>';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="margin-top:40px;width: 100%;height:10px%;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left bottom;"></div>';
+        $str_content .='</tr></td>';
+        $str_content .='</table>';
+        $str_content .='</body>';
+        $str_content .='</html>';
+
+        if (isset($user)) {
+            return $str_content;
+        } else {
+            echo $str_content;
+        }
+    }
+
+    public function custom_topic_template($edm_id, $user) {
+        $data = array();
+        //$edm_info = $this->Edm_user_m->get_edm_info($edm_id);
+
+        $cache_key = sprintf('%s', "modiancustomtopic" . $edm_id . "info");
+        if (md_memcache::get($cache_key)) {
+            $edm_info = md_memcache::get($cache_key);
+        } else {
+            $edm_info_arr = $this->Edm_user_m->get_edm_info($edm_id);
+            md_memcache::set($cache_key, $edm_info_arr, 3600 * 2);
+            $edm_info = md_memcache::get($cache_key);
+        }
+        $topic_content = isset($edm_info["email_content"]) ? $edm_info["email_content"] : "";
+
+        $side = $edm_info["user_side"];
+        $data = $edm_info;
+        $data["send_user_email"] = $user;
+        if ($side == 1) {
+            $user_temp = $this->Edm_user_m->get_username_email($user);
+            if ($user_temp) {
+                $data["send_user"] = $user_temp;
+            } else {
+                $data["send_user"] = $user;
+            }
+        } elseif ($side == 2) {
+            $data["send_user"] = $user;
+        }
+        $mo_pass = "modianedm1234";
+        $unit_key = md5($user . '_' . $mo_pass);
+        $data["theme_id"] = $edm_id;
+        $data["side"] = $edm_info["user_side"];
+
+        $upload_url = _gc('cdn_url', 'config');
+
+        $str_content = '<!DOCTYPE html>';
+        $str_content .='<html>';
+        $str_content .='<head>';
+
+        if (!empty($data["email_title"])) {
+
+            $str_content .='<title>' . $data["email_title"] . '</title>';
+        }
+
+        $str_content .='</head>';
+        $str_content .='<body style="display: block;  margin: 8px;">';
+        $str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url(http://www.modian.com/static/new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left top;"></div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+        $str_content .='<a href="http://www.modian.com"><img src="http://www.modian.com/static/new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+        $str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+        $str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px;">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        if (!empty($data["email_contents"])) {
+            $str_content .='<tr><td>';
+            $str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">' . html_entity_decode($data["email_contents"]) . '</div>';
+			$str_content .='<style>.text_in img{max-width:100% !important}</style>';
+            $str_content .='</tr></td>';
+        }
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+        $str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+        $str_content .='<img src="http://www.modian.com/static/new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;">';
+        $str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+        $str_content .='<footer style="margin-top: 0px;">';
+        $str_content .='<section class="container setOn">';
+        $str_content .='<div class="outher setOn">';
+        $str_content .='<p class="icp">拒收摩点网信息，请';
+        $str_content .='<a href="http://www.modian.com/user/email_refund?email=' . $user . '&unit_key=' . $unit_key . '" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+        $str_content .='</div>';
+        $str_content .='<div class="outher setOn" style="margin-top:30px">';
+        $str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+        $str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+        $str_content .='</div>';
+        $str_content .='</section>';
+        $str_content .='</footer>';
+        $str_content .='</div>';
+        $str_content .='</tr></td>';
+        $str_content .='<tr><td>';
+        $str_content .='<div style="margin-top:40px;width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left bottom;"></div>';
+        $str_content .='</tr></td>';
+        $str_content .='</table>';
+        $str_content .='</body>';
+        $str_content .='</html>';
+
+        if (isset($user)) {
+            return $str_content;
+        } else {
+            echo $str_content;
+        }
+    }
+
+    public static function substr_cn($string, $length = 80, $charset = 'UTF-8', $etc = '......') {
+        if (mb_strwidth($string, 'UTF-8') < $length)
+            return $string;
+        return mb_strimwidth($string, 0, $length, $etc, $charset);
+    }
+
+    /**
+     * 更新 unionid
+     */
+    public function update_wx_unionid($id, $unionid) {
+        $sql = "UPDATE md_weixin_binding SET unionid='{$unionid}' WHERE id={$id}"; //更新需要退款的项目为需要退款
+        $res = $this->db->query($sql);
+        return $res;
+    }
+
+    /**
+     * 微信公众平台和开放平台unionid数据处理
+     */
+    public function wx_deal_unionid() {
+        $sql = "SELECT id,platform,openid,unionid,user_info FROM `md_weixin_binding` order by id desc";
+        $result = $this->db->query($sql)->result_array();
+        $str = "处理失败的编号:::";
+        if (!empty($result)) {
+            foreach ($result as $info) {
+                switch ($info["platform"]) {
+                    case "weixin":
+                        if (!empty($info["user_info"])) {
+                            $wx_info = unserialize($info["user_info"]);
+                            $res = $this->update_wx_unionid($info["id"], $wx_info["unionid"]);
+                        } else {
+                            $res = $this->update_wx_unionid($info["id"], $info["openid"]);
+                        }
+                        break;
+                    default:
+                        $res = $this->update_wx_unionid($info["id"], $info["openid"]);
+                        break;
+                }
+                if (!$res) {
+                    $str .= $info["id"] . ",";
+                }
+            }
+        }
+        echo $str;
+    }
+
+}

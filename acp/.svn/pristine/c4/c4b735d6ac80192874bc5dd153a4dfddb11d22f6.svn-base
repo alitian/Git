@@ -1,0 +1,152 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<!--
+		<ul class="nav nav-tabs">
+		  	<li role="presentation" class="active"><a href="">帖子</a></li>
+		  	<li role="presentation"><a href="">回复</a></li>
+		  	<li role="presentation"><a href="">回复</a></li>
+		</ul>
+		-->
+		<div>
+			<h2>	
+				摩兮推广
+			</h2>
+		</div>
+		<hr>
+		<div>
+			<div>
+				<form name="filter" action="/bbs_promotion/index" method="post" class="form-inline">
+					<span>
+						<select name="type" id="type" class="form-control input-sm">
+							<option value="all" <?php if(empty($type)) echo 'selected'; ?>>推广类型</option>		
+							<?php
+								foreach($type_arr as $type_single)
+								{
+									if($type_single == $type)
+										echo "<option value=".$type_single." selected>".$type_single."</option>";
+									else
+										echo "<option value=".$type_single.">".$type_single."</option>";
+								}
+							?>
+						</select>
+					</span>
+					<span>
+						<a id="search" href="javascript:;" class="btn btn-primary btn-sm">查询</a>
+					</span>
+					<span style="float:right;margin-right:100px;">
+						<a href="/bbs_promotion/add_promotion" class="btn btn-info btn-sm">新增</a>
+					</span>
+				</form>
+			</div>
+			<p></p>
+			<?php if($promotion_list): ?>
+			<div>
+				<style>
+					td {
+						vertical-align:middle !important;
+						text-align:center !important;
+					}
+				</style>
+				<table class="table table-bordered">
+					<tr>
+						<th width="5%">排序</th>
+						<th>推荐标题</th>
+						<th width="15%">推荐链接</th>
+						<th width="20%">推荐图片</th>
+						<th width="15%">操作</th>
+					</tr>
+				<?php foreach($promotion_list as $promotion_info): ?>
+					<tr>
+						<td><input sortid="<?= $promotion_info['sortid'] ?>" pro_id="<?= $promotion_info['pro_id'] ?>" type="text" class="sortid" value="<?= $promotion_info['sortid'] ?>" style="width:40px;margin-bottom:0px;"></td>
+						<td><?= $promotion_info['pro_title'] ?></td>
+						<td><?= $promotion_info['pro_link'] ?></td>
+						<td><?php if($promotion_info['pro_img']) echo "<img src='{$promotion_info['pro_src']}' />"; ?></td>
+						<td><a href="/bbs_promotion/edit_promotion/<?= $promotion_info['pro_id'] ?>">修改</a></td>
+					</tr>
+				<?php endforeach; ?>
+				</table>
+			</div>
+			<div>
+				<form action="/bbs_promotion/edit_sortid" method="post">
+					<input type="hidden" name="pro_id_array">	
+					<input type="hidden" name="pro_sortid_array">	
+					<button id="edit_sortid" type="submit" class="btn btn-info btn-sm">批量修改排序</button>
+				</form>
+			</div>
+			<?php else: ?>
+				<div>暂无内容</div>
+			<?php endif; ?>
+		</div>
+		<?php if($pagination): ?>
+		<hr>
+		<div class="text-center">
+			<?php echo $pagination; ?>
+		</div>
+		<?php endif; ?>
+	</div>
+	<script>
+		$('#search').click(function(){
+			var type = $('#type').val();	
+			var jump_url = '/bbs_promotion/index/' + type;
+			location.href=jump_url;
+		});
+		$('.sortid')
+		$("#edit_sortid").click(function(){
+			var input_set = $(".sortid");
+			var length = input_set.length;
+
+			// 定义2个对象，然后直接转换为json数组，发送给PHP
+			var pro_id_array = [];
+			var pro_sortid_array = [];
+			var is_edit = false;
+			for(var i = 0; i <length; i++){
+
+				// 还得再次检验，是否有非数字
+				var sortid = $.trim(input_set[i].value);
+				var num = i+1;
+	            if(sortid == ''){ 
+	                    alert('第 ' + num + ' 条推广的排序为空，请修正！'); 
+	                    return false; 
+	            }
+				if(isNaN(sortid)){
+					alert('第 ' + num + ' 条推广的排序为非数字，请修正！');
+					return false;
+				}
+				var pro_id = parseInt(input_set[i].getAttribute('pro_id'));
+				var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+
+				// 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+				if(prev_sortid != sortid){
+					is_edit = true;
+				}
+
+				// 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+				sortid = parseInt(sortid);
+				pro_id_array[i] = pro_id;
+				pro_sortid_array[i] = sortid;
+			}
+			if(!is_edit){
+				alert('未作任何修改');
+				return false;
+			}
+			pro_id_array = JSON.stringify(pro_id_array);
+			pro_sortid_array = JSON.stringify(pro_sortid_array);
+			$('input[name=pro_id_array]').val(pro_id_array);
+			$('input[name=pro_sortid_array]').val(pro_sortid_array);
+		});
+
+		$(".sortid").blur(function(){
+			var value = $(this).val();
+			if(isNaN(value)){
+				alert('只能填写数字');
+				$(this).focus();
+				return false;
+			}
+		});
+	</script>
+<?php $this->load->view('ckad/footer'); ?>

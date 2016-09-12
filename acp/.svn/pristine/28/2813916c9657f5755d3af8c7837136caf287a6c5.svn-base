@@ -1,0 +1,456 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: modian
+ * Date: 2016/5/9
+ * Time: 9:49
+ */
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+class Md_subject extends Acp_Controller
+{
+    const MD_PHREAT_ITEM = 4;
+
+    //+++++++++++专题推荐++++++++++++++++
+//    public function subject_rcmd_manager()
+//    {
+//        $this->load->view("md_subject/subject_rcmd_index");
+//
+//    }
+//    public function subject_rcmd_edit($id)
+//    {
+//        $id = intval($id);
+//        if(isset($id)){
+//
+//        }
+//        $this->load->view("md_subject/subject_rcmd_edit");
+//    }
+//    public function subject_rcmd_add()
+//    {
+//        $this->load->view("md_subject/subject_rcmd_edit");
+//    }
+
+    public function get_subject_list($page,$perpage){
+        $offset = ($page-1)*$perpage;
+        $this->db->from("md_subject");
+        $this->db->limit($perpage,$offset);
+        $this->db->order_by("weight desc, ctime desc");
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+    public function get_total_subject(){
+        $this->db->from("md_subject");
+//        $this->db->where("status",1);
+        $result = $this->db->get()->num_rows();
+        return $result;
+    }
+    //+++++++++++专题管理++++++++++++++++
+    public function subject_manager($page)
+    {
+        $page = $page?intval($page):1;
+        $perpage = 20;
+        $subject_list = $this->get_subject_list($page, $perpage);
+//        print_r($subject_list);exit("OK");
+        $total_rows = $this->get_total_subject();
+        // var_dump($total_rows);
+        // 当前页的链接，但是缺失 '分页页数'
+        $cur_url = "/md_subject/subject_manager/";
+        $config = array(
+            'uri_segment' => 3, // 在url的第二段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $total_rows,
+            'per_page' => $perpage,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $this->load->vars('curpage', $page);
+        $this->load->vars('preview_url', $this->preview_url);
+        $this->load->vars('subject_list', $subject_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("md_subject/subject_index");
+    }
+    public function subject_edit($id,$type)
+    {
+        $id = intval($id);
+        $type = isset($_GET['type'])?intval($_GET['type']):intval($type);
+        if($id){
+            $this->db->from("md_subject");
+            $this->db->where('sub_id',$id);
+            $subject_info = $this->db->get()->row_array();
+            $this->load->vars("subject_info",$subject_info);
+        }
+        $this->load->vars('type',$type);
+        $this->load->view("md_subject/subject_edit");
+    }
+
+    public function subject_add()
+    {
+        $subject_data = $this->input->post(null);
+        $preview = $subject_data['preview'];
+        $id = intval($subject_data['sub_id']);
+        unset($subject_data['preview']);
+        $subject_data['last_manager_name'] =  $subject_data['manager_name'] = $_SESSION['admin_name'];
+        $subject_data['sub_detail'] = htmlspecialchars($subject_data['sub_detail'],ENT_QUOTES);
+        $this->load->library("Md_redis");
+        if($preview){
+            $time = $id ? $id : time();
+            $this->md_redis->SetEx("md_subject_preview_".$time , 60*60 , serialize($subject_data));
+            $url = _gc("domain_huodong","domain").'/subject/subject_preview/'.$time;
+            echo ("<script type='text/javascript'>window.open('".$url."');</script>");
+            $this->load->vars('type',$subject_data['type']);
+            $this->load->vars("subject_info",$subject_data);
+            $this->load->view("md_subject/subject_edit");
+            return;
+        }
+        unset($subject_data['sub_id']);
+        if($id){
+            $subject_data['ctime'] = date("Y-m-d H:i:s",time());
+            unset($subject_data['manager_name']);
+            $this->db->where('sub_id',$id);
+            $this->db->update("md_subject",$subject_data);
+            $res = $this->db->affected_rows();
+        }else{ //新增
+//            print_r($subject_data);exit("OK");
+            $this->db->insert("md_subject",$subject_data);
+            $res = $this->db->insert_id();
+        }
+        if($res){
+            md_common::display_javascript("操作成功","/md_subject/subject_manager");
+        }else{
+            md_common::display_javascript("没有修改内容","/md_subject/subject_manager");
+        }
+    }
+
+    public function search_item()
+    {
+        $pro_id = intval(_pv('pro_id'));
+        $type = intval(_pv('type'));
+        $this->load->model("product_model");
+
+        if($type==2){
+            $res = $this->db->query("SELECT `pro_type` FROM `md_product` WHERE `id`={$pro_id}")->row_array();
+            if(!$res||$res['pro_type']!=self::MD_PHREAT_ITEM){
+                $return_data =array(
+                    'status' => 0,
+                    'msg'    => "此项目不是创意类项目"
+                );
+                echo json_encode($return_data);exit;
+            }
+        }
+        $result  = $this->product_model->get_product_info($pro_id);
+//        $res = $this->product_model->get_product_status($result, $result['backer_money']);
+        if($result['if_show'] != 1){
+            $return_data =array(
+                'status' => 0,
+                'msg'    => "此项目暂未审核通过"
+            );
+            echo json_encode($return_data);exit;
+            return;
+        }
+        if($result){
+            $return_data = array(
+                'pro_id' => $pro_id,
+                'status' => 1,
+                'logo'   => cdn_url($result['logo2']),
+                'title'  => $result['name'],
+                'link'   => _gc("domain_zhongchou","domain")."/item/".$pro_id.'.html',
+            );
+        }else{
+            $return_data =array(
+                'status' => 0,
+                'msg'    => "没有找到此项目"
+            );
+        }
+        echo json_encode($return_data);
+    }
+    //+++++++++++分类管理++++++++++++++++
+
+    public function get_category_list()
+    {
+        $this->db->from("md_product_category");
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+    public function category_manager()
+    {
+        $category_list = $this->get_category_list();
+        $this->load->vars("category_list",$category_list);
+        $this->load->view("md_subject/category_index");
+    }
+
+    public function category_edit($id)
+    {
+        $id = intval($id);
+        if($id){
+            $this->db->from("md_product_category");
+            $this->db->where('id',$id);
+            $category_info = $this->db->get()->row_array();
+            $this->load->vars("category_info",$category_info);
+        }
+        $this->load->view("md_subject/category_edit");
+    }
+    public function category_add()
+    {
+        $id = isset($_POST['id'])?(int)$_POST['id']:"";
+//        $data['catename_ch'] = _pv('catename_ch');
+        $data['icon']        = _pv('icon');
+        $data['bg_pic']      = _pv('bg_pic');
+        if($id){
+            $this->db->where('id',$id);
+            $this->db->update("md_product_category",$data);
+            $res = $this->db->affected_rows();
+        }else{
+            $this->db->insert("md_product_category",$data);
+            $res = $this->db->insert_id();
+        }
+        if($res){
+            md_common::display_javascript("操作成功","/md_subject/category_manager");
+        }else{
+            md_common::display_javascript("没有修改内容","/md_subject/category_manager");
+        }
+    }
+
+
+    //+++++++++++公共方法+++++++++
+    //修改权重
+    public function change_weight()
+    {
+        $type   = _pv("type");
+        $id     = (int)_pv("id");
+        $weight = (int)_pv("weight");
+        $update_data['weight'] = $weight;
+        switch($type){
+            case '1':
+                $this->db->where("id",$id);
+                $this->db->update("md_product_category",$update_data);
+                break;
+            case '2':
+                $this->db->where('sub_id',$id);
+                $this->db->update("md_subject",$update_data);
+                break;
+        }
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status' => 1,
+                'msg' => "修改成功",
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+                'msg' => "没有修改内容",
+            );
+        }
+        echo json_encode($return_data);
+    }
+
+    public function update_status_by_type()
+    {
+        $type   = _pv('type');
+        $id     = _pv('id');
+        $data['status'] = _pv("status");
+        switch($type){
+            case '1':
+                $this->db->where("id",$id);
+                $this->db->update("md_product_category",$data);
+                break;
+        }
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status' => 1,
+                'msg' => "修改成功",
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+                'msg' => "没有修改内容",
+            );
+        }
+        echo json_encode($return_data);
+    }
+    public function upload()
+    {
+        $this->load->library('md_imagick');
+        // 图片上传input框name名
+        $input_file_name = 'imgFile';
+        $attachment_path_prefix = 'md_wx/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $db_path_prefix = 'uploads/' . $attachment_path_prefix;
+        $full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+
+        if(!file_exists($full_upload_path)){
+            mkdir($full_upload_path, 0777, TRUE);
+        }
+        $config = array(
+            'upload_path' => $full_upload_path,
+            'allowed_types' => 'gif|jpg|png|jpeg',
+            'encrypt_name' => TRUE,
+            'max_size' => '10000',
+            'max_width' => '102400',
+            'max_height' => '76800'
+        );
+        $this->load->library('upload', $config);
+        if( ! $this->upload->do_upload($input_file_name)){
+            $errmsg = $this->upload->display_errors();
+            echo "<script>alert('{$errmsg}')</script>";
+        }else{
+            $attachment_data = $this->upload->data();
+            // 得到原图的系统路径
+            $attachment_system_path = $attachment_data['full_path'];
+            $detail_size = '690x296';
+            $this->load->helper("bbs_common");
+            thumbnail_image($attachment_system_path,$detail_size,"_thumb",array(),'md_wx');
+//            @unlink($attachment_system_path);
+            // 存储数据表的路径
+            $db_path = $db_path_prefix . $attachment_data['raw_name']."_thumb".$attachment_data['file_ext']; 		//这里我们直接存压缩的名字 数据库存储的路径是以 'upload' 开头
+            // 原图的URL访问地址
+            $attachment_url =cdn_url($db_path);
+
+            $return_data = array(
+                'pic'       => $attachment_url,
+                'db_path'   => $db_path,
+                'root_path' =>$attachment_system_path
+            );
+            echo json_encode($return_data);
+        }
+
+    }
+
+    //上传背景图
+    public function upload_bg_pic()
+    {
+        $type = intval(_pv('type'));
+        $this->load->library('md_imagick');
+        $input_file_name = 'upfile';
+        $attachment_path_prefix = 'md_category/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $db_path_prefix = 'uploads/' . $attachment_path_prefix;
+        $full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+
+        if(!file_exists($full_upload_path)){
+            mkdir($full_upload_path, 0777, TRUE);
+        }
+        $config = array(
+            'upload_path' => $full_upload_path,
+            'allowed_types' => 'gif|jpg|png|jpeg',
+            'encrypt_name' => TRUE,
+            'max_size' => '10000',
+            'max_width' => '102400',
+            'max_height' => '76800'
+        );
+        $this->load->library('upload', $config);
+        if( ! $this->upload->do_upload($input_file_name)){
+            $errmsg = $this->upload->display_errors();
+            echo "<script>alert('{$errmsg}')</script>";
+        }else{
+            $attachment_data = $this->upload->data();
+            // 得到原图的系统路径
+            $attachment_system_path = $attachment_data['full_path'];
+            switch($type){
+                case '1':
+                    $detail_size = '100x100';
+                    break;
+                case '2':
+                    $detail_size = '690x296';
+                    break;
+
+            }
+            $this->load->helper("bbs_common");
+            thumbnail_image($attachment_system_path,$detail_size,"_thumb",array(),'md_wx');
+//            @unlink($attachment_system_path);
+            // 存储数据表的路径
+            $db_path = $db_path_prefix . $attachment_data['raw_name']."_thumb".$attachment_data['file_ext']; 		//这里我们直接存压缩的名字 数据库存储的路径是以 'upload' 开头
+            // 原图的URL访问地址
+            $attachment_url =cdn_url($db_path);
+            //显示到页面那个预览图片的位置
+            switch($type){
+                case '1':
+                    $js = <<<EOT
+                		<script>
+                			top.document.getElementById('img_preview').setAttribute('src','$attachment_url');
+                			top.document.getElementById('img_preview').style.display='inline-block';
+                			top.document.getElementById('default_text').style.display='none';
+                			top.document.getElementById('pro_icon').value='$db_path';
+                			top.document.getElementById('check_upload').value=1;
+
+                		</script>;
+EOT;
+                    break;
+                case '2':
+                    $js = <<<EOT
+                		<script>
+                			top.document.getElementById('bg_preview').setAttribute('src','$attachment_url');
+                			top.document.getElementById('img_preview').style.display='inline-block';
+                			top.document.getElementById('default_text').style.display='none';
+                			top.document.getElementById('pro_img').value='$db_path';
+                			top.document.getElementById('check_upload').value=1;
+
+                		</script>;
+EOT;
+                    break;
+
+            }
+
+            echo $js;
+        }
+
+    }
+
+    public function del_item_by_type()
+    {
+        $type = _pv('type');
+        $id  = _pv('id');
+        switch($type){
+            case '2':
+                $this->db->where('sub_id',$id);
+                $this->db->delete("md_subject");
+                break;
+        }
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status' => 1,
+                'msg' => "删除成功",
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+                'msg' => "删除失败",
+            );
+        }
+        echo json_encode($return_data);
+    }
+
+    public function update_status($type)
+    {
+        $type = intval($type);
+        switch($type){
+            case 1:
+                break;
+            case 2:
+                $this->db->from("md_subject");
+                $this->db->where("status",0);
+                $items = $this->db->get()->result_array();
+                if(!empty($items)){
+                    $this->load->model("comment_model");
+                    $uid = 14904;   //摩小点
+                    foreach($items as $item){
+                        $post_id = $this->comment_model->acp_add_thread($uid, $item['title'], $item['sub_detail'], $item['cover'],'','专题', 0,4);
+                        $this->db->update("md_subject",array('status'=>1,'moxi_post_id'=>$post_id),array('sub_id'=>$item['sub_id']));
+                    }
+                }
+                break;
+        }
+        $res = $this->db->affected_rows();
+        if($res){
+            md_common::display_javascript("同步成功");
+        }else{
+            md_common::display_javascript("没有内容可同步");
+        }
+    }
+}

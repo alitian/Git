@@ -1,0 +1,102 @@
+<?php
+
+/*****YoukuUpload SDK*****/
+header ( 'Content-type: text/html; charset=utf-8' );
+include ("include/YoukuUploader.class.php");
+ini_set ( "max_execution_time", "0" );
+	$params = array ();
+	$vedio_source = array ();
+	$pro_id = array();
+	//mysql杩炴帴
+	$con = mysql_connect ( "10.251.211.165:16888", "modian", "zdmC09OIuuuyqa5w" );
+	if (! $con) {
+		die ( 'Could not connect: ' . mysql_error () );
+	}
+	
+	$db_select = mysql_select_db ( "app_modian", $con );
+	if (! $db_select) {
+		die ( 'Could not select: ' . mysql_error () );
+	}
+	
+	$client_id = "0e6b7517be4cba21"; // Youku OpenAPI client_id
+	$client_secret = "6b8061212786c617b821d84d9bd9b875"; //Youku OpenAPI client_secret
+	$source;
+	$file = fopen("./token.txt","a+");
+	if($file) {  
+		$source = fgets($file);  
+	} 
+    fclose($file);
+    $row = explode(',',$source);
+    $params ['access_token'] = $row[1];
+    $params ['refresh_token'] = $row[2];
+    $params ['code'] = $row[0];
+	
+	/*
+**The way with username and password applys to the partner level clients!
+**Others may use access_token to upload the video file.
+**In addition, refresh_token is to refresh expired access_token. 
+**If it is null, the access_token would not be refreshed.
+**You may refresh it by yourself.
+**Like "http://open.youku.com/docs/api/uploads/client/english" for reference.
+*/
+	$params ['redirect_uri'] = "http://acp.modian.com/libraries/tools/crontab/up_youku/code_success.php";
+	error_log(var_export($params, true), 3, "/tmp/vedio_up01.log");
+	ini_set ( 'memory_limit', '256M' );
+	$youkuUploader = new YoukuUploader ( $client_id, $client_secret );
+	
+	mysql_query ( "SET NAMES 'utf8'" );
+	$date = date("Y-m-d H:i:s", time() - 3600 * 24);
+	//获取审核通过的项目id
+	$pro = "SELECT `id` FROM `md_product` WHERE `if_show` = 1 and `examine_modify_time` > '$date' ";
+	$pro_back = mysql_query ( $pro );
+	while ($row = mysql_fetch_array ( $pro_back )){
+		$pro_id [] = $row ['id'];
+	}
+	error_log(var_export($pro_id, true), 3, "/tmp/up_pro.log");
+	//根据通过审核的项目获取对应视频
+	for($i = 0;$i < count($pro_id);$i++){
+		$vedio_sql = "SELECT  `id`,`pro_id`,`up_title`, `up_tag`, `vedio_name`, `vedio_url`,`copyright`, `vedio_size`,`vedio_desc` FROM `md_product_vedio` WHERE `pro_id` = $pro_id[$i] AND `if_show` = 1 AND `dealed` = 0";		
+		$result = mysql_query ( $vedio_sql );
+		if(empty($result)) {
+			return false;
+		}else{
+			while ( $row = mysql_fetch_array ( $result ) ) {
+				$vedio_source ['up_title'] = $row ['up_title'];
+				$vedio_source ['up_tag'] = $row ['up_tag'];
+				$vedio_source ['vedio_name'] = $row ['vedio_name'];
+				$vedio_source ['file_name'] = $row ['vedio_url'];
+				$vedio_source ['copyright_type'] = $row ['copyright'];
+				$vedio_source ['vedio_size'] = $row ['vedio_size'];
+				$vedio_source ['vedio_desc'] = $row ['vedio_desc'];
+			
+				$file_name = $vedio_source ['file_name']; //video file
+				try {
+					$file_md5 = @md5_file ( $file_name );
+					if (! $file_md5) {
+						throw new Exception ( "Could not open the file!\n" );
+					}
+				} catch ( Exception $e ) {
+					echo "(File: " . $e->getFile () . ", line " . $e->getLine () . "): " . $e->getMessage ();
+					return;
+				}
+				$file_size = $vedio_source ['vedio_size'];
+				$uploadInfo = array (
+					"title" => $vedio_source ['up_title'], //video title
+					"tags" => $vedio_source ['up_tag'], //tags, split by space
+					"copyright_type" => $vedio_source ['copyright_type'], 
+					"file_name" => $file_name, //video file name
+					"file_md5" => $file_md5, //video file's md5sum
+					"file_size" => $file_size, //video file size;
+					"description" => $vedio_source ['vedio_desc']
+			 	);
+				error_log ( var_export ( $uploadInfo, true ), 3, "/tmp/vedio_up02.log" );
+				$progress = true; //if true,show the uploading progress 
+				$back_res = $youkuUploader->upload ( $progress, $params, $uploadInfo );
+			
+				$update_source = $youkuUploader->update_source ( $row ['id'] );
+			}
+		}
+	}
+	mysql_close ( $con );
+
+?>

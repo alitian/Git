@@ -1,0 +1,263 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<ul class="nav nav-tabs">
+		  	<li role="presentation"><a href="<?php echo $site_url . 'bbs_report/post'; ?>">帖子</a></li>
+		  	<li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_report/reply'; ?>">回复</a></li>
+			<li role="presentation" ><a href="<?php echo $site_url . 'bbs_report/export_comment'; ?>">评论导出</a></li>
+		</ul>
+		<div>
+			<h2>	
+				回复举报
+			</h2>
+		</div>
+		<hr>
+		<div>
+			<div>
+				<form name="filter" action="" method="post" class="form-inline">
+					<input type="text" name="post_id" id="post_id" class="form-control input-sm" placeholder="请输入帖子ID">
+					<span>
+						<select name="time" id="time_sort" class="form-control input-sm">
+							<option value="1">按时间倒序</option>		
+							<option value="2">按时间正序</option>		
+						</select>
+					</span>
+					<input type="hidden" value="1" name="submit">
+					<span>
+						<button type="submit" class="btn btn-primary btn-sm">查询</button>
+					</span>
+				</form>
+			</div>
+			<p></p>
+			<div>
+				<table class="table table-bordered">
+					<tr>
+						<th width="15%">举报人(多人举报，以第一人为准)</th>
+						<th width="25%">回复简介</th>
+						<th width="25%">举报详情</th>
+						<th width="10%">举报次数</th>
+						<th width="15%">举报时间(多个举报，以最后一人时间为准)</th>
+						<th width="10%">操作</th>
+					</tr>
+			<?php
+				foreach($report_list as $report)
+				{
+					echo "
+					<tr>
+						<td>{$report['user_info']['nickname']}</td>
+						<td><a class='view_reply' style='cursor:pointer;' url='{$site_url}bbs_view/reply/{$report['post_id']}/{$report['reply_id']}'>{$report['subject']}</a></td>
+						<td>{$report['message']}</td>
+						<td>{$report['number']}</td>
+						<td>{$report['ctime']}</td>
+						<td>
+							<p class='text-center'><a style='cursor:pointer' report_id='{$report['report_id']}' class='transact_report'>忽略举报</a></p>
+							<p class='text-center'><a style='cursor:pointer' report_id='{$report['report_id']}' class='del_report'>删除</a></p>
+						</td>
+					</tr>
+					";
+				}
+			?>
+				</table>
+			</div>
+		</div>
+		<hr>
+		<div class="text-center">
+			<?php echo $pagination; ?>
+		</div>
+	</div>
+
+	<!-- ************** 区域好像没用 ******************* -->
+	<div id="view_report" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							内容查看
+						</h4>
+					</div>
+					<div class="modal-body">
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+	<!-- ************** 区域好像没用 ******************* -->
+
+	<!-- 显示回复内容模态框 -->
+	<div id="view_reply" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+	<div id="del_report" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							删除举报
+						</h4>
+					</div>
+					<div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="no_reason">删除理由</label>
+						    <p style="clear:both;"></p>
+						    <hr>
+						    <div class="col-sm-8">
+								<?php
+								foreach($pass_reason as $key => $reason):
+								if($key == 0){
+									echo "<div style='margin-left:100px'><input type='radio' checked name='no_reason' style='margin-right:10px'> <span>$reason</span></div>";
+								}else{
+									echo "<div style='margin-left:100px'><input type='radio' name='no_reason' style='margin-right:10px'> <span>$reason</span></div>";
+								}
+								endforeach;
+								?>
+						    	<input type="hidden" name="report_id" value="">
+						    </div>
+						</div>
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="button" class="btn btn-primary" id="del_btn">Save changes</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+
+<script>
+
+	/************** 区域好像没用 *******************/
+	$('.view_report').click(function(){
+		$('#view_report').modal();
+		var url = $(this).attr('url');
+		$.ajax({
+			url : url,
+			type : 'post',
+			success : function(return_data){
+				$('#view_report .modal-body').append(return_data);
+			}
+		});
+	});
+	$('#view_report').on('hidden.bs.modal', function(){
+		$(this).find('.modal-body').text('');
+	});
+	/************** 区域好像没用 *******************/
+
+	/* 
+		处理这里可能有点复杂，先简单，只更改举报状态为1 - 表示已处理！
+			1.查看举报的内容，管理员可对举报人进行相应的积分奖惩
+			2.对被举报的帖子(回复)的用户，也可进行积分的奖惩
+			3.对举报的帖子(回复)的操作，是否删除
+	 */
+	var url_transact = '<?php echo $site_url . "bbs_report/report_transact"; ?>';
+	$('.transact_report').click(function(){
+		var obj = $(this);
+		var report_id = obj.attr('report_id');
+		if(confirm('确定忽略举报吗?')){
+			$.ajax({
+				url : url_transact,
+				type : 'post',
+				async : false,
+				dataType : 'json',
+				data : {
+					report_id : report_id
+				},
+				success : function(return_data){
+					switch(return_data.status){
+						case -1:
+						case 0:
+							alert(return_data.content);
+							break;
+						case 1:
+							// alert(return_data.content);
+							obj.parents('td').text('已忽略');
+							break;
+					}
+				}
+			});	
+		}
+	});
+
+	// 模态框删除举报
+	$("#del_report").on("hidden.bs.modal", function() {
+		var obj = $(this).find('[name=no_reason]').first();
+
+		// 使用prop()可能更有效
+		obj.siblings().prop('checked', null);
+		obj.prop('checked', 'checked');
+	});
+
+	// 加载模态框
+	$('.del_report').click(function(){
+		var report_id = $(this).attr('report_id');
+		$('#del_report').modal();
+		$('#del_report').find('[name=report_id]').val(report_id);
+	});
+
+	var url_del = '<?php echo $site_url . "bbs_report/report_del"; ?>';
+	
+	$("#del_btn").click(function(){
+		var reason = $.trim($('#del_report').find('[name=no_reason]:checked').next().text());
+		var report_id = $('#del_report').find('[name=report_id]').val();
+		$.ajax({
+			url : url_del,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				reason : reason,
+				report_id : report_id
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -6:
+					case -5:
+					case -3:
+					case -2:
+					case -1:
+					case 0:
+						alert(return_data.content);
+						$('#del_report').modal('hide');
+						break;
+					case 1:
+						alert(return_data.content);
+						$('#del_report').modal('hide');
+						$('[report_id='+report_id+']').parents('td').text('已删除');
+						break;
+				}
+			}
+		});
+	});
+
+	<!-- 通过js来控制select被选中 -->
+	$("#post_id").val("<?php echo ($post_id ? $post_id : ''); ?>")	;
+	$("#time_sort").val("<?php echo ($time ? $time : ''); ?>")	;
+
+    // 展示帖子内容
+    $("#view_reply").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$('.view_reply').click(function(){
+		var url = $(this).attr('url');
+		$('#view_reply').modal();
+		$('#view_reply .modal-content').load(url);
+	});
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

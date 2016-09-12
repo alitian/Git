@@ -1,0 +1,1170 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="<?= static_url(); ?>js/layer/layer.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>/static/js/ajaxfileupload.js"></script>
+<script type="text/javascript" charset="utf-8" src="<?= base_url(); ?>/static/js/jquery.js"></script>
+
+<script type="text/javascript">
+$(document).ready(function(){
+    var project = $('input[name="project_select"]:checked').val();
+    var cdn = "<?php $base_url = _gc('upload_url', 'config'); echo $base_url?>";
+});
+//模版选择
+function select_temeplate(){
+	var project = $('input[name="active_temeplate"]:checked').val();
+	$("div[id*='project_temeplate_']").css("display","none");
+	$("div[id='project_temeplate_"+project+"']").css("display","block");
+}
+</script>
+
+<style>
+	.span2 select,
+	.span2 input {
+		width: 90%;
+	}
+</style>
+
+<div>
+    <ul class="breadcrumb">
+        <li>标签用户设置</li>
+    </ul>
+</div>
+<div class="row-fluid">
+	<div class="box span12">
+	<form enctype="multipart/form-data" name="theform" id="theform" method="post" action="" class="form-horizontal">
+	   <input type="hidden" id="user_side" name="user_side" value="tag">
+	   <input type="hidden" id="total_num" name="total_num" value="1">
+	   <div id="p" class="easyui-panel" title="项目关联属性" style="height:260px;padding:10px;margin:0;" data-options="collapsible:true">
+
+		    <div class="control-group">
+				<label class="control-label">用户标签：</label>
+				<div class="controls"><input type="text" id="tag" name="tag" value="" placeholder="用户标签"/>  提示:多标签用户以英文逗号分隔</div>
+			</div>
+		
+		    <div class="control-group">
+				<label class="control-label">用户数：</label>
+				<div class="controls"><input type="text" name="tag_num" id="tag_num" value="" readonly placeholder="发送用户数"/></div>
+			</div>
+			
+		   <div class="control-group">
+				<label class="control-label">自定义发送数：</label>
+				<div class="controls">
+					<input style="width:90px" type="text" name="tag_start" id="tag_start" value="0" placeholder="起始发送数"/>&nbsp;至  
+					<input style="width:90px" type="text" name="tag_end" id="tag_end" value="" placeholder="截至发送数"/>
+				</div>
+			</div>
+			
+		    <div class="control-group">
+				<label class="control-label">发送总数：</label>
+				<div class="controls"><input type="text" name="tag_total_num" id="tag_total_num" value="" readonly placeholder="发送用户数"/></div>
+			</div>
+			
+			<div class="control-group">
+				<div class="controls"><input class="btn btn-primary" type="button" id="tag_confirm_btn" name="tag_confirm_btn" value="确认选择"/></div>
+			</div>
+		</div>
+		
+		<div id="p" class="easyui-panel" title="内容模版" style="height:450px;padding:10px;margin:0;" data-options="collapsible:true">
+			<div class="control-group">
+<!--			    <label class="radio inline"><input type="radio" name="active_temeplate" value="2" checked="checked" onclick="select_temeplate()"/>多项目活动</label>-->
+<!--			    <label class="radio inline"><input type="radio" name="active_temeplate" value="1" onclick="select_temeplate()"/>单项目活动</label>-->
+<!--			    <label class="radio inline"><input type="radio" name="active_temeplate" value="3" onclick="select_temeplate()"/>话题性活动</label>-->
+				<label class="radio inline"><input type="radio" name="active_temeplate" value="4" checked="checked" onclick="select_temeplate()"/>自定义活动</label>				
+			</div>
+			<div class="span10" id="project_temeplate_1" style="display: none">
+			   <?php $this->load->view('site_user/single_template') ?>
+			</div>
+			
+			<div class="span10" id="project_temeplate_2" style="display: none">
+			   <?php $this->load->view('site_user/more_template') ?>
+			</div>
+			
+			<div class="span10" id="project_temeplate_3" style="display: none">
+			   <?php $this->load->view('site_user/topic_template') ?>
+			</div>
+
+			<div class="span10" id="project_temeplate_4" style="display: block">
+			   <?php $this->load->view('site_user/custom_template') ?>
+			</div>			
+			
+		</div>
+		</form>
+		
+		<!-- end of box-content -->
+	</div><!-- end of span12 -->
+</div><!-- end of row-fluid -->
+<script type="text/javascript" src="<?= base_url(); ?>/mt/ueditor_cus/ueditor.config.js?t=20150421"></script>
+<script type="text/javascript" src="<?= base_url(); ?>/mt/ueditor_cus/ueditor.all.min.js?t=20150421"></script>
+<script type="text/javascript">
+	$(function() {
+		$("#JEditor").show();
+		var ue = UE.getEditor('JEditor');
+	})
+</script>
+<script type="text/javascript">
+function select_project(){
+	var project = $('input[name="project_select"]:checked').val();
+	$("div[id*='project_many_css_']").css("display","none");
+	$("div[id='project_many_css_"+project+"']").css("display","block");
+}
+
+function select_temeplate(){
+	var project = $('input[name="active_temeplate"]:checked').val();
+	$("div[id*='project_temeplate_']").css("display","none");
+	$("div[id='project_temeplate_"+project+"']").css("display","block");
+}
+
+function del(){
+	var project = $('input[name="active_temeplate"]:checked').val();
+	$("div[id*='project_temeplate_']").css("display","none");
+	$("div[id='project_temeplate_"+project+"']").css("display","block");
+} 
+
+function deltr(delbtn){
+    $(delbtn).parents("tr").remove();
+};
+//获取项目名称
+function get_product(i){
+	var i=i;
+	var pro_id = $("#project_id_"+i+"").val();
+	var rage = /^\d+$/;
+    if(!rage.test(pro_id)){
+    	alert("请输入合法的项目ID后再进行操作!");
+    	//$("#project_id_"+i+"")[0].focus();
+        return false;
+    }
+	$.ajax({
+		type:"POST",
+		url:"/user_ajax/productname/",
+		data:{
+			  productId:pro_id,
+		},
+		dataType:"json",
+		success:function(data){
+			if(data == "-1"){
+				alert('没有查询到对应的项目名称,请核对项目ID后重新输入');
+				//$("#project_id_"+i+"")[0].focus();
+				return false;
+			}else{
+				$("#project_name_"+i+"").val(data.name);
+			}
+			
+		},
+		error:function(data){
+			alert(data);
+		}
+	});	
+}
+
+//获取项目名称
+function get_rewards(i){
+	var i=i;
+	var pro_id = $("#pro_id").val();
+	var rewards_id = $("#rewards_id_"+i+"").val();
+	var rage = /^\d+$/;
+    if(!rage.test(rewards_id)){
+    	alert("请输入合法的回报ID后再进行操作!");
+        return false;
+    }
+	$.ajax({
+		type:"POST",
+		url:"/user_ajax/rewardscontent/",
+		data:{
+			rewards_id:rewards_id,
+			pro_id:pro_id,
+		},
+		dataType:"json",
+		success:function(data){
+			if(data.statue == 1){
+				alert('此项目没有对应的回报ID,请核对后重新输入');
+				$("#rewards_id_"+i+"").val('');
+				$("#rewards_asc_"+i+"").val('');
+				return false;
+			}else if(data.statue == "2"){
+				alert('没有查询到对应的项目名称,请核对项目ID后重新输入');
+				return false;
+			}else if(data.statue == "3"){
+				$("#rewards_content_"+i+"").val(data.content);
+			}
+		},
+		error:function(data){
+			alert(data);
+		}
+	});	
+}
+
+//获取项目名称
+function get_line(i){
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	var cid = "topic_pic_"+i;
+	var post_url = "/user_ajax/upload_topic_pic/"+cid;
+	$.ajaxFileUpload({
+		 url:post_url, //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:"topic_pic_"+i,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $("#view_pic_"+i).attr("src",url)
+				 $("#view_pic_"+i).attr('width',260);
+				 $("#view_pic_"+i).attr('height',146);
+				 $("#hidden_topic_pic_"+i).val(data.pic);
+			}else{
+				alert("文件上传失败,请重新上传!");
+				return false;
+			}
+		 },
+		})
+}
+
+//自定义活动-删除
+function dele(del){
+	$(del).parents("tr").remove();
+}
+function dele_top(del){
+	$(del).parents("tr").remove();
+}
+//自定义活动-多项目获取项目名称,图片
+function get_more_product(j){
+	var j=j;
+	var pro_id = $("#more_id_"+j+"").val();
+	var rage = /^\d+$/;
+    if(!rage.test(pro_id)){
+    	alert("请输入合法的项目ID后再进行操作!");
+    	//$("#more_id_"+j+"")[0].focus();
+        return false;
+    }
+	$.ajax({
+		type:"POST",
+		url:"/user_ajax/productname/",
+		data:{
+			  productId:pro_id,
+		},
+		dataType:"json",
+		success:function(data){
+			if(data == "-1"){
+				alert('没有查询到对应的项目名称,请核对项目ID后重新输入');
+				//$("#more_id_"+j+"")[0].focus();
+				return false;
+			}else{
+				$("#more_name_"+j+"").val(data.name);
+			}
+			
+		},
+		error:function(data){
+			alert(data);
+		}
+	});	
+	$.ajax({
+		type:"POST",
+		url:"/user_ajax/productpic/",
+		data:{
+			  productId:pro_id,
+		},
+		dataType:"json",
+		success:function(data){
+			if(data == "-1"){
+				alert('没有查询到对应的项目图片,请核对项目ID后重新输入');
+				//$("#more_id_"+j+"")[0].focus();
+				return false;
+			}else{
+				$("#more_pic_"+j+"").val(data.picture);
+			}
+			
+		},
+		error:function(data){
+			alert(data);
+		}
+	});
+	$.ajax({
+        type:"POST",
+        url:"/user_ajax/productcontent/",
+        data:{
+              productId:pro_id
+        },
+        dataType:"json",
+		success:function(data){
+    		if(data == "-1"){
+    			alert('没有查询到对应的项目介绍,请核对项目ID后重新输入');
+    			//$(#more_id_"+j+")[0].focus();
+            	return false;
+        	}else{
+        		$("#custom_more_content_"+j+"").val(data.des);
+            }
+			
+		},
+		error:function(data){
+			alert(data);
+		}
+	});			
+}
+//话题活动上传图片
+function get_top_pic(n){
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	$.ajaxFileUpload({
+		 url:'/user_ajax/upload_custom_top_pic/', //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:'custom_top_picture_'+n,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $('#review_custom_pic_'+n).attr('src',url);
+				 $('#review_custom_pic_'+n).attr('width',260);
+				 $('#review_custom_pic_'+n).attr('height',146);
+				 $('#custom_topic_pic_hidden_'+n).val(data.pic);
+			 }else{
+				 alert("文件上传失败");
+				 return false;
+			 }
+		 },
+	})	
+}
+//自定义活动-获取选择的样式
+function get_more_ui(j){
+	 var value = obj.value;
+	
+}
+function get_single_ui(obj){
+	 var value = obj.value;
+	 document.getElementById('single_num').value = value;
+}
+
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){
+	var i = 2;
+	$('#add_project').click(function(){
+		if(i <= 20){
+			var trhtml = '<tr><th align="center"><input type="text" id="project_asc_'+i+'" name="project_asc[]"></th>';
+	    	trhtml += '   <th align="center"><input type="text" id="project_id_'+i+'" name="project_id[]" onChange="get_product('+i+');"></th>';
+	    	trhtml += ' <th align="center"><input type="text" id="project_name_'+i+'" name="project_name[]" readonly=true></th>';
+	    	trhtml += ' <th align="center"><input type="text" id="pro_tag_'+i+'" name="pro_tag[]" placeholder="多个标签以英文逗号分隔"></th>';
+	    	trhtml += ' <th align="center"><input type="button" value="删除" onclick="deltr(this)"></th>';
+	    	trhtml += ' </tr>';		
+	    					            
+			$('#project_tab thead').append(trhtml);
+			i++;
+		}else{
+			alert("对不起，您最多只能添加20个项目");
+			return false;
+		}
+		var num = $("#project_tab tr").length -1;
+		$("#total_num").val(num);
+	});
+	$('#rewards_add_btn').click(function(){
+		var k = parseInt($("#hidden_num").val());
+		var trhtml = '<tr>';
+			trhtml += '<th align="center"><input type="text" id="rewards_asc_'+k+'" name="rewards_asc[]"></th>';
+			trhtml += '<th align="center"><input type="text" id="rewards_id_'+k+'" name="rewards_id[]" onBlur="get_rewards('+k+');"></th>';
+			trhtml += '<th align="center"><input type="text" id="rewards_content_'+k+'" name="rewards_content[]" readonly></th>';
+			trhtml += '<th align="center"><input type="button" value="删除" onclick="deltr(this)"></th>';
+		trhtml += '</tr>';
+		$('#rewards_tab thead').append(trhtml);
+		k = k+1;
+		$("#hidden_num").val(k);
+	});
+	var m = 2;
+	$('#topic_addpic_btn').click(function(){
+		var trhtml = '<tr>';
+			trhtml += '<th align="center"><input type="text" style="width:30px" name="topic_pic_asc[]" id="topic_pic_asc_'+m+'"></th>';
+			trhtml += '<th align="center"><input type="text" name="topic_pic_url[]" id="topic_pic_url_'+m+'"></th>';
+			trhtml += '<th align="center"><input type="file" name="topic_pic[]" id="topic_pic_'+m+'" value="上传图片"><input type="button" value="上传图片" onClick="get_line('+m+');"></th>';
+			trhtml += '<th align="center"><img src="" id="view_pic_'+m+'"><input type="hidden" name="hidden_topic_pic[]" id="hidden_topic_pic_'+m+'" value=""></th>';
+			trhtml += '<th align="center"><input type="button" value="删除" onclick="deltr(this)"></th>';
+		trhtml += '</tr>';
+		$('#topic_tab thead').append(trhtml);
+		m++;
+	});
+
+	//自定义活动-多项目增加
+	var j = 2;
+	$('#add_more_project').click(function(){
+		if(j <= 20){
+			var trhtml = '<tr><th align="center"><input type="text" id="more_asc_'+j+'" name="more_asc[]" value=""></th>';
+	    	trhtml += '   <th align="center"><input type="text" id="more_id_'+j+'" name="more_id[]" value="" onChange="get_more_product('+j+');"></th>';
+	    	trhtml += ' <th align="center"><input type="text" id="more_name_'+j+'" name="more_name[]"></th>';
+	    	trhtml += '<th align="center"><input type="text" id="more_tag_'+j+'"  name="more_tag[]" value="" placeholder="多个标签以英文逗号分隔"></th>'
+			trhtml += '<th align="center"><input type="text" id="more_ui_'+j+'"  name="more_ui[]" value="" readonly style="display:none">';
+			trhtml += '<select id="more_sel_'+j+'" name="more_sel[]"><option value ="1">垂直样式</option>';
+			trhtml += '<option value ="2">水平样式</option></select></th>';
+			trhtml += '<th align="center" style="display:none"><input type="text" id="more_pic_'+j+'"  name="more_pic[]" value="" readonly ></th>';
+			trhtml += '<th align="center"><textarea  id="custom_more_content_'+j+'" name="custom_more_content[]" rows="3" cols="60"></textarea></th>';
+	    	trhtml += ' <th align="center"><input type="button" value="删除" onclick="dele(this)"></th>';
+	    	trhtml += ' </tr>';			    					            
+			$('#more thead').append(trhtml);
+			j++;
+		}else{
+			alert("对不起，您最多只能添加20个项目");
+			return false;
+		}
+		var num = $("#more tr").length -1;
+		$("#total_num").val(num);
+	});
+	
+	var n = 2;
+	$('#add_topic_project').click(function(){
+		if(n <= 20){
+			var trhtml = '<tr><th align="center"><input type="text" id="custom_topic_asc_'+n+'" name="custom_topic_asc[]" value="" style="width: 15px;"></th>';
+			trhtml += '<th align="center"><input type="text" id="custom_topic_link_'+n+'" name="custom_topic_link[]" value="" style="width:100px;"></th>';
+	    	trhtml += '<th align="center"><input type="text" id="custom_top_tag_'+n+'" name="custom_top_tag[]" value="" placeholder="多个标签以英文逗号分隔" style="width:50px;"></th>';
+	    	trhtml += '<th align="center"><input type="file" id="custom_top_picture_'+n+'" name="custom_top_picture[]" value=""><input type="hidden" name="custom_topic_pic_hidden[]" id="custom_topic_pic_hidden_'+n+'" value=""></th>';
+	    	trhtml += '<th align="center"><input type="button" value="上传图片" id="custom_topic_up_'+n+'" onClick="get_top_pic('+n+')"></th>'
+			trhtml += '<th align="center"><textarea  id="custom_topic_content_'+n+'" name="custom_topic_content[]" rows="3" cols="60" style="width:100px;"></textarea></th>';
+			trhtml += '<th align="center"><input type="text" id="topic_ui_'+n+'"  name="topic_ui[]" value="" readonly style="display:none">';
+			trhtml += '<select id="topic_sel_'+n+'" name="topic_sel[]" style="width: 94px;"><option value ="1">垂直样式</option>';
+			trhtml += '<option value ="2">水平样式</option></select></th>';			
+			trhtml += '<th align="center"><input type="button" value="删除" onclick="dele_top(this)"></th>';
+			trhtml += '<th align="center"><img id="review_custom_pic_'+n+'" name="review_custom_pic[]" alt="" src=""></th>';
+	    	trhtml += ' </tr>';			    					            
+			$('#topic thead').append(trhtml);
+			n++;
+		}else{
+			alert("对不起，您最多只能添加20个项目");
+			return false;
+		}
+		var num = $("#topic tr").length -1;
+		$("#total_num").val(num);
+	});			
+	
+});
+
+$(document).ready(function(){
+	//标签用户确认选择
+    $("input[name=tag_confirm_btn]").click(function(){ 
+        var total = 0;
+        var tag_user = $("#tag").val(); 
+        var tag_start = parseInt($("#tag_start").val()); 
+        var tag_end = parseInt($("#tag_end").val()); 
+        var reg = new RegExp("^[0-9][0-9]*$");
+		if(!reg.test(tag_start)){
+			alert("开始发送数必须为整数!");
+            return false;
+		}
+		var reg_end = new RegExp("^[1-9][0-9]*$");
+		if(!reg_end.test(tag_end)){
+			alert("截至发送数必须为正整数!");
+            return false;
+		}
+		if(tag_end <= tag_start){
+			alert("截至发送数必须大于开始发送数!");
+            return false;
+		}
+		
+        if(tag_user == '' || tag_user == null){
+            alert("请输入用户标签后再进行操作!");
+            return false;
+        }
+        $.ajax({
+            type:"POST",
+            url:"/user/get_tag_user/",
+            data:{
+            	tag:tag_user,
+            	tag_start:tag_start,
+            	tag_end:tag_end,
+            },
+            dataType:"json",
+    		success:function(data){
+        		$("#tag_total_num").val(data.num);
+    		},
+    		error:function(data){
+    			alert(data);
+    		}
+        });	
+    });
+	//获取项目名称
+	$('#pro_id').change(function (){ 
+		var pro_id = $("#pro_id").val();
+		var reg = new RegExp("^[1-9][0-9]*$");	 
+		if(!reg.test(pro_id)){
+			alert('请输入合法的项目ID');
+			//$("#pro_id")[0].focus();
+			return false;
+		 }else{
+			 $.ajax({
+		            type:"POST",
+		            url:"/user_ajax/productname/",
+		            data:{
+		                  productId:pro_id
+		            },
+		            dataType:"json",
+		    		success:function(data){
+		        		if(data == "-1"){
+		        			alert('没有查询到对应的项目名称,请核对项目ID后重新输入');
+		        			//$("#pro_id")[0].focus();
+		                	return false;
+		            	}else{
+		            		$("#pro_name").val(data.name);
+		                }
+		    			
+		    		},
+		    		error:function(data){
+		    			alert(data);
+		    		}
+		   });	
+			   
+			 $.ajax({
+		            type:"POST",
+		            url:"/user_ajax/get_rewards_product/",
+		            data:{
+		                  productId:pro_id
+		            },
+		            dataType:"json",
+		    		success:function(data){
+		    			$("#rewards_tab").show(function(){
+		    				$("#rewards_tab").html(data.html);
+		    			});
+		    			$("#single_email_title").val(data.name);
+		    			$("#single_email_des").val(data.project_des);
+		    			$("#hidden_num").val(data.hiddennum);
+		    		},
+		    		error:function(data){
+		    			alert(data);
+		    		}
+		   });	
+	    }
+	});
+    
+});
+</script>
+<script type="text/javascript">
+$(document).ready(function(){
+	 $('#tag').blur(function (){ 
+		 var total = 0;
+		 var tag_user = $("#tag").val(); 
+		 if(tag_user == '' || tag_user == null){
+		    alert("请输入用户标签后再进行操作!");
+		    return false;
+		 }
+		 $.ajax({
+		    type:"POST",
+		    url:"/user/get_tag_user/",
+		    data:{
+		    	tag:tag_user,
+		    },
+		    dataType:"json",
+		 	success:function(data){
+		 		$("#tag_num").val(data.num);
+		 		$("#tag_end").val(data.num);
+		 		$("#tag_total_num").val('');
+		 	},
+		 	error:function(data){
+		 		alert(data);
+		 	}
+		 });	
+	 });
+
+	 $('#tag_end').blur(function (){ 
+		 $("#tag_total_num").val('');	
+	 });
+});
+</script>
+<script type="text/javascript">
+    //单项目数据校验
+	function single_data_check(){
+		var tag = $("#tag").val();	
+		var tag_total_num = $("#tag_total_num").val();	
+		var pro_id = $("#pro_id").val();
+		var single_pro_tag = $("#single_pro_tag").val();
+		var single_email_title = $("#single_email_title").val();
+		var single_email_des = $("#single_email_des").val();
+		var single_email_content = $("#single_email_content").val();
+		if(tag =="" || tag ==null){
+			alert("对不起，请输入用户标签!");
+			return false;
+		}
+		if(tag_total_num =="" || tag_total_num ==null){
+			alert("对不起，请选择用户属性后再进行操作!");
+			return false;
+		}
+		
+		if(pro_id == "" || pro_id ==null){
+			alert("对不起，请输入项目ID后再进行操作!");
+			return false;
+		}
+// 		if(single_pro_tag == "" || single_pro_tag ==null){
+// 			alert("对不起，请输入标签名称后再进行操作!");
+// 			return false;
+// 		}
+		if(single_email_title == "" || single_email_title ==null){
+			alert("对不起，请输入邮件标题后再进行操作!");
+			return false;
+		}
+		if(single_email_des == "" || single_email_des ==null){
+			alert("对不起，请输入项目简介后再进行操作!");
+			return false;
+		}
+		if(single_email_content == "" || single_email_content ==null){
+			alert("对不起，请输入邮件内容后再进行操作!");
+			return false;
+		}
+
+		return true;
+	}
+//单项目活动交互操作
+$(document).ready(function(){
+	//单项目活动保存
+	$('#single_save_btn').click(function(){
+		if(single_data_check()){
+			theform.action="/user/save_single/";
+	    	theform.submit();
+		}
+    });
+
+	//单项目活动保存
+	$('#single_review_btn').click(function(){
+		if(single_data_check()){
+			theform.action="/user/view_single/";
+			theform.target="_blank";
+	    	theform.submit();
+		}
+    });
+
+	//单项目确认发送
+	$('#single_send_btn').click(function(){
+		if(single_data_check()){
+			if(confirm("您确认发送吗?")){
+				theform.action="/user/send_single";
+		    	theform.submit();
+		    }
+		}
+    });
+
+	//单项目取消
+	$('#single_cancel_btn').click(function(){
+		theform.reset();
+    });
+
+	//单项目返回
+	$('#single_return_btn').click(function(){
+		location.href="/user/edm_list/outside";
+    });
+});
+//多项目活动交互操作
+$(document).ready(function(){
+	function more_data_check(){
+		var tag = $("#tag").val();
+		var tag_total_num = $("#tag_total_num").val();	
+		var email_title = $("#email_title").val();
+		var email_content = $("#email_content").val();
+		var result ="";
+		$('input[name="project_id[]"]').each(function(){   
+			result = result + $(this).val();   
+		});   	
+		if(tag =="" || tag ==null){
+			alert("对不起，请输入用户标签!");
+			return false;
+		}
+		if(tag_total_num =="" || tag_total_num ==null){
+			alert("对不起，请选择用户属性后再进行操作!");
+			return false;
+		}	
+		if(result == "" || result ==null){
+			alert("对不起，请输入项目编号后再进行操作!");
+			return false;
+		}
+// 		var num = $("#total_num").val();
+// 		var pro_id = "";
+// 		var pro_tag = "";
+		
+// 		for(var i=1;i<=num;i++){
+// 		    pro_id = $("#project_id_"+i+"").val();
+// 			pro_tag = $("#pro_tag_"+i+"").val();
+// 			if(pro_id != null && pro_id !=""){
+// 				if(pro_tag =="" || pro_tag == null){
+// 					alert("请输入标签内容后再进行操作!");
+// 					return false;
+// 				}
+// 			}
+// 		}
+		if(email_title =="" || email_title ==null){
+			alert("对不起，请输入邮件标题!");
+			return false;
+		}		
+		if(email_content == "" || email_content ==null){
+			alert("对不起，请输入邮件内容!");
+			return false;
+		}
+
+		return true;
+	}
+	//多项目保存
+	$('#save_btn').click(function(){
+		if(more_data_check()){
+			theform.action="/user/save_more/";
+	    	theform.submit();
+		}
+    });
+
+	//多项目保存
+	$('#preview_btn').click(function(){
+		if(more_data_check()){
+			theform.action="/user/view_more/";
+			theform.target="_blank";
+	    	theform.submit();
+		}
+    });
+
+	//多项目确认发送
+	$('#send_btn').click(function(){
+		if(more_data_check()){
+			if(confirm("您确认发送吗?")){
+				theform.action="/user/send_more/";
+		    	theform.submit();
+			}
+		}
+    });
+
+	//确认添加的项目信息
+	$('#confirm_add').click(function(){
+		var result ="";
+		$('input[name="project_id[]"]').each(function(){   
+			result = result + $(this).val();   
+		});  
+		if(result == "" || result ==null){
+			alert("对不起，您还未输入任何项目信息!");
+			return false;
+		}
+    });
+
+    //多项目取消
+	$('#cancel_btn').click(function(){
+		theform.reset();
+    });
+
+	//多项目返回
+	$('#return_btn').click(function(){
+		location.href="/user/edm_list/outside";
+    });
+});
+
+$(document).on("change","#topic_tab thead tr th",function(){
+	var a = $("#topic_tab thead tr").length - 1;
+});
+
+//话题性活动交互操作
+$(document).ready(function(){
+	function topic_data_check(){
+		var tag = $("#tag").val();
+		var tag_total_num = $("#tag_total_num").val();	
+		var picture = $("#topic_picture").val();	
+		var topic_tag_name = $("#topic_tag_name").val();
+		var pic_hidden = $('#topic_pic_hidden').val();
+		var email_title = $("#topic_email_title").val();
+		var email_rule = $("#topic_rule").val();
+		if(tag =="" || tag ==null){
+			alert("对不起，请输入用户标签!");
+			return false;
+		}
+		if(tag_total_num =="" || tag_total_num ==null){
+			alert("对不起，请选择用户属性后再进行操作!");
+			return false;
+		}	
+		if(pic_hidden == '' || pic_hidden == null){
+			alert("对不起，请上传焦点图后再进行操作!");
+			return false;
+		}
+// 		if(topic_tag_name == '' || topic_tag_name == null){
+// 			alert("对不起，请输入标签名称后再进行操作!");
+// 			return false;
+// 		}
+		if(email_title == "" || email_title ==null){
+			alert("对不起，请输入邮件标题!");
+			return false;
+		}
+		if(email_rule == '' || email_rule == null){
+			alert("对不起，请输入活动规则!");
+			return false;
+		}
+		return true;
+	}
+	
+	//$('#topic_picture').on('change',function(){
+	$('#topic_up').click(function(){ 
+		var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+		$.ajaxFileUpload({
+			 url:'/user_ajax/upload_pic/', //你处理上传文件的服务端
+			 secureuri:false,
+			 fileElementId:'topic_picture',
+			 dataType: 'json',
+			 success: function (data){
+				 url = url + data.pic;
+				 if(data.num == 1){
+					 $('#review_pic').attr('src',url);
+					 $('#review_pic').attr('width',260);
+					 $('#review_pic').attr('height',146);
+					 $('#topic_pic_hidden').val(data.pic);
+				 }else{
+					 alert("文件上传失败");
+					 return false;
+				 }
+			 },
+			})
+	});
+
+	//话题性活动保存
+	$('#topic_save_btn').click(function(){ 
+		if(topic_data_check()){
+			theform.action="/user/save_topic/";
+	    	theform.submit();
+		}
+    });	
+
+	//话题性活动保存
+	$('#topic_review_btn').click(function(){
+		if(topic_data_check()){
+			theform.action="/user/view_topic/";
+			theform.target="_blank";
+			theform.submit();
+		}
+    });	
+
+	//话题性活动确认发送
+	$('#topic_send_btn').click(function(){ 
+		if(topic_data_check()){
+			if(confirm("您确认发送吗?")){
+				theform.action="/user/send_topic/";
+		    	theform.submit();
+			}
+		}
+    });	
+    
+	//话题性取消
+	$('#topic_cancel_btn').click(function(){
+		theform.reset();
+    });
+
+	//话题性返回
+	$('#topic_return_btn').click(function(){
+		location.href="/user/edm_list/outside";
+    });
+});
+//自定义活动交互操作
+$(document).ready(function(){
+	//自定义-单项目条件
+	function custom_single_data_check(){
+		var tag = $("#tag").val();	
+		var tag_total_num = $("#tag_total_num").val();	
+
+		var pro_id = $("#single_id").val();
+		var custom_single_pro_tag = $("#single_tag").val();
+		var pro_ui = document.getElementById("single_sel").value;
+		var custom_email_title = $("#custom_email_title").val();
+		var custom_email_content = $("#custom_email_content").val();
+		var pro_name = $("#single_name").val();
+		var pro_des = $("#custom_single_content").val();
+		if(tag =="" || tag ==null){
+			alert("对不起，请输入用户标签!");
+			return false;
+		}
+		if(tag_total_num =="" || tag_total_num ==null){
+			alert("对不起，请选择用户属性后再进行操作!");
+			return false;
+		}
+
+		if(pro_id == "" || pro_id ==null){
+			alert("对不起，请输入项目ID后再进行操作!");
+			return false;
+		}
+// 		if(custom_single_pro_tag == "" || custom_single_pro_tag ==null){
+//		alert("对不起，请输入标签名称后再进行操作!");
+//		return false;
+//		}		
+		if(custom_email_title == "" || custom_email_title ==null){
+			alert("对不起，请输入邮件标题后再进行操作!");
+			return false;
+		}
+		if(pro_name == "" || pro_name ==null){
+			alert("对不起，请输入项目名称后再进行操作!");
+			return false;
+		}
+		if(pro_des == "" || pro_des ==null){
+			alert("对不起，请输入项目简介后再进行操作!");
+			return false;
+		}
+//		if(custom_email_content == "" || custom_email_content ==null){
+//			alert("对不起，请输入邮件内容后再进行操作!");
+//			return false;
+//		}
+		return true;
+	}
+	//自定义-多项目条件
+	function custom_more_data_check(){
+		var tag = $("#tag").val();	
+		var tag_total_num = $("#tag_total_num").val();	
+		var custom_email_title = $("#custom_email_title").val();
+		var custom_email_content = $("#custom_email_content").val();
+		var result ="";
+		$('input[name="more_id[]"]').each(function(){   
+			result = result + $(this).val();   
+		});
+		   			
+		if(tag =="" || tag ==null){
+			alert("对不起，请输入用户标签!");
+			return false;
+		}
+		if(tag_total_num =="" || tag_total_num ==null){
+			alert("对不起，请选择用户属性后再进行操作!");
+			return false;
+		}	
+		if(result == "" || result ==null){
+			alert("对不起，请输入项目编号后再进行操作!");
+			return false;
+		}
+		if(custom_email_title == "" || custom_email_title ==null){
+			alert("对不起，请输入邮件标题后再进行操作!");
+			return false;
+		}
+ 		var num = $("#total_num").val();
+ 		var pro_asc = "";
+ 		for(var i=1;i<=num;i++){
+ 		    pro_asc = $("#more_asc_"+i+"").val();
+ 			if(pro_asc =="" || pro_asc == null){
+ 					alert("请输入项目展示排序!");
+ 					return false;
+ 			}
+ 		}
+ 		var pro_tag = "";
+ 		for(var j=1;j<=num;j++){
+ 		    pro_id = $("#more_id_"+j+"").val();
+ 			pro_tag = $("#more_tag_"+j+"").val();
+ 			pro_name = $("#more_name_"+j+"").val();
+ 			pro_des = $("#custom_more_content_"+j+"").val();
+ 			if(pro_id != null && pro_id !=""){
+// 				if(pro_tag =="" || pro_tag == null){
+// 					alert("请输入标签内容后再进行操作!");
+// 					return false;
+// 				}
+ 				if(pro_name =="" || pro_name == null){
+ 					alert("请输入项目名称后再进行操作!");
+ 					return false;
+ 				}
+ 				if(pro_des =="" || pro_des == null){
+ 					alert("请输入项目简介后再进行操作!");
+ 					return false;
+ 				}
+ 			}
+ 		}
+		return true;
+	}
+
+	//话题活动条件
+	function custom_topic_data_check(){
+		var tag = $("#tag").val();
+		var email_title = $("#custom_email_title").val();
+		if(tag =="" || tag ==null){
+			alert("对不起，请输入用户标签!");
+			return false;
+		}
+
+		if(email_title == "" || email_title ==null){
+			alert("对不起，请输入邮件标题!");
+			return false;
+		}
+
+		return true;		
+	}	
+	$('#single_project').click(function(){
+		$('#single').css('display','block');
+		$('#more').css('display','none');
+		$('#topic').css('display','none');
+		document.getElementById("check_pro").value=document.getElementById("single_project").value;
+    });
+    
+	$('#more_project').click(function(){
+		$('#more').css('display','block');
+		$('#single').css('display','none');
+		$('#topic').css('display','none');
+		document.getElementById("check_pro").value=document.getElementById("more_project").value;		
+    });
+	$('#topic_project').click(function(){
+		$('#topic').css('display','block');
+		$('#more').css('display','none');
+		$('#single').css('display','none');
+		$('#mail_conyent').css('display','none');
+		document.getElementById("check_pro").value=document.getElementById("topic_project").value;		
+    });    
+    //但项目获取项目名称 ,简介
+	$('#single_id').change(function (){ 
+		var pro_id = $("#single_id").val();
+		var reg = new RegExp("^[1-9][0-9]*$");	 
+		if(!reg.test(pro_id)){
+			alert('请输入合法的项目ID');
+			//$("#single_id")[0].focus();
+			return false;
+		 }
+		$.ajax({
+		            type:"POST",
+		            url:"/user_ajax/productname/",
+		            data:{
+		                  productId:pro_id
+		            },
+		            dataType:"json",
+		    		success:function(data){
+		        		if(data == "-1"){
+		        			alert('没有查询到对应的项目名称,请核对项目ID后重新输入');
+		        			//$("#single_id")[0].focus();
+		                	return false;
+		            	}else{
+		            		$("#single_name").val(data.name);
+		                }
+		    			
+		    		},
+		    		error:function(data){
+		    			alert(data);
+		    		}
+		});
+		$.ajax({
+            type:"POST",
+            url:"/user_ajax/productcontent/",
+            data:{
+                  productId:pro_id
+            },
+            dataType:"json",
+    		success:function(data){
+        		if(data == "-1"){
+        			alert('没有查询到对应的项目介绍,请核对项目ID后重新输入');
+        			//$("#single_id")[0].focus();
+                	return false;
+            	}else{
+            		$("#custom_single_content").val(data.des);
+                }
+    			
+    		},
+    		error:function(data){
+    			alert(data);
+    		}
+		});		
+	});	
+
+
+	//自定义-保存
+	$('#custom_save_btn').click(function(j){
+		var ckeck_pro;
+		var sing_pro_ui;
+		var more_pro_ui_1;
+		ckeck_pro=document.getElementById("check_pro").value;
+
+		if(ckeck_pro == '单项目'){			
+			sing_pro_ui=document.getElementById("single_sel").value;
+			document.getElementById("single_ui").value = sing_pro_ui;
+			if(custom_single_data_check()){						
+				theform.action="/user/save_custom_single/";
+	    		theform.submit();
+			}
+			
+		}
+		if(ckeck_pro == '多项目'){
+			var num = $("#total_num").val();
+			if(num <2){
+				alert("对不起，多项目至少为两个!");
+				return false;
+			}			
+			for(var i=1;i<=num;i++){
+				document.getElementById("more_ui_"+i).value = document.getElementById("more_sel_"+i).value;
+			}
+			if(custom_more_data_check()){
+				
+				theform.action="/user/save_custom_more/";
+	    		theform.submit();
+				
+			}
+		}
+		if(ckeck_pro == '话题项目'){
+			
+			if(custom_topic_data_check()){
+				
+				theform.action="/user/save_custom_topic/";
+	    		theform.submit();
+				
+			}
+		}
+    });
+
+    //自定义-预览
+	$('#custom_preview_btn').click(function(){
+		var ckeck_pro;
+		ckeck_pro=document.getElementById("check_pro").value;
+		if(ckeck_pro == '单项目'){
+			if(custom_single_data_check()){
+				theform.action="/user/view_custom_single/";
+	    		theform.submit();
+			}			
+		}
+		if(ckeck_pro == '多项目'){
+			
+			var num = $("#total_num").val();
+			if(num <2){
+				alert("对不起，多项目至少为两个!");
+				return false;
+			}			
+			for(var i=1;i<=num;i++){
+				document.getElementById("more_ui_"+i).value = document.getElementById("more_sel_"+i).value;
+			}
+			
+			if(custom_more_data_check()){
+				theform.action="/user/view_custom_more/";
+		    	theform.submit();
+			}		
+		}
+		if(ckeck_pro == '话题项目'){
+			if(custom_topic_data_check()){
+				
+				theform.action="/user/view_custom_topic/";
+	    		theform.submit();
+				
+			}
+		}
+
+    });
+    //自定义-发送	   
+	$('#custom_send_btn').click(function(){
+		var ckeck_pro;
+		ckeck_pro=document.getElementById("check_pro").value;
+		if(ckeck_pro == '单项目'){
+			if(custom_single_data_check()){
+				theform.action="/user/send_custom_single/";
+	    		theform.submit();
+			}			
+		}
+		if(ckeck_pro == '多项目'){
+			var num = $("#total_num").val();
+			if(num <2){
+				alert("对不起，多项目至少为两个!");
+				return false;
+			}			
+			for(var i=1;i<=num;i++){
+				document.getElementById("more_ui_"+i).value = document.getElementById("more_sel_"+i).value;
+			}
+						
+			if(custom_more_data_check()){
+				theform.action="/user/send_custom_more/";
+		    	theform.submit();
+			}		
+		}
+		if(ckeck_pro == '话题项目'){
+			if(custom_topic_data_check()){
+				theform.action="/user/send_custom_topic/";
+	    		theform.submit();
+				
+			}
+		}
+
+    });	
+	//自定义-取消
+	$('#custom_cancel_btn').click(function(){
+		theform.reset();
+    }); 
+	//自定义-返回
+	$('#custom_return_btn').click(function(){
+		location.href="/user/edm_list/inside";
+    });	
+});
+</script>
+
+<?php
+$this->load->view('ckad/footer')?>
+
+
+

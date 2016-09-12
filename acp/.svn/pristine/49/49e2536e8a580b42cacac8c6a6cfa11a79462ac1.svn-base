@@ -1,0 +1,298 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+
+        $('#user_status .datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+    });
+</script>
+<div id="aa" class="easyui-accordion" style="width:auto;height:0 auto;">
+    <div title="推广标题与模板选择" style="overflow:auto;padding:10px;">  
+        <div class="input-prepend input-append">
+            <span class="add-on">推广标题:</span>
+            <input style="margin-left:20px;" type="text" id='new_spread_title' name='new_spread_title' value="<?php echo $spread_mes['spread_title'];?>" placeholder="推广标题，字数限制 15 个字"/>
+        </div>
+        <div class="input-prepend input-append">
+            <span class="add-on">推送微信模板:</span>
+            <div class="template_select" style="margin-left:85px">
+                <?php if($spread_mes['send_wx_tpl'] == 10){?>
+                    <label class="radio inline">
+                        <input type="radio" name="template_select" value="10" checked="checked" wx_tpl_name="众筹项目启动通知"/>众筹项目启动通知
+                    </label>              
+                <?php }elseif($spread_mes['send_wx_tpl'] == 13){?>                  
+                    <label class="radio inline">
+                        <input type="radio" name="template_select" value="13" checked="checked" wx_tpl_name="账号未绑定通知"/>账号未绑定通知
+                    </label>
+                <?php }?>                                                
+            </div>
+        </div>    
+    </div>
+    <div title="模板内容编辑" style="overflow:auto;padding:10px;">
+        <?php if($spread_mes['send_wx_tpl'] == 10){?>
+            <div id="temeplate_1">
+                <div  class="edit_pro">
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">项目ID:</span>
+                            <input style="margin-left:20px;" type="text" id='pro_id' name='pro_id' value="<?php echo $spread_mes['send_pro_id'];?>" readonly="true" />
+                        </div>
+                    </div>
+                    <hr>
+<!--                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">Topcolor:</span>
+                            <input style="margin-left:20px;" type="text" id='second_color' name='second_color' value="<?php echo $s_con_arr[0];?>" placeholder="推送头部颜色"/>
+                            <span><a href="http://www.cnblogs.com/axing/archive/2011/04/09/CSS.html" target="_blank">点击这里</a>获取对应颜色值编码</span>
+                        </div>
+                    </div>						-->
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">FirstData:</span>
+                            <input style="margin-left:20px;" type="text" id='second_data' name='second_data' value="<?php echo $s_con_arr[0];?>" placeholder="推送标题；少于15个字"/>
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">项目名称:</span>
+                            <input style="margin-left:20px;" type="text" id='pro_name' name='pro_name' value="<?php echo $s_con_arr[1];?>" />
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">目标金额:</span>
+                            <input style="margin-left:20px;" type="text" id='pro_goal' name='pro_goal' value="<?php echo $s_con_arr[2];?>" readOnly="true" />
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">结束时间:</span>
+                            <input style="margin-left:20px;" type="text" id='pro_end_time' name='pro_end_time' value="<?php echo $s_con_arr[3];?>" readOnly="true"/>
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">项目简介:</span>
+                            <textarea style="margin-left:20px;" id="text" name="text"><?php echo $s_con_arr[4];?></textarea>
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">Remark:</span>
+                            <input style="margin-left:20px;" type="text" id='second_remark' name='second_remark' value="<?php echo $s_con_arr[5];?>" placeholder="推送footer;少于12个字"/>
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">URL:</span>
+                            <input style="margin-left:20px;" type="text" id='second_url' name='second_url' value="<?php echo $s_con_arr[6];?>" placeholder="推送跳转URL"/>
+                        </div>
+                    </div>																			
+                </div>					
+            </div>
+        <?php }elseif($spread_mes['send_wx_tpl'] == 13){?>
+            <div id="temeplate_3">
+                <div id="edit_pro" class="edit_pro">
+<!--                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">Topcolor:</span>
+                            <input style="margin-left:20px;" type="text" id='second_color3' name='second_color3' value="<?php echo $s_con_arr[0];?>" placeholder="推送头部颜色"/>
+                            <span><a href="http://www.cnblogs.com/axing/archive/2011/04/09/CSS.html" target="_blank">点击这里</a>获取对应颜色值编码</span>
+                        </div>
+                    </div>						-->
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">FirstData:</span>
+                            <input style="margin-left:20px;" type="text" id='second_data3' name='second_data3' value="<?php echo $s_con_arr[0];?>" placeholder="推送标题"/>
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">Remark:</span>
+                            <input style="margin-left:20px;" type="text" id='second_remark3' name='second_remark3' value="<?php echo $s_con_arr[1];?>" placeholder="推送footer"/>
+                        </div>
+                    </div>						
+                    <div class="row-fluid">
+                        <div class="input-prepend input-append">
+                            <span class="add-on">URL:</span>
+                            <input style="margin-left:20px;" type="text" id='second_url3' name='second_url3' value="<?php echo $s_con_arr[2];?>" placeholder="推送跳转URL"/>
+                        </div>
+                    </div>                            
+                </div>					
+            </div>
+        <?php }?>
+        <div>
+            <p style="color:red;font-size:18px">强调声明：</p>
+            <ol>
+                <li>模板编辑内容中不可含有除《》以外的其他特殊符号。</li>
+                <li>如果所选项目中含有，请编辑者自行修改项目名称以及简介中的内容。</li>
+                <li>否侧该模板内容由于内容不符合格式导致发送失败。</li>
+            </ol>
+        </div>        
+    </div>
+    <div title="用户群选择" style="overflow:auto;padding:10px;">
+        <div style="margin-left:100px;" id="user_arr_sel">
+            <?php foreach ($user_status as $users) { ?>
+                <span>
+                    <input type="radio"  name="user_arr" class="checkbox" value="<?php echo $users['id'] ?>" status_deals="<?php echo $users['status_deals'] ?>">
+                    <?php echo $users['status_name'] ?>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span>推广范围：<?php echo $users['status_deals'] ?></span>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span>推广人数：<?php echo $users['users_count'] ?></span>
+                </span>
+                <br/>
+            <?php } ?>							
+        </div>
+    </div>
+    <div title="推广方式以及时间控制" style="overflow:auto;padding:10px;">
+        <div class="input-prepend input-append">
+            <span class="add-on">设置推广时间:</span>
+            <div id="spread_time_sel">
+                <?php if($spread_mes['send_type'] == 1){?>
+                    <label class="radio inline">
+                        <input type="radio" name="spread_type" value="1" checked="checked"/>定时推送
+                        <span id="datetimepicker" class="input-append">
+                            <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" name='prostart_time' id='prostart_time' value='<?php echo $spread_mes['send_start_time']; ?>' />
+                            <span class="add-on">
+                                <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                            </span>
+                        </span>
+                    </label><br/>
+                    <label class="radio inline">
+                        <input type="radio" name="spread_type" value="2" />实时推送
+                    </label>
+                <?php }elseif($spread_mes['send_type'] == 2){?>
+                    <label class="radio inline">
+                        <input type="radio" name="spread_type" value="1" />定时推送
+                        <span id="datetimepicker" class="input-append">
+                            <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" name='prostart_time' id='prostart_time' value='' />
+                            <span class="add-on">
+                                <i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+                            </span>
+                        </span>
+                    </label><br/>
+                    <label class="radio inline">
+                        <input type="radio" name="spread_type" value="2" checked="checked"/>实时推送
+                    </label>
+                <?php }?>              
+            </div>								
+        </div>
+    </div>
+</div>
+<button class="btn btn-primary" id="save_wxspread_submit" type="button">提交修改</button>
+<script type="text/javascript">
+    $("#save_wxspread_submit").click(function() {
+            var spread_title = $('#new_spread_title').val();
+            var user_status_id = $("#user_arr_sel input[type=radio]:checked").val();
+            if(user_status_id == undefined || user_status_id == 0){
+                alert('请选择推广用户群');
+                return false;
+                
+            }
+            var send_type = $("#spread_time_sel input[type=radio]:checked").val();
+            if (send_type == 1) {
+                var send_time = $('#prostart_time').val();
+            } else {
+                var send_time = 0;
+            }
+            var send_wx_tpl = $('input[name="template_select"]:checked').val();
+            var wx_tpl_content = '';
+            if(send_wx_tpl == 10){
+                 var send_pro_id = $('#pro_id').val();              
+                 var wx_tpl_firstdata = $('#second_data').val();
+                 var wx_tpl_proname = $('#pro_name').val();
+                 var wx_tpl_progoal = $('#pro_goal').val();
+                 var wx_tpl_endtime = $('#pro_end_time').val();
+                 var wx_tpl_procon = $('#text').val();
+                 var wx_tpl_remark = $('#second_remark').val();
+                 var wx_tpl_url = $('#second_url').val();
+                 
+                 var firstdata_len = getByteLen(wx_tpl_firstdata);
+                 var procon_len = getByteLen(wx_tpl_procon);
+                 var remark_len = getByteLen(wx_tpl_remark);
+                 if(firstdata_len==0 || firstdata_len > 30){
+                     alert('请输入“Firstdata”并且控制字数在15个字之内');
+                     return false;
+                 }
+                 if(procon_len==0 || procon_len > 218){
+                     alert('请输入“项目描述”并且控制字数在109个字之内');
+                     return false;
+                 }
+                 if(remark_len==0 || remark_len > 24){
+                     alert('请输入“Remark”并且控制字数在12个字之内');
+                     return false;
+                 }
+                 wx_tpl_content = wx_tpl_firstdata+'^'+wx_tpl_proname+'^'+wx_tpl_progoal+'^'+wx_tpl_endtime+'^'+wx_tpl_procon+'^'+wx_tpl_remark+'^'+wx_tpl_url;
+            }
+            if(send_wx_tpl == 13){
+                var send_pro_id = 0;             
+                var wx_tpl_firstdata = $('#second_data3').val();
+                var wx_tpl_remark = $('#second_remark3').val();
+                var wx_tpl_url = $('#second_url3').val();
+                var firstdata_len = getByteLen(wx_tpl_firstdata);
+                var remark_len = getByteLen(wx_tpl_remark);
+                if(firstdata_len==0 || firstdata_len > 30){
+                     alert('请输入“Firstdata”并且控制字数在15个字之内');
+                     return false;
+                 }
+                 if(remark_len==0 || remark_len > 24){
+                     alert('请输入“Remark”并且控制字数在12个字之内');
+                     return false;
+                 }
+                wx_tpl_content = wx_tpl_firstdata+'^'+wx_tpl_remark+'^'+wx_tpl_url;
+            }
+            $.ajax({
+                type: "POST",
+                url: "/weixin_manage/edit_weixin_spread_save/",
+                traditional: true,
+                data: {
+                    send_pro_id:send_pro_id,
+                    spread_id:<?php echo $spread_mes['id'] ?>,
+                    spread_title:spread_title,
+                    user_status_id:user_status_id,
+                    send_type:send_type,
+                    send_time:send_time,
+                    send_wx_tpl:send_wx_tpl,
+                    wx_tpl_content:wx_tpl_content
+                },
+                dataType: 'json',
+                success: function(data) {
+                    if(data.status == -1){
+                        alert('更新失败');
+                        return false;
+                    }
+                    if (data.status == 1) {
+                        alert('编辑更新成功');
+                        location.replace('/weixin_manage/weixin_spread');
+                    }
+                },
+            });
+           
+        });    
+</script>
+<script>
+    function getByteLen(val) {
+        var len = 0;
+        for (var i = 0; i < val.length; i++) {
+            var a = val.charAt(i);
+            if (a.match(/[^\x00-\xff]/ig) != null) {
+                len += 2;
+            } else {
+                len += 1;
+            }
+        }
+        return len;
+    }
+</script>
+<?php $this->load->view('ckad/footer') ?>

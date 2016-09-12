@@ -1,0 +1,18 @@
+#!/bin/bash
+date_beg="2016-01-01";
+date_end=`date +%Y-%m-%d`;
+
+beg_s=`date -d "${date_beg}" +%s`;
+end_s=`date -d "${date_end}" +%s`;
+ 
+while [ "$beg_s" -lt "$end_s" ]
+do
+    rm -rf /ROOT/tmp/user/*.txt
+    /ROOT/bin/php /ROOT/www/acp.modianinc.com/acp/index.php crons/web_data_duplicate make_user $beg_s
+    path="/ROOT/tmp/user/"
+    for file in `ls $path`
+    do
+       /ROOT/bin/php /ROOT/www/acp.modianinc.com/acp/index.php crons/web_data_duplicate user_path $file $beg_s
+    done
+    beg_s=`expr $beg_s + 86400`
+done

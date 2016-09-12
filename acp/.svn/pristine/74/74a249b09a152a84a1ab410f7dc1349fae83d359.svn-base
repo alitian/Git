@@ -1,0 +1,46 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+/**
+ * @auther: wz
+ * @date: 2015-11-18
+ *
+ * uesed for black and white to list
+ *
+ */
+class Black_white extends Acp_Controller {
+
+    public function white() {
+        $this->load->library('md_model_cache');
+        $data = array();
+        if ($_POST) {
+            if ($_POST['content'] && $_POST['type']) {
+                $list = explode("\n", $_POST['content']);
+                foreach ($list as $item) {
+                    $item = str_replace(PHP_EOL, '', $item);
+                    if ($item) {
+                        try {
+                            $this->db->insert("md_black_white", array('type' => $_POST['type'], 'content' => $item, 'utime' => date("Y-m-d H:i:s")));
+                        } catch (Exception $e) {
+                            continue;
+                        }
+                    }
+                }
+                $this->md_model_cache->set_model('Black_white_model')->clean()->video_white();
+            }
+        }
+        if ($_GET['del']) {
+            $this->md_model_cache->set_model('Black_white_model')->clean()->video_white();
+            $this->db->delete('md_black_white', array('id' => $_GET['del']));
+        }
+        if (isset($_GET['type'])) {
+            $sql = "SELECT * FROM md_black_white WHERE type='{$_GET['type']}'";
+            $data['list'] = $this->db->query($sql)->result_array();
+            $data['type'] = $_GET['type'];
+        }
+        $this->load->view('black_white/white', $data);
+    }
+
+}

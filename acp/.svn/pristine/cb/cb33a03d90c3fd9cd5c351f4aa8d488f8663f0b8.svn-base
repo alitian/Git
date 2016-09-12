@@ -1,0 +1,18 @@
+<?php
+    $redis=new Redis();
+    $redis->connect('127.0.0.1','6379');
+    $arr=$redis->get('avg_month');
+    $arr=unserialize($arr);
+    $data=array('pv'=>0,'uv'=>0,'p/u'=>0,'login_user'=>0,'new_user'=>0,'form'=>0,'money'=>0,'ios_new'=>0,'ios_old'=>0,'andriod_new'=>0,'andriod_old'=>0);
+    foreach($arr as $k=>$v){
+        foreach($v as $key=>$value){
+            if($data[$key]<$value){
+                $data[$key]=$value;
+            }
+        }
+    }
+    $str=serialize($data);
+   $out=$redis->set("max_month",$str);
+   if($out==1){
+       echo "存入成功！！";
+   }

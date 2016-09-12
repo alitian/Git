@@ -1,0 +1,360 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Cp_statistics extends Deamon_Controller {
+    
+    public $warning_mailer = array('luxueyong@modian.com');
+    public $redis;
+    
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('bbs/bbs_m');
+        $init = new Redis();
+        $host = $this->config->item('md_redis');
+        $init->connect("{$host['ip']}", "{$host['port']}");
+        $this->redis = $init;
+        $other_db = $this->config->item('other_db');
+        if ($other_db) {
+            foreach ($other_db as $key => $value) {
+                $this->$key = &DB($value);
+            }
+        }
+    }
+    
+    public function cp_statistics_day() {
+        //for ($i = strtotime("2016-07-22"); $i <= strtotime("2016-08-01"); $i += 86400) {
+            //查看当前在线的项目
+            $i = time();
+            $data = [];
+            $moxi_post_id = [];
+            $examine_modify_time = [];
+            $stime = date("Y-m-d", $i - 86400);
+            $end_time = date("Y-m-d 00:00:00", $i);
+            $start_time = date("Y-m-d 00:00:00", $i - 86400);
+            $md_plan = ["web" => 0, "wap" => 0, "ios" => 0, "android" => 0];
+            $if_pay = ["amount" => 0, "indenpendent" => 0, "dingdan" => 0];
+            $sql = "SELECT `id`,`moxi_post_id`,`examine_modify_time` FROM `md_product` WHERE ((`start_time` <= '{$start_time}' AND `end_time` > '{$start_time}') OR (`end_time` > '"
+                    . "{$end_time}' AND `start_time` < '{$end_time}') OR (`start_time` >= '{$start_time}' AND `end_time` < '{$end_time}')) AND `if_show` = 1 AND `pro_type` = 1";
+            $reslut = $this->db->query($sql)->result_array();
+            foreach ($reslut as $key => $val) {
+                $moxi_post_id[$val['id']] = $val['moxi_post_id'];
+                $examine_modify_time[$val['id']] = $val['examine_modify_time'];
+                $data[$val['id']]['md_plan'] = $md_plan;
+                $data[$val['id']]['new_user'] = 0;
+                $data[$val['id']]['fans'] = 0;
+                $data[$val['id']]['succes'] = $if_pay;
+                $data[$val['id']]['defeated'] = $if_pay;
+            }
+            
+            $sql = "SELECT `pro_id`,`if_pay`,SUM(`amount`) AS money,COUNT(DISTINCT `user_id`) AS indenpendent,COUNT(*) AS dingdan FROM `md_product_back` "
+                    . "WHERE `pro_id` > 0 AND (`if_pay` = 1 OR `if_pay` = 3) AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`if_pay`";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    if ($val['if_pay'] == 1) {
+                        $data[$val['pro_id']]['succes']['amount'] = $val['money'];
+                        $data[$val['pro_id']]['succes']['indenpendent'] = $val['indenpendent'];
+                        $data[$val['pro_id']]['succes']['dingdan'] = $val['dingdan'];
+                    }
+                    if ($val['if_pay'] == 3) {
+                        $data[$val['pro_id']]['defeated']['amount'] = $val['money'];
+                        $data[$val['pro_id']]['defeated']['indenpendent'] = $val['indenpendent'];
+                        $data[$val['pro_id']]['defeated']['dingdan'] = $val['dingdan'];
+                    }
+                }
+            }
+
+            $sql = "SELECT `pro_id`,`md_plan`,COUNT(*) AS dingdan FROM `md_product_back` WHERE `pro_id` > 0 AND `if_pay` = 1 AND "
+                    . "`ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`md_plan`";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['md_plan'][$val['md_plan']] = $val['dingdan'];
+                }
+            }
+            $sql = "SELECT pro.`id`,rew.`id` AS rew_id,rew.`money`,rew.`content` FROM `md_product` pro INNER JOIN `md_product_rewards` rew ON "
+                    . "pro.`id` = rew.`pro_id` WHERE ((pro.`start_time` <= '{$start_time}' AND pro.`end_time` > '{$start_time}') OR (pro.`end_time` > '"
+                    . "{$end_time}' AND pro.`start_time` < '{$end_time}') OR (pro.`start_time` >= '{$start_time}' AND pro.`end_time` < '{$end_time}')) "
+                    . "AND pro.`if_show` = 1 AND pro.`pro_type` = 1";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['id']])) {
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['money'] = $val['money'];
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['content'] = $val['content'];
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['number_person'] = 0;
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['amount'] = 0;
+                }
+                if (!isset($data[$val['id']]['rew_id'][-3])) {
+                    $data[$val['id']]['rew_id'][-3]['money'] = 0;
+                    $data[$val['id']]['rew_id'][-3]['content'] = "支持梦想，不需要回报";
+                    $data[$val['id']]['rew_id'][-3]['number_person'] = 0;
+                    $data[$val['id']]['rew_id'][-3]['amount'] = 0;
+                }
+            }
+
+            $sql = "SELECT `pro_id`,`rew_id`,COUNT(*) AS shu,SUM(`amount`) AS money FROM `md_product_back` WHERE `pro_id` > 0 AND `ctime` >= '"
+                    . "{$start_time}' AND `ctime` < '{$end_time}' AND `if_pay` = 1 GROUP BY `pro_id`,`rew_id`";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['rew_id'][$val['rew_id']]['number_person'] = $val['shu'];
+                    $data[$val['pro_id']]['rew_id'][$val['rew_id']]['amount'] = $val['money'];
+                }
+            }
+
+            $sql = "SELECT `pro_id`,COUNT(*) AS fans FROM `md_product_favors` WHERE `type` = 1 AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['fans'] = $val['fans'];
+                }
+            }
+
+            foreach ($moxi_post_id as $key => $val) {
+                $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_" . ($val % 10) . "` WHERE `post_id` = {$val} AND `isshow` = 1 AND `ctime` >= "
+                        . "UNIX_TIMESTAMP('{$start_time}') AND `ctime` < UNIX_TIMESTAMP('{$end_time}')";
+                $reslut = $this->moxi_db->query($sql)->row_array();
+                if (isset($data[$key])) {
+                    $data[$key]['comment'] = $reslut['shu'];
+                }
+            }
+            
+            $sql = "SELECT a.`user_id`,b.`ctime` AS riqi,b.`pro_id`,c.`examine_modify_time`,d.`ctime` FROM `md_product_back` a "
+                    . "INNER JOIN `md_product_back` b ON a.`user_id` = b.`user_id` INNER JOIN `md_product` c ON b.`pro_id` = c.`id` "
+                    . "INNER JOIN `md_users` d ON a.`user_id` = d.`id` WHERE a.`ctime` >= '{$start_time}' AND a.`ctime` < '{$end_time}' AND b.`pro_id` > 0 "
+                    . "AND (b.`if_pay` = 1 OR b.`if_pay` = 3) GROUP BY a.`user_id` HAVING MIN(riqi) >= '{$start_time}' AND MIN(riqi) < '{$end_time}'";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    if (strtotime($val['examine_modify_time']) < strtotime($val['ctime'])) {
+                        $data[$val['pro_id']]['new_user'] ++;
+                    }
+                }
+            }
+            //循环数组，将数据存入数据库
+            foreach ($data as $key => $val) {
+                $pro_data = [];
+                $pro_data = [
+                    'stime' => date("Y-m-d", $i - 86400),
+                    'md_plan_web' => $val['md_plan']['web'],
+                    'md_plan_wap' => $val['md_plan']['wap'],
+                    'md_plan_ios' => $val['md_plan']['ios'],
+                    'md_plan_android' => $val['md_plan']['android'],
+                    'new_user' => $val['new_user'],
+                    'pay_succes_amount' => $val['succes']['amount'],
+                    'pay_succes_indenpendent' => $val['succes']['indenpendent'],
+                    'pay_succes_dingdan' => $val['succes']['dingdan'],
+                    'pay_defeated_amount' => $val['defeated']['amount'],
+                    'pay_defeated_indenpendent' => $val['defeated']['indenpendent'],
+                    'pay_defeated_dingdan' => $val['defeated']['dingdan'],
+                    'fans' => $val['fans'],
+                    'comment' => $val['comment']
+                ];
+                $field = "product_data_" . $key;
+                $this->redis->hSet($field, strtotime($stime), serialize($pro_data));
+                $field = "product_rew_detail";
+                if ($this->redis->hExists($field, $key)) {
+                    $str = $this->redis->hGet($field, $key);
+                    $pro_rew = unserialize($str);
+                    foreach ($pro_rew as $kk => $vv) {
+                        $pro_rew[$kk]['number_person'] += $val['rew_id'][$kk]['number_person'];
+                        $pro_rew[$kk]['amount'] += $val['rew_id'][$kk]['amount'];
+                    }
+                    $this->redis->hSet($field, $key, serialize($pro_rew));
+                } else {
+                    $this->redis->hSet($field, $key, serialize($val['rew_id']));
+                }
+                if (!isset($insert1)) {
+                    $insert1 = "INSERT INTO `md_statistics_cp`(`pro_id`,`ctime`,`stime`,`md_plan_web`,`md_plan_wap`,`md_plan_ios`,`md_plan_android`,`new_user`,"
+                            . "`pay_succes_amount`,`pay_succes_indenpendent`,`pay_succes_dingdan`,`pay_defeated_amount`,`pay_defeated_indenpendent`,`pay_defeated_dingdan`,"
+                            . "`fans`,`comment`) VALUES('{$key}',NOW(),'{$stime}','{$val['md_plan']['web']}','{$val['md_plan']['wap']}','{$val['md_plan']['ios']}',"
+                            . "'{$val['md_plan']['android']}','{$val['new_user']}','{$val['succes']['amount']}','{$val['succes']['indenpendent']}','{$val['succes']['dingdan']}',"
+                            . "'{$val['defeated']['amount']}','{$val['defeated']['indenpendent']}','{$val['defeated']['dingdan']}','{$val['fans']}','{$val['comment']}')";
+                } else {
+                    $insert1 .= ",('{$key}',NOW(),'{$stime}','{$val['md_plan']['web']}','{$val['md_plan']['wap']}','{$val['md_plan']['ios']}',"
+                            . "'{$val['md_plan']['android']}','{$val['new_user']}','{$val['succes']['amount']}','{$val['succes']['indenpendent']}','{$val['succes']['dingdan']}',"
+                            . "'{$val['defeated']['amount']}','{$val['defeated']['indenpendent']}','{$val['defeated']['dingdan']}','{$val['fans']}','{$val['comment']}')";
+                }
+                foreach ($val['rew_id'] as $kk => $vv) {
+                    if (!isset($insert2)) {
+                        $insert2 = "INSERT INTO `md_statistics_rew`(`pro_id`,`ctime`,`stime`,`rew_id`,`money`,`content`,`number_person`,`amount`) VALUES('{$key}',NOW(),'"
+                                . "{$stime}','{$kk}','{$vv['money']}','{$vv['content']}','{$vv['number_person']}','{$vv['amount']}')";
+                    } else {
+                        $insert2 .= ",('{$key}',NOW(),'{$stime}','{$kk}','{$vv['money']}','{$vv['content']}','{$vv['number_person']}','{$vv['amount']}')";
+                    }
+                }
+            }
+            if (isset($insert1)) {
+                $this->tongji_db->query("DELETE FROM `md_statistics_cp` WHERE `stime` = '{$stime}'");
+                $this->tongji_db->query($insert1);
+                unset($insert1);
+            }
+            if (isset($insert2)) {
+                $this->tongji_db->query("DELETE FROM `md_statistics_rew` WHERE `stime` = '{$stime}'");
+                $this->tongji_db->query($insert2);
+                unset($insert2);
+            }
+            
+        //}
+    }
+    
+    public function cp_statistics_hour() {
+        $i = time();
+        $data = [];
+        $moxi_post_id = [];
+        $examine_modify_time = [];
+        $stime = date("Y-m-d", $i);
+        $end_time = date("Y-m-d H:i:s", $i);
+        $start_time = date("Y-m-d 00:00:00", $i);
+        $md_plan = ["web" => 0, "wap" => 0, "ios" => 0, "android" => 0];
+        $if_pay = ["amount" => 0, "indenpendent" => 0, "dingdan" => 0];
+        $sql = "SELECT `id`,`moxi_post_id`,`examine_modify_time` FROM `md_product` WHERE ((`start_time` <= '{$start_time}' AND `end_time` > '{$start_time}') OR (`end_time` > '"
+                . "{$end_time}' AND `start_time` < '{$end_time}') OR (`start_time` >= '{$start_time}' AND `end_time` < '{$end_time}')) AND `if_show` = 1 AND `pro_type` = 1";
+        $reslut = $this->db->query($sql)->result_array();
+        foreach ($reslut as $key => $val) {
+            $moxi_post_id[$val['id']] = $val['moxi_post_id'];
+            $examine_modify_time[$val['id']] = $val['examine_modify_time'];
+            $data[$val['id']]['md_plan'] = $md_plan;
+            $data[$val['id']]['new_user'] = 0;
+            $data[$val['id']]['fans'] = 0;
+            $data[$val['id']]['succes'] = $if_pay;
+            $data[$val['id']]['defeated'] = $if_pay;
+        }
+
+        $sql = "SELECT `pro_id`,`if_pay`,SUM(`amount`) AS money,COUNT(DISTINCT `user_id`) AS indenpendent,COUNT(*) AS dingdan FROM `md_product_back` "
+                . "WHERE `pro_id` > 0 AND (`if_pay` = 1 OR `if_pay` = 3) AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`if_pay`";
+        $reslut = $this->db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                if ($val['if_pay'] == 1) {
+                    $data[$val['pro_id']]['succes']['amount'] = $val['money'];
+                    $data[$val['pro_id']]['succes']['indenpendent'] = $val['indenpendent'];
+                    $data[$val['pro_id']]['succes']['dingdan'] = $val['dingdan'];
+                }
+                if ($val['if_pay'] == 3) {
+                    $data[$val['pro_id']]['defeated']['amount'] = $val['money'];
+                    $data[$val['pro_id']]['defeated']['indenpendent'] = $val['indenpendent'];
+                    $data[$val['pro_id']]['defeated']['dingdan'] = $val['dingdan'];
+                }
+            }
+        }
+
+        $sql = "SELECT `pro_id`,`md_plan`,COUNT(*) AS dingdan FROM `md_product_back` WHERE `pro_id` > 0 AND `if_pay` = 1 AND "
+                . "`ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`md_plan`";
+        $reslut = $this->db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                $data[$val['pro_id']]['md_plan'][$val['md_plan']] = $val['dingdan'];
+            }
+        }
+        $sql = "SELECT pro.`id`,rew.`id` AS rew_id,rew.`money`,rew.`content` FROM `md_product` pro INNER JOIN `md_product_rewards` rew ON "
+                . "pro.`id` = rew.`pro_id` WHERE ((pro.`start_time` <= '{$start_time}' AND pro.`end_time` > '{$start_time}') OR (pro.`end_time` > '"
+                . "{$end_time}' AND pro.`start_time` < '{$end_time}') OR (pro.`start_time` >= '{$start_time}' AND pro.`end_time` < '{$end_time}')) "
+                . "AND pro.`if_show` = 1 AND pro.`pro_type` = 1";
+        $reslut = $this->db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['id']])) {
+                $data[$val['id']]['rew_id'][$val['rew_id']]['money'] = $val['money'];
+                $data[$val['id']]['rew_id'][$val['rew_id']]['content'] = $val['content'];
+                $data[$val['id']]['rew_id'][$val['rew_id']]['number_person'] = 0;
+                $data[$val['id']]['rew_id'][$val['rew_id']]['amount'] = 0;
+            }
+            if (!isset($data[$val['id']]['rew_id'][-3])) {
+                $data[$val['id']]['rew_id'][-3]['money'] = 0;
+                $data[$val['id']]['rew_id'][-3]['content'] = "支持梦想，不需要回报";
+                $data[$val['id']]['rew_id'][-3]['number_person'] = 0;
+                $data[$val['id']]['rew_id'][-3]['amount'] = 0;
+            }
+        }
+
+        $sql = "SELECT `pro_id`,`rew_id`,COUNT(*) AS shu,SUM(`amount`) AS money FROM `md_product_back` WHERE `pro_id` > 0 AND `ctime` >= '"
+                . "{$start_time}' AND `ctime` < '{$end_time}' AND `if_pay` = 1 GROUP BY `pro_id`,`rew_id`";
+        $reslut = $this->db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                $data[$val['pro_id']]['rew_id'][$val['rew_id']]['number_person'] = $val['shu'];
+                $data[$val['pro_id']]['rew_id'][$val['rew_id']]['amount'] = $val['money'];
+            }
+        }
+
+        $sql = "SELECT `pro_id`,COUNT(*) AS fans FROM `md_product_favors` WHERE `type` = 1 AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`";
+        $reslut = $this->db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                $data[$val['pro_id']]['fans'] = $val['fans'];
+            }
+        }
+
+        foreach ($moxi_post_id as $key => $val) {
+            $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_" . ($val % 10) . "` WHERE `post_id` = {$val} AND `isshow` = 1 AND `ctime` >= "
+                    . "UNIX_TIMESTAMP('{$start_time}') AND `ctime` < UNIX_TIMESTAMP('{$end_time}')";
+            $reslut = $this->moxi_db->query($sql)->row_array();
+            if (isset($data[$key])) {
+                $data[$key]['comment'] = $reslut['shu'];
+            }
+        }
+
+        $sql = "SELECT a.`user_id`,b.`ctime` AS riqi,b.`pro_id`,c.`examine_modify_time`,d.`ctime` FROM `md_product_back` a "
+                . "INNER JOIN `md_product_back` b ON a.`user_id` = b.`user_id` INNER JOIN `md_product` c ON b.`pro_id` = c.`id` "
+                . "INNER JOIN `md_users` d ON a.`user_id` = d.`id` WHERE a.`ctime` >= '{$start_time}' AND a.`ctime` < '{$end_time}' AND b.`pro_id` > 0 "
+                . "AND (b.`if_pay` = 1 OR b.`if_pay` = 3) GROUP BY a.`user_id` HAVING MIN(riqi) >= '{$start_time}' AND MIN(riqi) < '{$end_time}'";
+        $reslut = $this->db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                if (strtotime($val['examine_modify_time']) < strtotime($val['ctime'])) {
+                    $data[$val['pro_id']]['new_user'] ++;
+                }
+            }
+        }
+        //循环数组，将数据存入数据库
+        $field = "product_statistics_today";
+        $this->redis->del($field);
+        foreach ($data as $key => $val) {
+            $val['stime'] = $stime;
+            $this->redis->hSet($field, $key, serialize($val));
+            if (!isset($insert1)) {
+                $insert1 = "INSERT INTO `md_statistics_cp`(`pro_id`,`ctime`,`stime`,`md_plan_web`,`md_plan_wap`,`md_plan_ios`,`md_plan_android`,`new_user`,"
+                        . "`pay_succes_amount`,`pay_succes_indenpendent`,`pay_succes_dingdan`,`pay_defeated_amount`,`pay_defeated_indenpendent`,`pay_defeated_dingdan`,"
+                        . "`fans`,`comment`) VALUES('{$key}',NOW(),'{$stime}','{$val['md_plan']['web']}','{$val['md_plan']['wap']}','{$val['md_plan']['ios']}',"
+                        . "'{$val['md_plan']['android']}','{$val['new_user']}','{$val['succes']['amount']}','{$val['succes']['indenpendent']}','{$val['succes']['dingdan']}',"
+                        . "'{$val['defeated']['amount']}','{$val['defeated']['indenpendent']}','{$val['defeated']['dingdan']}','{$val['fans']}','{$val['comment']}')";
+            } else {
+                $insert1 .= ",('{$key}',NOW(),'{$stime}','{$val['md_plan']['web']}','{$val['md_plan']['wap']}','{$val['md_plan']['ios']}',"
+                        . "'{$val['md_plan']['android']}','{$val['new_user']}','{$val['succes']['amount']}','{$val['succes']['indenpendent']}','{$val['succes']['dingdan']}',"
+                        . "'{$val['defeated']['amount']}','{$val['defeated']['indenpendent']}','{$val['defeated']['dingdan']}','{$val['fans']}','{$val['comment']}')";
+            }
+            foreach ($val['rew_id'] as $kk => $vv) {
+                if (!isset($insert2)) {
+                    $insert2 = "INSERT INTO `md_statistics_rew`(`pro_id`,`ctime`,`stime`,`rew_id`,`money`,`content`,`number_person`,`amount`) VALUES('{$key}',NOW(),'"
+                            . "{$stime}','{$kk}','{$vv['money']}','{$vv['content']}','{$vv['number_person']}','{$vv['amount']}')";
+                } else {
+                    $insert2 .= ",('{$key}',NOW(),'{$stime}','{$kk}','{$vv['money']}','{$vv['content']}','{$vv['number_person']}','{$vv['amount']}')";
+                }
+            }
+        }
+        if (isset($insert1)) {
+            $this->tongji_db->query("DELETE FROM `md_statistics_cp` WHERE `stime` = '{$stime}'");
+            $this->tongji_db->query($insert1);
+            unset($insert1);
+        }
+        if (isset($insert2)) {
+            $this->tongji_db->query("DELETE FROM `md_statistics_rew` WHERE `stime` = '{$stime}'");
+            $this->tongji_db->query($insert2);
+            unset($insert2);
+        }
+        echo 111;
+    }
+}

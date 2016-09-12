@@ -1,0 +1,107 @@
+<?php $this->load->view('ckad/header') ?>
+<script language='javascript'>
+    $(function () {
+        $("#pro_id").change(function () {
+            window.location.href = "/edm_ad/content_plus?pro_id=" + $(this).val();
+        })
+        $("#to_short_url").click(function () {
+            jQuery.post('/edm_ad/get_short_url', {long_url: $("#long_url").val()}, function (data) {
+                if (data.url_short != undefined)
+                {
+                    $("#short_url").val(data.url_short);
+                }
+            }, 'json');
+        });
+        $("#to_sms_end").click(function () {
+            $("#sms_plus").val($("#sms_plus").val() + $("#short_url").val());
+        });
+    });
+</script>
+<div class="row">
+    <div class='span8'>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>选择项目</th>
+                    <th>
+                        <select name='pro_id' id='pro_id'>
+                            <option value="0">请选择项目</option>
+                            <?php foreach ($pro_list as $product): ?>
+                                <option value='<?= $product['id'] ?>'<?php if ($product['id'] == $pro_id): $end_time = $product['end_time']; ?> selected<?php endif; ?>>[<?= $product['id'] ?>] <?= $product['name'] ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </th>
+                </tr>
+            </thead>
+            <form id="ff" method="post">
+                <tbody>
+                    <tr>
+                        <td>
+                            邮件推荐内容
+                        </td>
+                        <td>
+                            <?php
+                            $cur_pro = array();
+                            foreach ($plus_list as $product) {
+                                if ($pro_id == $product['id']) {
+                                    $cur_pro = $product;
+                                }
+                            }
+                            if ($cur_pro['email_plus']) {
+                                $cur_pro['email_plus'] = json_decode($cur_pro['email_plus']);
+                            } else {
+                                $cur_pro['email_plus'] = array();
+                            }
+                            ?>
+                            <input type="hidden" name="end_time" value="<?= $end_time; ?>" />
+                            <?php foreach ($plus_list as $product): ?>
+                                <?php if ($product['id'] != $pro_id): ?>
+                                    <label for='email_plus<?= $product['id']; ?>'><input type="checkbox" id='email_plus<?= $product['id']; ?>' name='email_plus[]' value='<?= $product['id'] ?>'<?php if (in_array($product['id'], $cur_pro['email_plus'])): ?> checked="checked"<?php endif; ?>><?= $product['name'] ?></label>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            短信内容
+                        </td>
+                        <td>
+                            <input type="text" value="<?= $cur_pro['sms_plus'] ?>" id="sms_plus" name='sms_plus' />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            邮件链接
+                        </td>
+                        <td>
+                            <input type="text" value="<?= $cur_pro['email_url'] ?>" id="email_url" name='email_url' />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <button class="btn btn-primary" type="submit">保存</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </form>
+        </table>
+    </div>
+    <div class='span4'>
+        <table class="table table-bordered">
+            <tr>
+                <th>
+                    短连接生成工具
+                </th>
+            </tr>
+            <tr>
+                <td>
+                    长连接:<input type="text" id='long_url' /><br />
+                    ①<button class="btn btn-primary" id='to_short_url' type="button">>>生成短连接>></button><br />
+                    短链接:<input type="text" id='short_url' value="<?= $sms_plus ?>" name='short_url' /><br />
+                    ②<button class="btn btn-primary" id='to_sms_end' type="button"><<填到短信尾部<<</button>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+<?php $this->load->view('ckad/footer') ?>

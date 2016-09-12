@@ -1,0 +1,129 @@
+<?php $this->load->view('ckad/header') ?>
+<style type="text/css">
+    body {
+    background-color: #f8f8f8;
+    }
+    .order-detail h2 {
+    margin: 20px 0 20px 10px;
+    color: #333;
+    font-weight: bold;
+    }
+    .order-detail .detail-list {
+    background-color: #fff;
+    border-top: 1px solid #ddd;
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    }
+    .order-detail .detail-list .detail-item {
+    padding: 20px 40px;
+    border-bottom: 1px solid #ddd;
+    }
+    .relative {
+    position: relative;
+    top: 0;
+    left: 0;
+    }
+    .order-detail .detail-list .detail-item h4 {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+    }
+    /*.order-detail .detail-list .detail-item p {
+    font-size: 14px;
+    color: #6f6f6f;
+    }*/
+    .order-detail ol, ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    }
+</style>
+
+
+<div class="wrap">
+    <div class="order-detail">
+        <h2>订单详情</h2>
+
+        <ul class="detail-list">
+            <li style="padding-right: 200px;" class="detail-item relative">
+                <h4>订单号：<?= $back['id'] ?></h4>
+                <h4>订单状态：<?= $order_status[$back['status']] ?></h4>
+            </li>
+            <li class="detail-item">
+                <h4>回报详情</h4>
+                <p>项目名称：<?= $product['name']; ?></p>
+                <?php if ($reward['id'] != _gc('special_reward')): ?>
+                    <p>回报档：￥<?= $reward['money']; ?></p>
+                    <div class="reward-cont clearfix">
+                        <p class="t">回报内容：</p>
+                        <p class="c"><?= $reward['content'] ?></p>
+                    </div>
+                    <p>回报发放方式：<?= $if_address_array[$reward['if_address']]; ?></p>
+                    <p>邮寄费用：￥<?= $reward['fee']; ?></p>
+                <?php else:?>
+                    <div class="reward-cont clearfix">
+                        <p class="t">回报内容：</p>
+                        <p class="c">支持梦想，不需要回报</p>
+                    </div>
+                <?php endif; ?>
+                <p>实际应付金额：￥<?= $back['amount']; ?></p>
+            </li>
+            <li class="detail-item">
+                <h4>收件人信息</h4>
+                <?php if ($back['check_support'] == 'on'): ?>
+                    <p>手机号：<?= $back['address_mobile']; ?></p>
+                    <p>备注：<?= $back['address_description']; ?></p>
+                <?php elseif ($reward['if_address'] == '1' || $reward['if_address'] == '3'): ?>
+                    <p>收件人姓名：<?= $back['address_name']; ?></p>
+                    <p>手机号：<?= $back['address_mobile']; ?></p>
+                    <p>邮箱：<?= $back['address_email'] ?></p>
+                    <p>邮寄地址：<?= $back['address_province']; ?>省<?= $back['address_city'] ?>市<?= $back['address_detail']; ?></p>
+                    <p>邮编：<?= $back['address_postal_code']; ?></p>
+                    <p>备注：<?= $back['address_description']; ?></p>
+                <?php else: ?>
+                    <p>收件人姓名：<?= $back['address_name']; ?></p>
+                    <p>手机号：<?= $back['address_mobile']; ?></p>
+                    <p>邮箱：<?= $back['address_email'] ?></p>
+                    <p>备注：<?= $back['address_description']; ?></p>
+                <?php endif; ?>
+            </li>
+
+
+            <li class="detail-item">
+                <h4>支付信息</h4>
+                <p>付款方式：<?= $back['bank_type']; ?></p>
+                <p>下单时间：<?= $back['ctime']; ?></p>
+                <p>支付时间：<?= $back['return_time']; ?></p>
+                <p>应付金额：&yen;<?= $back['amount'] ?></p>
+                <p>实付金额：&yen;<?= $payment['amount'] ? $payment['amount'] : 0; ?></p>
+            </li>
+            <?php foreach ($delivery_list as $delivery): ?>
+                <?php
+                $dlv = json_decode($delivery['info'], true);
+                if ($delivery['type'] == '1') {
+                    ?>
+                    <li class="detail-item">
+                        <h4>快递信息</h4>
+                        <p>快递单号：<?= $dlv['post_number']; ?></p>
+                        <p>快递公司：<?= $dlv['post_company']; ?>（<a target="_blank" href="http://www.kuaidi100.com/chaxun?com=<?= $dlv['post_company']; ?>&nu=<?= $dlv['post_number']; ?>">去官网查看物流信息</a>）</p>
+                        <p>发货时间：<?= $delivery['ctime']; ?></p>
+                        <p>备注：<?= $dlv['post_aside']; ?></p>
+                    </li>
+                    <?php
+                } else {
+                    ?>
+                    <li class="detail-item">
+                        <h2>发码信息</h2>
+                        <p>券码：<?= $dlv['game_code']; ?></p>
+                        <p>发货时间：<?= $delivery['ctime']; ?></p>
+                        <p>备注：<?= $dlv['game_code_aside']; ?></p>
+                    </li>
+                    <?php
+                }
+                ?>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</div>
+<?php $this->load->view('ckad/footer'); ?>

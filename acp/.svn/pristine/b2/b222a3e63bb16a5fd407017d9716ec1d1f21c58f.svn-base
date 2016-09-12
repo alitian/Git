@@ -1,0 +1,183 @@
+<?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+/*
+| -------------------------------------------------------------------
+| DATABASE CONNECTIVITY SETTINGS
+| -------------------------------------------------------------------
+| This file will contain the settings needed to access your database.
+|
+| For complete instructions please consult the 'Database Connection'
+| page of the User Guide.
+|
+| -------------------------------------------------------------------
+| EXPLANATION OF VARIABLES
+| -------------------------------------------------------------------
+|
+|	['hostname'] The hostname of your database server.
+|	['username'] The username used to connect to the database
+|	['password'] The password used to connect to the database
+|	['database'] The name of the database you want to connect to
+|	['dbdriver'] The database type. ie: mysql.  Currently supported:
+				 mysql, mysqli, postgre, odbc, mssql, sqlite, oci8
+|	['dbprefix'] You can add an optional prefix, which will be added
+|				 to the table name when using the  Active Record class
+|	['pconnect'] TRUE/FALSE - Whether to use a persistent connection
+|	['db_debug'] TRUE/FALSE - Whether database errors should be displayed.
+|	['cache_on'] TRUE/FALSE - Enables/disables query caching
+|	['cachedir'] The path to the folder where cache files should be stored
+|	['char_set'] The character set used in communicating with the database
+|	['dbcollat'] The character collation used in communicating with the database
+|				 NOTE: For MySQL and MySQLi databases, this setting is only used
+| 				 as a backup if your server is running PHP < 5.2.3 or MySQL < 5.0.7
+|				 (and in table creation queries made with DB Forge).
+| 				 There is an incompatibility in PHP with mysql_real_escape_string() which
+| 				 can make your site vulnerable to SQL injection if you are using a
+| 				 multi-byte character set and are running versions lower than these.
+| 				 Sites using Latin-1 or UTF-8 database character set and collation are unaffected.
+|	['swap_pre'] A default table prefix that should be swapped with the dbprefix
+|	['autoinit'] Whether or not to automatically initialize the database.
+|	['stricton'] TRUE/FALSE - forces 'Strict Mode' connections
+|							- good for ensuring strict SQL while developing
+|
+| The $active_group variable lets you choose which connection group to
+| make active.  By default there is only one group (the 'default' group).
+|
+| The $active_record variables lets you determine whether or not to load
+| the active record class
+$db['default']['hostname'] = SAE_MYSQL_HOST_M;//主库
+$db['default']['hostname_s'] = SAE_MYSQL_HOST_S;//从库
+$db['default']['username'] = SAE_MYSQL_USER;
+$db['default']['password'] = SAE_MYSQL_PASS;
+$db['default']['database'] = SAE_MYSQL_DB;
+$db['default']['port'] = SAE_MYSQL_PORT;
+*/
+
+$active_group = 'default';
+$active_record = TRUE;
+$db['default']['hostname'] = "modianm1.db.modianinc.com:16888";//主库
+$db['default']['hostname_s'] = "modians1.db.modianinc.com:16888";//从库
+$db['default']['username'] = "modian";
+$db['default']['password'] = "zdmC09OIuuuyqa5w";
+$db['default']['database'] = "app_modian";
+$db['default']['database_s'] = "app_modian";
+$db['default']['dbdriver'] = 'mdmysql';
+$db['default']['dbprefix'] = '';
+$db['default']['pconnect'] = FALSE;
+$db['default']['db_debug'] = TRUE;
+$db['default']['cache_on'] = FALSE;
+$db['default']['cachedir'] = ''; //SAE数据库缓存, 使用kvdb进行缓存. 此配置值为key前缀, 例如 "dbcache_". 若不设置, 则不缓存
+$db['default']['char_set'] = 'utf8';
+$db['default']['dbcollat'] = 'utf8_general_ci';
+$db['default']['swap_pre'] = '';
+$db['default']['autoinit'] = TRUE;
+$db['default']['stricton'] = FALSE;
+
+
+/**
+ * 摩西数据库
+ */
+$config['moxi_db']['hostname'] = "moxim1.db.modianinc.com:16888";
+$config['moxi_db']['hostname_s'] = "moxis1.db.modianinc.com:16888";
+$config['moxi_db']['username'] = "moxi";
+$config['moxi_db']['password'] = "LZzNglym4";
+$config['moxi_db']['database'] = "app_moxi";
+$config['moxi_db']['database_s'] = "app_moxi";
+$config['moxi_db']['dbdriver'] = 'mdmysql';
+$config['moxi_db']['dbprefix'] = '';
+$config['moxi_db']['pconnect'] = FALSE;
+$config['moxi_db']['db_debug'] = TRUE;
+$config['moxi_db']['cache_on'] = FALSE;
+$config['moxi_db']['cachedir'] = ''; //SAE数据库缓存, 使用kvdb进行缓存. 此配置值为key前缀, 例如 "dbcache_". 若不设置, 则不缓存
+$config['moxi_db']['char_set'] = 'utf8';
+$config['moxi_db']['dbcollat'] = 'utf8_general_ci';
+$config['moxi_db']['swap_pre'] = '';
+$config['moxi_db']['autoinit'] = TRUE;
+$config['moxi_db']['stricton'] = FALSE;
+
+
+/**
+ * 存储日志数据库配置
+ */
+$config['other_db']['log_db']['hostname'] = "logm1.db.modianinc.com:16888";//主库
+$config['other_db']['log_db']['username'] = "log";
+$config['other_db']['log_db']['password'] = "apB2886dSX6";
+$config['other_db']['log_db']['database'] = "md_log";
+$config['other_db']['log_db']['dbdriver'] = 'mysql';
+$config['other_db']['log_db']['dbprefix'] = '';
+$config['other_db']['log_db']['pconnect'] = FALSE;
+$config['other_db']['log_db']['db_debug'] = TRUE;
+$config['other_db']['log_db']['cache_on'] = FALSE;
+$config['other_db']['log_db']['cachedir'] = ''; //SAE数据库缓存, 使用kvdb进行缓存. 此配置值为key前缀, 例如 "dbcache_". 若不设置, 则不缓存
+$config['other_db']['log_db']['char_set'] = 'utf8';
+$config['other_db']['log_db']['dbcollat'] = 'utf8_general_ci';
+$config['other_db']['log_db']['swap_pre'] = '';
+$config['other_db']['log_db']['autoinit'] = TRUE;
+$config['other_db']['log_db']['stricton'] = FALSE;
+
+
+/**
+ * EDM数据库配置
+ */
+
+$db['edm']['hostname'] = "edmm1.db.modianinc.com:16888";//主库
+//$db['edm']['hostname_s'] = "edms1.db.modianinc.com:16888";//从库
+$db['edm']['username'] = "edm";
+$db['edm']['password'] = "x6VAA1TLsYU";
+$db['edm']['database'] = "edm_modian";
+//$db['edm']['database_s'] = "edm_modian";
+$db['edm']['dbdriver'] = 'mdmysql';
+$db['edm']['dbprefix'] = '';
+$db['edm']['pconnect'] = FALSE;
+$db['edm']['db_debug'] = TRUE;
+$db['edm']['cache_on'] = FALSE;
+$db['edm']['cachedir'] = ''; //SAE数据库缓存, 使用kvdb进行缓存. 此配置值为key前缀, 例如 "dbcache_". 若不设置, 则不缓存
+$db['edm']['char_set'] = 'utf8';
+$db['edm']['dbcollat'] = 'utf8_general_ci';
+$db['edm']['swap_pre'] = '';
+$db['edm']['autoinit'] = TRUE;
+$db['edm']['stricton'] = FALSE;
+
+
+/**
+ * 统计功能数据库
+ * 统计环境分析专用数据库
+ */
+$config['other_db']['tongji_db']['hostname'] = "tw1.db.modianinc.com:16888";//主库
+$config['other_db']['tongji_db']['username'] = "acp";
+$config['other_db']['tongji_db']['password'] = "Pf9Lf8mjq";
+$config['other_db']['tongji_db']['database'] = "md_acp";
+$config['other_db']['tongji_db']['dbdriver'] = 'mysql';
+$config['other_db']['tongji_db']['dbprefix'] = '';
+$config['other_db']['tongji_db']['pconnect'] = FALSE;
+$config['other_db']['tongji_db']['db_debug'] = TRUE;
+$config['other_db']['tongji_db']['cache_on'] = FALSE;
+$config['other_db']['tongji_db']['cachedir'] = ''; //SAE数据库缓存, 使用kvdb进行缓存. 此配置值为key前缀, 例如 "dbcache_". 若不设置, 则不缓存
+$config['other_db']['tongji_db']['char_set'] = 'utf8';
+$config['other_db']['tongji_db']['dbcollat'] = 'utf8_general_ci';
+$config['other_db']['tongji_db']['swap_pre'] = '';
+$config['other_db']['tongji_db']['autoinit'] = TRUE;
+$config['other_db']['tongji_db']['stricton'] = FALSE;
+
+/**
+ * 动态Feed
+ **/
+$db['feed_db']['hostname'] = "feedm1.db.modianinc.com:16888";//主库
+$db['feed_db']['hostname_s'] = "feeds1.db.modianinc.com:16888";//从库
+$db['feed_db']['username'] = "feed";
+$db['feed_db']['password'] = "cysTDsit8XK";
+$db['feed_db']['database'] = "feed_modian";
+$db['feed_db']['database_s'] = "feed_modian";
+$db['feed_db']['dbdriver'] = 'mdmysql';
+$db['feed_db']['dbprefix'] = '';
+$db['feed_db']['pconnect'] = FALSE;
+$db['feed_db']['db_debug'] = TRUE;
+$db['feed_db']['cache_on'] = FALSE;
+$db['feed_db']['cachedir'] = ''; //SAE数据库缓存, 使用kvdb进行缓存. 此配置值为key前缀, 例如 "dbcache_". 若不设置, 则不缓存
+$db['feed_db']['char_set'] = 'utf8';
+$db['feed_db']['dbcollat'] = 'utf8_general_ci';
+$db['feed_db']['swap_pre'] = '';
+$db['feed_db']['autoinit'] = TRUE;
+$db['feed_db']['stricton'] = FALSE;
+$config['feed_db_cfg'] = $db['feed_db'];
+
+/* End of file database.php */
+/* Location: ./application/config/database.php */

@@ -1,0 +1,112 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<style type="text/css">
+.user_tag_item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+    }
+.user_sys_tag_item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+    }    
+.input-mini {
+        margin: 0;
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/main/user">用户管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="用户标签编辑" style="height:300px;padding:10px;margin: 0;" data-options="collapsible:true">
+            <form method="POST" name='addform' id="addform" class="forms addform"  action="">
+				<h3>个性标签</h3>
+				<div style="width:100%;height:1px; background:#E0E0E0;"></div>
+				<div id="user_tag_list" class="row-fluid" style="margin-top:20px">
+					<?php if(!empty($tags)){?>
+						<?php for($i=0;$i<count($tags);$i++){?>
+							<div class="user_tag_item">
+							    <a href="javascript:;" class="close del-tags">&times;</a>
+							    <input class="input-mini" type="text" name="tags[]" value="<?php echo $tags[$i]?>">
+						    </div>
+				        <?php }?>
+			        <?php }?>				    	
+				</div>
+				
+				<h3>系统隐藏标签</h3>					
+				<div style="width:100%;height:1px; background:#E0E0E0;"></div>
+				<a id="user_sys_tag_add" href="javascript:;" role="button" style="size:16">添加</a>												
+				<div id="user_sys_tag_list" class="row-fluid" style="margin-top:20px">
+					<?php if(!empty($sys_tags)){?>
+						<?php for($i=0;$i<count($sys_tags);$i++){?>
+							<div class="user_sys_tag_item">
+							    <a href="javascript:;" class="close del-sys-tags">&times;</a>
+							    <input class="input-mini" type="text" name="sys_tags[]" value="<?php echo $sys_tags[$i]?>">
+						    </div>
+				        <?php }?>
+			        <?php }?>
+			        				    	
+				</div>
+				
+				<div>
+					<a style="margin-left:40%" class="btn btn-primary" id="btn_idet_tag" name="btn_idet_tag">提交</a>  
+				</div>
+	            	
+            </form>
+        </div>              	
+    </div><!--/span-->
+</div>
+<div id="fade" class="black_overlay"> 
+</div> 
+
+<script type="text/javascript">
+$(document).ready(function(){ 
+	
+    // 添加系统隐藏标签
+    $('a#user_sys_tag_add').on('click', function(evt) {
+        evt.preventDefault();
+        var html = '<div class="user_sys_tag_item">\
+                        <a href="javascript:;" class="close del-sys-tags">&times;</a>\
+                        <input class="input-mini" type="text" name="sys_tags[]" placeholder="系统隐藏标签">\
+                    </div>';
+        $('#user_sys_tag_list').append(html);
+    });	
+    //删除系统隐藏标签
+    $('#user_sys_tag_list').on('click', '.user_sys_tag_item a.del-sys-tags', function(evt) {
+        evt.preventDefault();
+        $(this).parent().remove();
+    });
+    
+    //删除个性标签
+    $('#user_tag_list').on('click', '.user_tag_item a.del-tags', function(evt) {
+        evt.preventDefault();
+        $(this).parent().remove();
+    });
+
+    $("#btn_idet_tag").click(function(){
+        
+	    addform.action="/main/updata_user_tag/<?php echo $user_id;?>";
+	    addform.submit();
+        
+
+    });
+});
+</script>
+<?php $this->load->view('ckad/footer')?>

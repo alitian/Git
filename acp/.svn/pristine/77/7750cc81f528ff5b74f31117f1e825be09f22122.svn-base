@@ -1,0 +1,85 @@
+<?php $this->load->view('ckad/header'); ?>
+<link rel="stylesheet" href="<?=static_url()?>/new/css/user/user_dynamic.css">
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">主页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/md_app_rcmd/search_index">APP搜索管理</a>
+        </li>
+    </ul>
+</div>
+<div class="container" style="float: left">
+    <h1>APP搜索词管理</h1>
+    <p> </p>
+    <div>
+        <form action="/md_app_rcmd/add_search_word" method="post" class="form-inline">
+            <input type="text" name="title" placeholder="输入关键词">
+            <button id="tag_search" type="submit" class="btn btn-info btn-sm">添加</button>
+        </form>
+    </div>
+    <hr>
+    <div>
+        <h2>
+        </h2>
+    </div>
+    <div class="tab-pane" id="my_collect_content" >
+        <ul class="content-list  colle-posli" id="collect_list">
+            <li class="colle_lilab">
+                <?php foreach($word_list as $word): ?>
+                <div>
+                    <a href="javascript:;" class="collect_tag" data-id="<?=$word['id']?>" style="display: block"><?=$word['title']?></a>
+                    <i style="display: none" class="del_tag">删除</i>
+                </div>
+                <?php endforeach;?>
+            </li>
+        </ul>
+    </div>
+</div>
+<script type="text/javascript">
+    //标签删除特效
+    $(".colle_lilab div").mouseover(function(){
+        $(this).find("i").slideDown('600');
+    });
+    $(".colle_lilab div").mouseout(function(){
+        $(this).find("i").slideUp('600');
+    });
+    $(".colle_lilab div i").mouseover(function(){
+        $(this).stop();
+        $(this).show();
+    });
+    $(".colle_lilab div i").mouseout(function(){
+        $(this).stop();
+        $(this).hide();
+        $(this).slideUp();
+    });
+    //删除标签
+    $(".del_tag").click(function(){
+        var that = $(this);
+        var url = '<?=site_url("md_app_rcmd/del_search_word")?>';
+        var tag = that.prev("a").data("id");
+        if(!confirm('确定删除该标签吗')){
+            return false;
+        }
+        del_tag(tag,url,that);
+
+    });
+    function del_tag(tag,url,obj){
+        $.ajax({
+            url:url,
+            type:"post",
+            dataType:"json",
+            data:{
+                tag:tag
+            },
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status==1){
+                    obj.parent("div").remove();
+                }
+            }
+        });
+    }
+</script>
+<?php $this->load->view('ckad/footer'); ?>

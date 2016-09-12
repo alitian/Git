@@ -1,0 +1,191 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<ul class="nav nav-tabs">
+		  	<li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_main_old/post_recommend'; ?>">帖子</a></li>
+		  	<li role="presentation"><a href="<?php echo $site_url . 'bbs_main_old/reply_recommend'; ?>">回复</a></li>
+		</ul>
+		<div>
+			<h2>	
+				摩兮首页帖子推荐
+			</h2>
+		</div>
+		<hr>
+	<!--
+		<select class="form-control" name="post_id">
+			<?php 
+				if($digest_post_list){
+					echo "<option value='0'>请选择要推荐的帖子</option>";
+					foreach($digest_post_list as $digest_post){
+						echo "<option value='{$digest_post['post_id']}'>{$digest_post['subject']}</option>";
+					}
+				}else{
+					echo "<option>暂无精华帖</option>";
+				}
+			?>
+		</select>
+		<p>
+		</p>
+		<div>
+			<button class="btn btn-primary" id="add_recommend">新增</button>
+		</div>
+		<p></p>
+	-->
+		<p></p>
+		<div id="recommend_list">
+			<form action="<?= site_url("bbs_main_old/change_weight"); ?>" method="post">
+			<?php
+				if($recommend_post_list){
+					foreach($recommend_post_list as $recommend_post){
+						$str =  <<<STR
+					        <div class="row">
+					          	<input type="text" class="form-control " style="width:30px" placeholder="排序" name="sortid" value="{$recommend_post['sortid']}" post_id="{$recommend_post['post_id']}" sortid="{$recommend_post['sortid']}">
+				        		<a class="view_post" style="padding-bottom:8px;margin-left:10px;cursor:pointer;" url="{$site_url}bbs_view/post/{$recommend_post['post_id']}">{$recommend_post['subject']}</a>
+					        </div>
+					        <p></p>
+STR;
+						echo $str;
+						$str = '';
+					}
+				}
+			?>
+		</div>
+		<p></p>
+		<div>
+		<button id="add_recommend" class="btn btn-primary" style="float:left;margin-left:600px;">提交</button>
+		<input type="hidden" name="post_id_array" value="">
+		<input type="hidden" name="post_sortid_array" value="">
+		</form>
+	</div>
+	</div>
+
+	<!-- 显示帖子内容模态框 -->
+	<div id="view_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+<script>
+
+    // 展示帖子内容
+    $("#view_post").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$(document).on('click', '.view_post', function(){
+		var url = $(this).attr('url');
+		$('#view_post').modal();
+		$('#view_post .modal-content').load(url);
+	});
+	$("#add_recommend").click(function(){
+		var input_set = $("input[name=sortid]");
+		var length = input_set.length;
+
+		// 定义2个对象，然后直接转换为json数组，发送给PHP
+		var post_id_array = [];
+		var post_sortid_array = [];
+		var is_edit = false;
+		for(var i = 0; i <length; i++){
+
+			// 还得再次检验，是否有非数字
+			var sortid = $.trim(input_set[i].value);
+			var num = i+1;
+            if(sortid == ''){ 
+                    alert('第 ' + num + ' 条帖子的排序为空，请修正！'); 
+                    return false; 
+            }
+			if(isNaN(sortid)){
+				alert('第 ' + num + ' 条帖子的排序为非数字，请修正！');
+				return false;
+			}
+			var post_id = parseInt(input_set[i].getAttribute('post_id'));
+			var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+
+			// 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+			if(prev_sortid != sortid){
+				is_edit = true;
+			}
+
+			// 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+			sortid = parseInt(sortid);
+			post_id_array[i] = post_id;
+			post_sortid_array[i] = sortid;
+		}
+		if(!is_edit){
+			alert('未作任何修改');
+			return false;
+		}
+		post_id_array = JSON.stringify(post_id_array);
+		post_sortid_array = JSON.stringify(post_sortid_array);
+		$('input[name=post_id_array]').val(post_id_array);
+		$('input[name=post_sortid_array]').val(post_sortid_array);
+	});
+
+	$("input[name=sortid]").blur(function(){
+		var value = $(this).val();
+		if(isNaN(value)){
+			alert('只能填写数字');
+			return false;
+		}
+	});
+
+/*
+	// 用于，每次获得焦点的时候，将value记录到prev_value，以便同失去焦点的时候进行比较
+	$(document).on('focus', '[name=sortid]', function(){
+		var value = $(this).val();	
+		$(this).attr({prev_value : value});
+	});
+
+	$(document).on('blur', '[name=sortid]', function(){
+		var url = '<?= site_url("bbs_main_old/change_weight"); ?>';
+		var prev_value = $(this).attr('prev_value');
+		var value = $(this).val();
+		var post_id = $(this).attr('post_id');
+		
+		if(isNaN(value)){
+			alert('只能填写数字');
+			return false;
+		}
+
+		// 前后2次相同，表示，未修改。不相同，我们发起ajax请求
+		if(prev_value == value){
+			return;
+		}else{
+			$.ajax({
+				url : url,
+				type : 'post',
+				data : {
+					post_id : post_id,
+					sortid : value
+				},
+				async : false,
+				success : function(return_data){
+					if(return_data == 1){
+						alert('更改权重(新增推荐)成功');	
+					}else{
+						alert('更改失败');
+					}
+
+				}
+			});
+		}
+	});
+	$('#add_recommend').click(function(){
+		var selected_option = $('select option:selected');
+		var post_id = parseInt(selected_option.val());
+		var subject = selected_option.text();
+		var site_url = '<?php echo $site_url; ?>';
+
+		// 上面对于post_id进行了parseInt()，因为，js获取到的DOM元素的内容都是string格式的，"0"在js中转换为bool返回TRUE
+		if(post_id){
+			$('#recommend_list').append('<div class="row"><input type="text" style="width:30px" class="form-control " placeholder="排序" name="sortid" value="0" post_id="'+post_id+'" prev_value=""><a class="view_post" style="padding-bottom:8px;margin-left:10px;cursor:pointer;" url="'+site_url+'bbs_view/post/'+post_id+'">'+subject+'</a></div><p></p>');
+			selected_option.remove();
+		}else{
+			alert('请先选择想要推荐的帖子');	
+		}
+	});
+*/
+</script>
+<?php $this->load->view('ckad/footer'); ?>

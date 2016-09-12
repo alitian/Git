@@ -1,0 +1,228 @@
+<?php $this->load->view('ckad/header') ?>
+        <link id="bs-css" href="<?= static_url(); ?>css/bootstrap-cerulean.css" rel="stylesheet">
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<?php $this->load->view('weidashang/rectabs'); ?>
+<div id="debug-info" style="display:none;margin:18px 0;padding:18px;background-color:#f5f5f5;color:red;"></div>
+<div class="row-fluid">
+        <div class="row-fluid">
+            <form method="post" name='form1' id="form1" action="">
+                <div class="row-fluid">
+                    <div class="span2">项目ID<input class="span12" type="text" name="pro_id" <?=!empty($pro_id)? "value='{$pro_id}'" : ""?> placeholder='输入项目ID'></div>
+                    <div class="span2">项目名称<input class="span12" type="text" name="pro_name" <?=!empty($pro_name)? "value='{$pro_name}'" : ""?> placeholder='输入项目名称'></div>
+                    <div class="span2">用户手机号<input class="span12" type="text" name="user_mobile" <?=!empty($user_mobile)? "value='{$user_mobile}'" : ""?> placeholder='用户手机号'></div>
+                    <div class="span2">支付时间段
+                        <div id="datetimepicker1" class="input-append date form_datetime">
+                            <input class="span9" type="text" name="pay_time_start" <?=!empty($pay_time_start)? "value='{$pay_time_start}'" : ""?> placeholder='开始时间'>
+                            <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+                        </div>
+                    </div>
+                    <div class="span2">支付时间段
+                        <div id="datetimepicker1" class="input-append date form_datetime">
+                            <input class="span9" type="text" name="pay_time_end" <?=!empty($pay_time_end)? "value='{$pay_time_end}'" : ""?> placeholder='截止时间'>
+                            <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row-fluid">
+                    <?php if ($type == 'abnormal'):?>
+                    <div class="span2">
+                        异常状态:
+                        <select  class="span12" name="except_reason">
+                            <option value="0" <?=(empty($except_reason)) ? 'selected="selected"' : ''?>>全部</option>
+                            <option value="1" <?=($except_reason==1) ? 'selected="selected"' : ''?>>重复支付</option>
+                            <option value="2" <?=($except_reason==2) ? 'selected="selected"' : ''?>>过期支付</option>
+                            <option value="3" <?=($except_reason==3) ? 'selected="selected"' : ''?>>摩点未收到支付成功信息</option>
+                            <option value="5" <?=($except_reason==5) ? 'selected="selected"' : ''?>>摩点未收到退款成功信息</option>
+                            <option value="4" <?=($except_reason==4) ? 'selected="selected"' : ''?>>已修复</option>
+                        </select>
+                    </div>
+                    <?php endif;?>
+                    <div class="span1">
+                        <button class="btn btn-large" onclick="form1.action='/wds_reconcil/index/<?=$type?>';form1.submit()" style="margin-top:10px;width:80px;"><i class="icon-search"></i> 检索</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="row-fluid">
+            <button class="btn btn-primary" id="btn_export" onclick="form1.action='/wds_reconcil/export/<?=$type?>/<?=$pro_id?>';form1.submit()"><i class="icon-download-alt"></i> 导出Excel</button>
+            <a type="button" class="btn btn-warning" href="/wds_reconcil/tools" target="_blank"><i class="icon-refresh"></i> 去同步支付账单</a>
+            <?php if ($type == 'abnormal'):?>
+            <!-- <a href="/pay_ad/index/<?=$type?>/<?=$pro_id?>?repair=all" class="btn btn-danger">修复全部</a> -->
+            <?php endif;?>
+        </div>
+        <?php if ($type == 'abnormal'):?>
+<!--         <div class="btn-toolbar">
+            <div class="btn-group" style="margin-top:21px;">
+              <button class="btn <?=(empty($except_reason)) ? 'btn-success' : ''?>" onclick="set_except_type(0, 'abnormal', <?=$pro_id?>)">全部</button>
+              <button class="btn <?=($except_reason==1) ? 'btn-success' : ''?>" onclick="set_except_type(1, 'abnormal', <?=$pro_id?>)">重复支付</button>
+              <button class="btn <?=($except_reason==2) ? 'btn-success' : ''?>" onclick="set_except_type(2, 'abnormal', <?=$pro_id?>)">过期支付</button>
+              <button class="btn <?=($except_reason==3) ? 'btn-success' : ''?>" onclick="set_except_type(3, 'abnormal', <?=$pro_id?>)">未收到支付成功信息</button>
+              <button class="btn <?=($except_reason==4) ? 'btn-success' : ''?>" onclick="set_except_type(4, 'abnormal', <?=$pro_id?>)">已修复</button>
+            </div>
+        </div> -->
+        <?php endif;?>
+        <div class="row-fluid" style="margin-top:11px;margin-bottom:0;padding:0;">
+            <span class="label label-success">本页<?=count($res)?>条 - 共<?= $total_rows?>条</span>
+            <span class="label label-important">注：对于摩点和第三方平台均查不到的支付信息，需用户提供银行支付记录证明</span>
+        </div>
+        <div class="row-fluid">
+            <?php
+                if ($type == 'normal') {
+                    $this->load->view('weidashang/alipay_normal');
+                } else {
+                    $this->load->view('weidashang/alipay_abnormal');
+                }
+            ?>
+            <div style="clear:both"><br/>
+                <?php if(isset($pagination)) echo $pagination;?>
+            </div>
+
+        </div>
+
+</div><!--/row-->
+
+
+
+<div id="repair-editor" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+        <h3 id="myModalLabel">待修复订单信息</h3>
+    </div>
+    <div class="modal-body">
+        <form class="panel" style="padding: 8.5px;margin: 0 0 9px;border: 1px solid rgba(0, 0, 0, 0.15);-webkit-border-radius: 4px;moz-border-radius: 4px;border-radius: 4px;">
+            <table class="table table-condensed table-hover">
+                <thead>
+                    <tr>
+                        <td><label name="repair_info" style="color:red;"></label></td>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>修复类型</td>
+                        <td><input type="text" name="repair_type" placeholder="修复类型" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>摩点订单号</td>
+                        <td><input type="text" name="back_id" placeholder="摩点订单号" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>外部订单号</td>
+                        <td><input type="text" name="order_no" placeholder="外部订单号" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>支付宝业务流水号</td>
+                        <td><input type="text" name="trade_no" placeholder="支付宝业务流水号" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>交易金额</td>
+                        <td><input type="text" name="pay_money" placeholder="交易金额" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>支付平台</td>
+                        <td><input type="text" name="pay_platform" placeholder="支付平台" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>项目ID</td>
+                        <td><input type="text" name="pro_id" placeholder="项目ID" readonly="readonly"></td>
+                    </tr>
+                    <tr>
+                        <td>项目状态</td>
+                        <td><input type="text" name="pro_status" placeholder="项目状态" readonly="readonly"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <input type="button" class="btn" data-dismiss="modal" aria-hidden="true" value="取消">
+        <input type="button" name="if_save" class="btn btn-primary" value="确认修复">
+    </div>
+</div>
+
+
+
+
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: 'yyyy-MM-dd hh:mm:ss',
+            pickTime: true
+        });
+
+        // 初始化确认待修复订单信息
+        $('a.repair').on('click', function(evt){
+            evt.preventDefault();
+            update_repair_editor_data($(this).data('repair'));
+            $('#repair-editor').modal();
+        });
+        // 修复订单
+        $('#repair-editor .modal-footer input[name="if_save"]').on('click', function(evt){
+            evt.preventDefault();
+            var ajax_url = "/wds_reconcil/repair_order";
+            var formdata = new FormData($('#repair-editor .modal-body form')[0]);
+            ajax_post_req(ajax_url, formdata);
+
+            $('#repair-editor').modal('hide');
+        });
+
+        $('#page-nav li a').on('click', function(evt){
+            evt.preventDefault();
+            var nav_url = $(this).attr('href');
+            var page = nav_url.substring(nav_url.lastIndexOf("/")+1);
+            var page_url = "/wds_reconcil/index/<?=$type?>/"+page;
+            $('form[name="form1"]').attr('action', page_url);
+            $('form[name="form1"]').submit();
+        });
+    });
+    function update_repair_editor_data (data) {
+        if (data.repair_type==1 || data.repair_type==2)
+            $('#repair-editor label[name="repair_info"]').text('将执行退款操作');
+        else
+            $('#repair-editor label[name="repair_info"]').text('将更新数据库信息');
+        $('#repair-editor input[name="repair_type"]').val(data.repair_type);
+        $('#repair-editor input[name="back_id"]').val(data.back_id);
+        $('#repair-editor input[name="order_no"]').val(data.order_no);
+        $('#repair-editor input[name="trade_no"]').val(data.trade_no);
+        $('#repair-editor input[name="pay_money"]').val(data.pay_money);
+        $('#repair-editor input[name="pay_platform"]').val(data.pay_platform);
+        $('#repair-editor input[name="pro_id"]').val(data.pro_id);
+        $('#repair-editor input[name="pro_status"]').val(data.pro_status);
+    }
+
+    function ajax_post_req(ajax_url, formdata) {
+        if (ajax_url != "") {
+            $.ajax({
+                type: "POST",
+                url: ajax_url,
+                data: formdata,
+                cache: false,
+                contentType: false,
+                processData: false,
+                success: function(data) {
+
+                    $('#debug-info').show();
+                    $('#debug-info').html(data);
+
+                    var json_rst = jQuery.parseJSON(data);
+                    switch (parseInt(json_rst.status)) {
+                    case 0:
+                        alert('修复成功，请刷新页面查看');
+                        $('form#form1').submit();
+                        break;
+                    default:
+                        alert('修复失败');
+                    }
+                },
+                error: function() {
+                    alert('出错啦');
+                }
+            });
+        }
+    }
+</script>
+<?php $this->load->view('ckad/footer'); ?>

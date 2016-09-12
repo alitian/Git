@@ -1,0 +1,39 @@
+<?php
+error_reporting ( 0 );
+index();
+
+/**
+ * @ignore
+ */
+function authorizeURL() {
+    return 'https://openapi.youku.com/v2/oauth2/authorize';
+}
+/**
+ * authorize接口
+ *
+ * 对应API：{@link https://openapi.youku.com/v2/oauth2/authorize}
+ *
+ * @return array
+ */
+function getAuthorizeURL($url, $response_type = 'code', $state = 'xyz') {
+    
+    $client_id = "0e6b7517be4cba21";
+    $client_secret = "6b8061212786c617b821d84d9bd9b875";
+    
+    $params = array ();
+    $params ['client_id'] = $client_id;
+    $params ['response_type'] = $response_type;
+    $params ['redirect_uri'] = $url;
+    $params ['state'] = $state;
+    return authorizeURL () . "?" . http_build_query ( $params );
+}
+
+function index() {
+    
+    $redirect_uri = "http://acp.modian.com/application/acp/libraries/tools/crontab/up_youku/code_success.php";
+    $code_url = getAuthorizeURL ( $redirect_uri );
+    header ( "Location:" . $code_url );
+
+}
+
+?>

@@ -1,0 +1,5 @@
+static_path = "http://s.moimg.net/"
+cdn_url = 'http://u.moimg.net/'
+base_url = "/"
+data_server = "http://www.modian.com"
+js_ver = "?20150092501ABC"

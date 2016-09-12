@@ -1,0 +1,64 @@
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <h4 class="modal-title" id="myModalLabel"><?php if($type=="stick"){ echo "置顶帖子";}else{ echo "取消置顶";} ?></h4>
+</div>
+	<div class="modal-body">
+<form id="stick_form" action='<?php echo $site_url . "bbs_post/stick_post/$post_id/$type"; ?>' class="form-horizontal" method="post">
+			<div class="form-group">
+				<div>
+					<label for="subject"><?php if($type=="stick"){ echo "置顶在哪些标签：";}else{ echo "选择要取消置顶的标签：";} ?></label>
+				</div>
+				<div>
+					<?php 
+						if($tag_list){
+							foreach($tag_list as $tag_key => $tag_row):
+								echo "<span style='margin-right:10px;vertical-align:middle'><input class='stick_tag' type='checkbox' name='tag_ids[]' value='{$tag_row['tag_id']}' id='{$tag_key}'> <label style='display:inline' for='{$tag_key}' title='{$tag_row['stick_message']}'>{$tag_row['tag_name']}</label></span>";
+							endforeach;
+						}else{
+								echo '暂无符合条件的标签';
+						}
+					?>
+				</div>
+			</div>
+			<p></p>
+			<div class="form-group">
+					<?php
+						if($type == 'stick'){
+							echo "<div>置顶时间：</div>";
+							echo "<div>";
+							echo "<select name='stick_time' id='stick_time'>";
+							foreach($stick_time as $stick_time_key => $stick_time_val):
+								echo "<option value='$stick_time_val'>{$stick_time_key}</option>";
+							endforeach;
+							echo "</select>";
+							echo "</div>";
+						}else{
+							echo '<hr>';
+							echo '<input type="hidden" value="'.$stick_time.'" name="stick_time" id="stick_time">';	
+						}
+						?>
+			</div>
+			<!-- <input type="hidden" id="post_hash" name="hash" value=""> -->
+			<!-- <input type="hidden" name="stick_submit" value="1"> -->
+			<input type="hidden" name="type" id="stick_type" value="<?php echo $type;?>">
+		<?php 
+			if($tag_list):
+		?>
+			<div class="form-group">
+				<div><input type="checkbox" id="check_all"><label for="check_all">全选</div>
+			</div>
+		<?php
+			endif;
+		?>
+		</div>
+	<div class="modal-footer">
+	    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+		<?php 
+			if($tag_list):
+		?>
+	    <button type="submit" class="btn btn-primary" id="stick_post_submit">Save changes</button>
+		<?php
+			endif;
+		?>
+	</div>	
+</form>

@@ -1,0 +1,244 @@
+<style>
+    /** 导航模块 */
+    .module-nav {margin: 10px 70px;}
+    .module-nav .navbar {position:relative;height:60px;background:#eee;color:#242424;clear:both;}
+    .module-nav .logo {position:absolute;top:10px;left:40px;width:140px;height:40px;text-align:center;line-height:40px;background:#dcdcdc;}
+    .module-nav .menu {position:absolute;left:50%;height:60px;margin-left:-220px;}
+    .module-nav .menu li {display:block;float:left;height:60px;line-height:60px;padding:0 20px;}
+    .module-nav .menuleft {height:60px;padding-left:20px;}
+    .module-nav .menuleft li {display:block;float:left;height:60px;line-height:60px;padding:0 20px;}
+    .module-nav .menuright {position:absolute;right:20px;top:0;height:60px;}
+    .module-nav .menuright li {display:block;float:left;height:60px;line-height:60px;padding:0 20px;}
+    .module-nav .share {position:absolute;right:20px;top:14px;}
+    .module-nav .share a {display:block;float:left;width:32px;height:32px;margin-right:20px;background:#dcdcdc;text-indent:-9999px;}
+    .module-nav .share a.weibo {background:#dcdcdc url(../img/weibo.png) center center no-repeat;}
+    .module-nav .share a.weixin {background:#dcdcdc url(../img/weixin.png) center center no-repeat;}
+    .module-nav .share a.qzone {background:#dcdcdc url(../img/qzone.png) center center no-repeat;}
+
+    @media screen and (max-width:780px) {
+        .module-nav .navbar {height:auto;}
+        .module-nav .menu {position:relative;height:auto;margin:0;left:auto;padding:60px 0 0 40px;}
+        .module-nav .menu li {float:none;padding:0;}
+        .module-nav .menuleft {height:auto;padding-left:40px;}
+        .module-nav .menuleft li {float:none;padding:0;}
+        .module-nav .menuright {position:relative;height:auto;margin:0;right:auto;padding:60px 0 0 40px;}
+        .module-nav .menuright li {float:none;padding:0;}
+    }
+
+    /** 导航设置表单 */
+    #module-nav-setting .nav-item-info {
+        margin-top: 11px;
+    }
+    #module-nav-setting .nav-item-info input {
+        margin-top: 1px;
+    }
+</style>
+
+<div class="module-nav module-item">
+    <div class="item-banner">
+        <h4>导航模块</h4>
+        <a href="#" class="eye-colse pull-right" style="height:100%; padding: 10px;"><i class="icon-eye-close icon-white"></i></a>
+    </div>
+    <div class="item-preview">
+        <div class="item-inner-head"><span>已选择：</span></div>
+        <div class="navbar">
+            <div class="logo <?=($page_d['nav_model']['pos'] == 2) ? 'display-none' : '';?>"><img style="width:100%;height:100%;" src="<?=cdn_url($page_d['nav_model']['logo'])?>" alt="logo"></div>
+            <?php if(intval($page_d['nav_model']['pos']) == 2): ?>
+            <ul class="menuleft">
+            <?php elseif(intval($page_d['nav_model']['pos']) == 3): ?>
+            <ul class="menuright">
+            <?php else: ?>
+            <ul class="menu">
+            <?php endif; ?>
+                <?php foreach (json_decode($page_d['nav_model']['items'], true) as $item): ?>
+                <li><a href="<?=$item['url']?>"><?=$item['title']?></a></li>
+                <?php endforeach; ?>
+            </ul>
+            <div class="share <?=($page_d['nav_model']['pos'] == 1) ? '' : 'display-none';?>">
+                <a href="" class="weibo">新浪微博</a>
+                <a href="" class="weixin">微信</a>
+                <a href="" class="qzone">QQ空间</a>
+            </div>
+        </div>
+    </div>
+    <div class="item-type">
+        <div class="item-inner-head"><span>样式集：</span></div>
+        <div class="type-info" data-type="1">
+            <div class="type-info-cnt">
+                <img src="<?= static_url(); ?>/special_editor/nav/nav-01.png" alt="">
+                <img src="<?= static_url(); ?>/special_editor/nav/nav-01-m.png" alt="">
+            </div>
+            <div class="type-info-meta">
+                <span class="badge badge-warning">样式一</span>
+            </div>
+        </div>
+        <div class="type-info" data-type="2">
+            <div class="type-info-cnt">
+                <img src="<?= static_url(); ?>/special_editor/nav/nav-02.png" alt="">
+                <img src="<?= static_url(); ?>/special_editor/nav/nav-02-m.png" alt="">
+            </div>
+            <div class="type-info-meta">
+                <span class="badge badge-warning">样式二</span>
+            </div>
+        </div>
+        <div class="type-info" data-type="3">
+            <div class="type-info-cnt">
+                <img src="<?= static_url(); ?>/special_editor/nav/nav-03.png" alt="">
+                <img src="<?= static_url(); ?>/special_editor/nav/nav-03-m.png" alt="">
+            </div>
+            <div class="type-info-meta">
+                <span class="badge badge-warning">样式三</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- 弹出编辑框 -->
+<div id="module-nav-setting" class="modal hide fade">
+    <div class="modal-header">
+        <h3>将应用此导航，需设置一下内容：</h3>
+    </div>
+    <div class="modal-body">
+        <form class="form-horizontal" enctype="multipart/form-data">
+            <div class="control-group">
+                <label class="control-label">专题ID</label>
+                <div class="controls">
+                    <input type="text" name="ssid" value="<?=$page_d['ssid']?>">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">导航</label>
+                <div class="controls">
+                    <input type="text" name="nav_pos" placeholder="导航">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">logo</label>
+                <div class="controls">
+                    <input name="upfile" type="file">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">标签</label>
+                <div class="controls">
+                    <div>
+                        <div class="add-nav-item">
+                            <a href="#">增加一个</a>
+                        </div>
+                        <div class="nav-item-list">
+                            <?php foreach (json_decode($page_d['nav_model']['items'], true) as $item): ?>
+                            <div class="nav-item-info">
+                                <input type="text" name="title[]" value="<?=$item['title']?>" placeholder="title">
+                                <input type="text" name="url[]" value="<?=$item['url']?>" placeholder="url">
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn" data-dismiss="modal" aria-hidden="true">取消</button>
+        <button type="button" class="btn btn-primary form-ok">好了</button>
+    </div>
+</div>
+
+
+<script>
+    $('.module-nav .item-type .type-info').on('click', function(e) {
+        e.preventDefault();
+        var type = parseInt($(this).data('type'));
+
+        switch(type) {
+        case 1:
+            $('#module-nav-setting form input[name="upfile"]').parent().parent().show();
+            break;
+        case 2:
+            $('#module-nav-setting form input[name="upfile"]').parent().parent().hide();
+            break;
+        case 3:
+            $('#module-nav-setting form input[name="upfile"]').parent().parent().show();
+            break;
+        default:
+            break;
+        }
+
+        $('#module-nav-setting form input[name="nav_pos"]').val(type);
+        $('#module-nav-setting').modal('show');
+    });
+    $('#module-nav-setting .add-nav-item a').on('click', function(e) {
+        e.preventDefault();
+        var the_list = $('#module-nav-setting .nav-item-list').append(
+            '<div class="nav-item-info">\
+                <input type="text" name="title[]" placeholder="title">\
+                <input type="text" name="url[]" placeholder="url">\
+            </div>'
+        );
+    });
+    $('#module-nav-setting button.form-ok').on('click', function(e) {
+        e.preventDefault();
+        var url = '/special_subj/ssubj_editor_model_nav';
+        var formdata = new FormData($('#module-nav-setting form')[0]);
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: formdata,
+            cache: false,
+            contentType: false,
+            processData: false,
+            dataType: "json",
+            beforeSend: function() {
+            },
+            error : function() {
+                alert('上传出错');
+            },
+            success: function(res) {
+                console.log(res);
+
+                var logo_a = $('.module-nav .item-preview .navbar .logo');
+                var item_a = $('.module-nav .item-preview .navbar ul');
+                var share_a = $('.module-nav .item-preview .navbar .share');
+
+                var menu_item_html = '';
+                $.each(res.items, function(index, value) {
+                    menu_item_html += '<li><a href="'+value.url+'">'+value.title+'</a></li>';
+                });
+                item_a.html(menu_item_html);
+
+                $('.module-nav .item-preview .navbar .logo img').attr('src', res.logo);
+
+                switch(res.pos) {
+                case 1:
+                    logo_a.removeClass('display-none');
+                    item_a.removeClass('menuright');
+                    item_a.removeClass('menuleft');
+                    item_a.addClass('menu');
+                    share_a.removeClass('display-none');
+                    break;
+                case 2:
+                    logo_a.addClass('display-none');
+                    item_a.removeClass('menuright');
+                    item_a.removeClass('menu');
+                    item_a.addClass('menuleft');
+                    share_a.addClass('display-none');
+                    break;
+                case 3:
+                    logo_a.removeClass('display-none');
+                    item_a.removeClass('menu');
+                    item_a.removeClass('menuleft');
+                    item_a.addClass('menuright');
+                    share_a.addClass('display-none');
+                    break;
+                default:
+                    break;
+                }
+
+                $('#module-nav-setting').modal('hide');
+            },
+            complete: function() {
+            }
+        });
+    });
+</script>

@@ -1,0 +1,45 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Log extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->helper('md_admin');
+        $this->load->helper('url');
+        $this->load->model('Common');
+        $this->load->library('md_log_formater');
+    }
+
+    public function index() {
+        $where = '';
+        if($_POST)
+        {
+            $data = $_POST;
+        }
+        if (isset($_POST['start_time']) && $_POST['start_time'] != '') {
+            $_POST['start_time'] = strtotime($_POST['start_time']);
+            $where .= " AND log_time>='{$_POST['start_time']}'";
+        }
+        if (isset($_POST['end_time']) && $_POST['end_time'] != '') {
+            $_POST['end_time'] = strtotime($_POST['end_time']);
+            $where .= " AND log_time<='{$_POST['end_time']}'";
+        }
+        if (isset($_POST['level']) && $_POST['level'] != '') {
+            $where .= " AND level='{$_POST['level']}'";
+        }
+        if (isset($_POST['tag']) && $_POST['tag'] != '') {
+            $where .= " AND tag LIKE '{$_POST['tag']}%'";
+        }
+        if (isset($_POST['message']) && $_POST['message'] != '') {
+            $_POST['message'] = $this->db->escape_like_str($_POST['message']);
+            $where .= " AND message LIKE '%{$_POST['message']}%'";
+        }
+        $sql = "select * from md_loging WHERE 1 {$where} order by log_time DESC limit 200";
+        $data['logs'] = $this->log_db->query($sql)->result_array();
+        $this->load->view('log/index', $data);
+    }
+
+}

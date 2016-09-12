@@ -1,0 +1,196 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_user extends Acp_Controller {
+
+		public $site_url;
+		public $base_url;
+		public $uid;
+		public $perpage = 4;
+
+		// 新增禁言时间列表数组，暂时先这里写，不往配置文件中写了
+		public $banned_time_list = array(
+										'2小时' => 7200,
+										'1天' => 86400,
+										'7天' => 604800,
+										'14天' => 1209600,
+										'永久' => 99999999999
+									);
+		public $banned_reason_list = array(
+										'广告营销',
+										'淫秽色情',
+										'不实信息',
+										'人身攻击',
+										'违法信息',
+										'泄露隐私',
+										'虚假冒名',
+										'骚扰',
+										'其它'
+									);
+
+		public function __construct(){
+			parent::__construct();
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+			$this->load->helper('url');
+			$this->base_url = base_url();
+			$this->site_url = site_url();
+			$this->load->model('bbs_user_model');
+			$vars = array(
+						'base_url' => $this->base_url,
+						'site_url' => $this->site_url,
+						'uid' => $this->uid
+					);
+			$this->load->vars($vars);
+		}
+
+		/**
+		 *
+		 * 	用户查看
+		 *
+		 */
+		public function index()
+		{
+			$submit = $this->input->post('submit');
+			$ban_number = $this->bbs_user_model->get_total_banned_user();
+			if($submit){
+				$type = $this->input->post('type');
+				$search = trim($this->input->post('search'));
+
+				// 如果搜索字符串为 ''，返回空数组
+				if(empty($search)){
+					$user_list = array();
+				}else{
+					$user_list = $this->bbs_user_model->get_user_list($type, $search);
+				}
+					
+				$vars = array(
+							'type' => $type,
+							'search' => $search,
+							'user_list' => $user_list,
+							'ban_number' => $ban_number,
+							'banned_time_list' => $this->banned_time_list,
+							'banned_reason_list' => $this->banned_reason_list
+						);
+				$this->load->vars($vars);
+				$this->load->view('bbs_user/index');
+			}else{
+				$this->load->view('bbs_user/index_init', array('ban_number' => $ban_number));	
+			}
+		}
+
+		/**
+		 *
+		 * 	对用户禁言
+		 *
+		 */
+		public function disable()
+		{
+			$manager_tuid = $this->input->post('manager_tuid');
+			$ban_time = (int) $this->input->post('time');
+			$banned_time_list = array_flip($this->banned_time_list);
+			$ban_time_str = $banned_time_list[$ban_time];
+			$manager_reason = $this->input->post('reason');
+			if(empty($manager_reason)) $manager_reason = '对用户禁言';
+			$manager_reason .= '，禁言时间为:' . $ban_time_str;
+			$start_time = time();
+			$end_time = $start_time + $ban_time;
+			$bool = $this->bbs_user_model->disable_user($manager_tuid, $start_time, $end_time);
+			if($bool){
+
+				// 禁言用户，减积分！
+				//$this->md_common->add_user_score($manager_tuid, SCORE_SHORTTIME_GAG, 0, FALSE);
+
+				$bool = $this->bbs_user_model->add_manager_log($this->uid, $manager_tuid, 1, $manager_reason);
+			}
+			echo $bool;
+		}
+
+		/**
+		 *
+		 * 	对用户解除禁言
+		 *
+		 */
+		public function enable()
+		{
+			$manager_reason = $this->input->post('reason');
+			if(empty($manager_reason)) $manager_reason = '解除禁言';
+			$manager_tuid = $this->input->post('manager_tuid');
+			$bool = $this->bbs_user_model->enable_user($manager_tuid);
+			if($bool){
+				$bool = $this->bbs_user_model->add_manager_log($this->uid, $manager_tuid, 2, $manager_reason);
+			}
+			echo $bool;
+		}
+
+		/**
+		 *
+		 * 	禁言管理
+		 *
+		 */
+		public function ban_list($curpage = 1)
+		{
+
+			$total_number = $this->bbs_user_model->get_total_banned_user();
+			$this->load->library('pagination');
+			$config = array(
+							'base_url' => $this->site_url . 'bbs_user/ban_list',
+							'total_rows' => $total_number,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li>',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li>',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li>',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li>',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li>',
+							'cur_tag_open' => '<li class="active"><a>',
+							'cur_tag_close' => '</a></li>',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			// $uid = $this->input->post('uid');
+			$banned_user_list = $this->bbs_user_model->get_banned_user_list($curpage, $this->perpage);
+			$vars = array(
+						'total_number' => $total_number,
+						'pagination' => $pagination,
+						'banned_user_list' => $banned_user_list,
+						'banned_time_list' => $this->banned_time_list,
+						'banned_reason_list' => $this->banned_reason_list
+					);
+			$this->load->view('bbs_user/ban_list', $vars);
+		}
+
+		/**
+		 *
+		 * 	获取用户的禁言的管理记录
+		 *
+		 */
+		public function manager_record()
+		{
+			$manager_tuid = $this->input->post('manager_tuid');
+			$manager_record_list = $this->bbs_user_model->get_manager_record_list_by_manager_tuid($manager_tuid);
+
+			// 这里直接输出，不使用view模板了
+			echo '<ul class="list-group">';
+			if($manager_record_list){
+				foreach($manager_record_list as $manager_record){
+					echo "<li class='list-group-item'>{$manager_record['f_user_info']['name']} - {$manager_record['operator']} - {$manager_record['manager_reason']} - {$manager_record['time']}</li>";
+				}
+			}else{
+				echo "<li class='list-group-item'>暂无禁言操作记录</li>";
+			}
+			echo '</ul>';
+		}
+
+	}

@@ -1,0 +1,34 @@
+<?php if(!empty($pro_stat_data)): ?>
+<table class="table table-hover table-condensed">
+<thead>
+    <tr>
+        <th>渠道</th>
+        <th>来源</th>
+        <th>PV/UV</th>
+        <th>新用户</th>
+        <th>订单提交量</th>
+        <th>订单支付量</th>
+        <th>收入</th>
+        <th>转化率</th>
+        <th>支持人数</th>
+        <th>支持人数中的新用户</th>
+    </tr>
+</thead>
+<tbody>
+    <?php foreach ($pro_stat_data as $value): ?>
+    <tr>
+        <td><?=$value['mdsf']?></td>
+        <td><?=$value['mdsff']?></td>
+        <td><?=$value['pv']?>/<?=$value['uv']?></td>
+        <td>暂无</td>
+        <td><?=$value['cnt_order']?></td>
+        <td><?=$value['cnt_pay']?></td>
+        <td><?=$value['cnt_money']?></td>
+        <td><?=(intval($value['cnt_order']) != 0) ? number_format($value['cnt_pay'] / $value['cnt_order'] * 100, 2) : 0.00?>%</td>
+        <td><?=$value['cnt_backer']?></td>
+        <td><?=$value['cnt_backer_new']?></td>
+    </tr>
+    <?php endforeach; ?>
+</tbody>
+</table>
+<?php endif; ?>

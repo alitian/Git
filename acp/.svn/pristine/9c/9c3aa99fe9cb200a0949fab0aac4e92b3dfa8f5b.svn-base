@@ -1,0 +1,59 @@
+<?php $this->load->view('ckad/header'); ?>
+<script type="text/javascript">
+    $(function() {
+        $('#container').highcharts({
+            chart: {
+                type: 'column'
+            },
+            title: {
+                text: '最近10日内用户增长'
+            },
+            subtitle: {
+                text: '柱状图'
+            },
+            xAxis: {
+                categories: ['<?php echo implode("','", $date); ?>']
+            },
+            yAxis: {
+                min: 0,
+                title: {
+                    text: '单位 (人)'
+                }
+            },
+            tooltip: {
+                headerFormat: '<span style="font-size:10px">{point.key}</span><table>',
+                pointFormat: '<tr><td style="color:{series.color};padding:0">{series.name}: </td>' +
+                        '<td style="padding:0"><b>{point.y:f} 人</b></td></tr>',
+                footerFormat: '</table>',
+                shared: true,
+                useHTML: true
+            },
+            plotOptions: {
+                column: {
+                    pointPadding: 0.2,
+                    borderWidth: 0
+                }
+            },
+            series: [{
+                    name: '用户注册数',
+                    data: [<?php echo implode(",", $count); ?>]
+
+                }]
+        });
+    });
+
+
+</script>
+<script src="/static/js/highchart/highcharts.js"></script>
+<script src="/static/js/highchart/modules/exporting.js"></script>
+
+<div id="container" style="min-width: 310px; height: 400px; margin: 0 auto"></div>
+<table class="table table-bordered" style="width:200px;">
+    <tr><th>日期</th><th>注册人数</th><th>注册总数</th></tr>
+    <?php $count = 0; ?>
+    <?php foreach($all as $item): ?>
+    <?php $count += $item['c']; ?>
+    <tr><td><?=$item['d'];?></td><td><?=$item['c'];?></td><td><?=$count;?></td></tr>
+    <?php endforeach; ?>
+</table>
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,409 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: modian
+ * Date: 2016/2/26
+ * Time: 16:42
+ */
+defined('BASEPATH') OR exit('No direct script access allowed');
+class Bbs_tag_promotion extends Acp_Controller{
+
+    public $site_url;
+    public $base_url;
+    public $perpage=20;
+    public $find_product;
+    const MD_ITEM_RCMD = "bbs_item_promotion";
+    public function __construct()
+    {
+        parent::__construct();
+
+        $this->load->model('bbs/bbs_m');
+        $this->load->model('bbs/bbs_post_m');
+        $this->load->model('bbs/bbs_tag_m');
+        $this->load->helper('url');
+        $this->load->helper('bbs_common');
+        $this->load->config('pinyin');
+        $this->base_url = base_url();
+        $this->site_url = site_url();
+        $this->find_product 	  = _gc('domain_zhongchou', 'domain');
+        $vars = array(
+            'base_url' => $this->base_url,
+            'site_url' => $this->site_url
+        );
+        $this->load->vars($vars);
+    }
+    public function get_total_tag_promotion($tag_id){
+        $tag_id = (int) $tag_id;
+        $this->moxi_db->from('bbs_recommend');
+        $this->moxi_db->where('object_id',$tag_id);
+        $this->moxi_db->where('type',3);  // bbs_recommend表中type为3表示文字链
+        $result = $this->moxi_db->get()->num_rows();
+        if($result){
+            return $result;
+        } else {
+            return 0;
+        }
+    }
+    public function get_tag_promotion_list($tag_id,$nextpage,$perpage){
+        $tag_id = (int) $tag_id;
+        $nextpage = $nextpage ? (int)$nextpage : 1;
+        $perpage  = (int)$perpage;
+        $offset   = ($nextpage - 1) * $perpage;
+        $this->moxi_db->from('bbs_recommend');
+        $this->moxi_db->where('type',3);  // bbs_recommend表中type为3表示文字链
+        $this->moxi_db->where('object_id',$tag_id);
+        $this->moxi_db->order_by('id','asc');
+        $this->moxi_db->limit($perpage,$offset);
+        $result = $this->moxi_db->get()->result_array();
+        if($result){
+            return $result;
+        } else {
+            return $result=array();
+        }
+
+    }
+
+    public function tag_promotion_list($tag_id,$curpage=1)
+    {
+        $tag_name  = isset($_POST['tag_name'])?trim(_pv('tag_name')):'';
+        $tag_id = $tag_id ? (int) $tag_id :0;
+        if($tag_name){
+            $tag_info  = $this->bbs_tag_m->get_tag_record_by_name($tag_name);
+            if(empty($tag_info)){
+                md_common::display_javascript('查无此标签');
+            }
+        }else{
+            if($tag_id){
+                $tag_info = $this->bbs_tag_m->get_tag_record($tag_id);
+            }
+        }
+        if($tag_name||$tag_id){
+            $curpage = $curpage ? (int) $curpage : 1;
+            $promotion_item = $this->get_tag_promotion_list($tag_info['tag_id'],$curpage,$this->perpage);
+            $total_rows = $this->get_total_tag_promotion($tag_info['tag_id']);
+            // 当前页的链接，但是缺失 '分页页数'
+            $cur_url = "/bbs_tag_promotion/tag_promotion_list/".$tag_id;
+            $config = array(
+                'uri_segment' => 4, // 在url的第二段上选取分页页数
+                'base_url' => $cur_url,
+                'total_rows' => $total_rows,
+                'per_page' => $this->perpage,
+                'use_page_numbers' => TRUE,
+                'num_links' => 3,
+                'first_link' => '&laquo;',
+                'prev_link' => '&lt;',
+                'next_link' => '&gt;',
+                'last_link' => '&raquo;',
+                'full_tag_open' => '<ul class="pagination">',
+                'full_tag_close' => '</ul>',
+                'first_tag_open' => '<li>',
+                'first_tag_close' => '</li> &nbsp;&nbsp;',
+                'last_tag_open' => '<li>',
+                'last_tag_close' => '</li> &nbsp;&nbsp;',
+                'prev_tag_open' => '<li>',
+                'prev_tag_close' => '</li> &nbsp;&nbsp;',
+                'next_tag_open' => '<li>',
+                'next_tag_close' => '</li> &nbsp;&nbsp;',
+                'num_tag_open' => '<li>',
+                'num_tag_close' => '</li> &nbsp;&nbsp;',
+                'cur_tag_open' => '<strong>',
+                'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+            );
+            $this->pagination->initialize($config);
+            $pagination = $this->pagination->create_links();
+            $this->load->vars('curpage', $curpage);
+            $this->load->vars('preview_url', $this->preview_url);
+            $this->load->vars('tag_info',$tag_info);
+            $this->load->vars('promotion_list', $promotion_item);
+            $this->load->vars('pagination', $pagination);
+        }
+        $this->load->view('bbs_tag_promotion/promotion_tag_list');
+    }
+    public function add_tag_promotion()
+    {
+        $tag_id = isset($_GET['t'])?$_GET['t']:0;
+        if(!$tag_id){
+            md_common::display_javascript('请输入标签名');
+        }else{
+            $total_rows = $this->get_total_tag_promotion($tag_id);
+            if($total_rows<3)
+                $this->load->view('bbs_tag_promotion/add_promotion');
+            else
+                md_common::display_javascript('每个标签最多推广3个');
+        }
+    }
+
+//        public function tag_search($curpage=1){
+//            $tag_info  = $this->bbs_tag_m->get_tag_record_by_name($tag_name);
+//            if(empty($tag_info)){
+//                md_common::display_javascript('查无此标签');
+//            }else{
+//                $curpage = $curpage ? (int) $curpage : 1;
+//                $promotion_item = $this->get_tag_promotion_list($tag_info['tag_id'],$curpage,$this->perpage);
+//                $total_rows = $this->get_total_tag_promotion($tag_info['tag_id']);
+//                // 当前页的链接，但是缺失 '分页页数'
+//                $cur_url = "/bbs_tag_promotion/tag_promotion_list/".$tag_info['tag_id'];
+//                $config = array(
+//                    'uri_segment' => 4, // 在url的第二段上选取分页页数
+//                    'base_url' => $cur_url,
+//                    'total_rows' => $total_rows,
+//                    'per_page' => $this->perpage,
+//                    'use_page_numbers' => TRUE,
+//                    'num_links' => 3,
+//                    'first_link' => '&laquo;',
+//                    'prev_link' => '&lt;',
+//                    'next_link' => '&gt;',
+//                    'last_link' => '&raquo;',
+//                    'full_tag_open' => '<ul class="pagination">',
+//                    'full_tag_close' => '</ul>',
+//                    'first_tag_open' => '<li>',
+//                    'first_tag_close' => '</li> &nbsp;&nbsp;',
+//                    'last_tag_open' => '<li>',
+//                    'last_tag_close' => '</li> &nbsp;&nbsp;',
+//                    'prev_tag_open' => '<li>',
+//                    'prev_tag_close' => '</li> &nbsp;&nbsp;',
+//                    'next_tag_open' => '<li>',
+//                    'next_tag_close' => '</li> &nbsp;&nbsp;',
+//                    'num_tag_open' => '<li>',
+//                    'num_tag_close' => '</li> &nbsp;&nbsp;',
+//                    'cur_tag_open' => '<strong>',
+//                    'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+//                );
+//                $this->pagination->initialize($config);
+//                $pagination = $this->pagination->create_links();
+//                $this->load->vars('curpage', $curpage);
+//                $this->load->vars('preview_url', $this->preview_url);
+//                $this->load->vars('tag_info',$tag_info);
+//                $this->load->vars('promotion_list', $promotion_item);
+//                $this->load->vars('pagination', $pagination);
+//                $this->load->view('bbs_tag_promotion/promotion_tag_list');
+//            }
+//        }
+
+    public function del_promotion($id,$tag_id)
+    {
+        $id = (int)$id;
+        $tag_id = (int)$tag_id ;
+        $sql = "DELETE FROM `bbs_recommend` WHERE `id`={$id}";
+        $this->moxi_db->query($sql);
+        $res = $this->moxi_db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status' => 1,
+                'msg'    => '删除成功'
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+                'msg'    => '删除异常'
+            );
+        }
+        md_common::display_javascript($return_data['msg'],site_url('bbs_tag_promotion/tag_promotion_list/'.$tag_id));
+    }
+
+    public function edit_promotion($id)
+    {
+        $id  = (int)$id;
+        $sql = "SELECT * FROM `bbs_recommend` WHERE `id`={$id}";
+        $query = $this->moxi_db->query($sql);
+        $result = $query->row_array();
+        $this->load->view('bbs_tag_promotion/add_promotion',$result);
+    }
+
+    public function do_add_promotion()
+    {
+        $id = isset($_POST['id'])?(int)$_POST['id']:0;
+        $title   = $this->input->post('title',TRUE);
+        $link    = $this->input->post('link',true);
+        $data = array(
+            'title' => $title,
+            'links'  => $link,
+            'type'  => 3
+        );
+        if($id){
+            $where = array(
+                'id' => $id
+            );
+            $tag_id = _pv('tag_id');
+            $this->moxi_db->where($where);
+            $this->moxi_db->update('bbs_recommend',$data);
+        }else{
+            $tag_id =(int) $_GET['t'];
+            $data['object_id'] = $tag_id;
+            $this->moxi_db->insert('bbs_recommend',$data);
+        }
+        redirect('bbs_tag_promotion/tag_promotion_list/'.$tag_id);
+    }
+
+
+
+    //项目推荐区  文字和项目先不放在一块儿了。。。
+
+//    public function get_total_item_promotion($tag_id){
+//        $tag_id = (int) $tag_id;
+//        $this->moxi_db->from(self::MD_ITEM_RCMD);
+//        $this->moxi_db->where('tag_id',$tag_id);
+//        $this->moxi_db->where('type',1);  // bbs_recommend表中type为3表示文字链
+//        $result = $this->moxi_db->get()->num_rows();
+//        if($result){
+//            return $result;
+//        } else {
+//            return 0;
+//        }
+//    }
+//    public function get_item_promotion_list($tag_id,$nextpage,$perpage){
+//        $tag_id = (int) $tag_id;
+//        $nextpage = $nextpage ? (int)$nextpage : 1;
+//        $perpage  = (int)$perpage;
+//        $offset   = ($nextpage - 1) * $perpage;
+//        $this->moxi_db->from(self::MD_ITEM_RCMD);
+//        $this->moxi_db->where('type',1);  // bbs_recommend表中type为3表示文字链
+//        $this->moxi_db->where('tag_id',$tag_id);
+//        $this->moxi_db->order_by('weight','desc');
+//        $this->moxi_db->limit($perpage,$offset);
+//        $result = $this->moxi_db->get()->result_array();
+//        if($result){
+//            return $result;
+//        } else {
+//            return $result=array();
+//        }
+//
+//    }
+//    public function get_item_promotion_record($object_id)
+//    {
+//        $object_id = (int) $object_id;
+//        $this->moxi_db->from(self::MD_ITEM_RCMD);
+//        $this->moxi_db->where('object_id',$object_id);
+//        $res = $this->moxi_db->get()->row_array();
+//        return $res;
+//    }
+//    public function item_promotion_list($tag_id,$curpage=1)
+//    {
+//        $tag_name  = isset($_POST['tag_name'])?trim(_pv('tag_name')):'';
+//        $tag_id = $tag_id ? (int) $tag_id :0;
+//        if($tag_name){
+//            $tag_info  = $this->bbs_tag_m->get_tag_record_by_name($tag_name);
+//            if(empty($tag_info)){
+//                md_common::display_javascript('查无此标签');
+//            }
+//        }else{
+//            if($tag_id){
+//                $tag_info = $this->bbs_tag_m->get_tag_record($tag_id);
+//            }
+//        }
+//        if($tag_name||$tag_id){
+//            $curpage = $curpage ? (int) $curpage : 1;
+//            $promotion_item = $this->get_item_promotion_list($tag_info['tag_id'],$curpage,$this->perpage);
+//            $total_rows = $this->get_total_item_promotion($tag_info['tag_id']);
+//            // 当前页的链接，但是缺失 '分页页数'
+//            $cur_url = "/bbs_tag_promotion/item_promotion_list/".$tag_info['tag_id'];
+//            $config = array(
+//                'uri_segment' => 4, // 在url的第二段上选取分页页数
+//                'base_url' => $cur_url,
+//                'total_rows' => $total_rows,
+//                'per_page' => $this->perpage,
+//                'use_page_numbers' => TRUE,
+//                'num_links' => 3,
+//                'first_link' => '&laquo;',
+//                'prev_link' => '&lt;',
+//                'next_link' => '&gt;',
+//                'last_link' => '&raquo;',
+//                'full_tag_open' => '<ul class="pagination">',
+//                'full_tag_close' => '</ul>',
+//                'first_tag_open' => '<li>',
+//                'first_tag_close' => '</li> &nbsp;&nbsp;',
+//                'last_tag_open' => '<li>',
+//                'last_tag_close' => '</li> &nbsp;&nbsp;',
+//                'prev_tag_open' => '<li>',
+//                'prev_tag_close' => '</li> &nbsp;&nbsp;',
+//                'next_tag_open' => '<li>',
+//                'next_tag_close' => '</li> &nbsp;&nbsp;',
+//                'num_tag_open' => '<li>',
+//                'num_tag_close' => '</li> &nbsp;&nbsp;',
+//                'cur_tag_open' => '<strong>',
+//                'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+//            );
+//            $this->pagination->initialize($config);
+//            $pagination = $this->pagination->create_links();
+//            $this->load->vars('curpage', $curpage);
+//            $this->load->vars('preview_url', $this->preview_url);
+//            $this->load->vars('tag_info',$tag_info);
+//            $this->load->vars('item_list', $promotion_item);
+//            $this->load->vars('pagination', $pagination);
+//        }
+//        $this->load->view('bbs_tag_promotion/item_promotion_list');
+//    }
+//    public function add_item_promotion()
+//    {
+//        $tag_id = isset($_GET['t'])?$_GET['t']:0;
+//        if(!$tag_id){
+//            md_common::display_javascript('请输入标签名');
+//        }
+//    }
+//    public function do_add_item()
+//    {
+//        $item_id = (int)_pv('object_id');
+//        $tag_id  = (int)_pv('tag_id');
+//        $this->load->model('edm_product_m');
+//        $item_info = $this->edm_product_m->get_info_by_product($item_id);
+//        $item_record =  $this->get_item_promotion_record($item_id);
+//        if(!$item_info){
+//            md_common::display_javascript('项目不存在!',site_url('bbs_tag_promotion/item_promotion_list/'.$tag_id));
+//        }else{
+//            if(!$item_record){
+//                $data['object_id'] = $item_id;
+//                $data['tag_id']    = $tag_id;
+//                $data['title']     = $item_info['name'];
+//                $data['link']      = $this->find_product.'/item/'.$item_id;
+//                $data['type']      = 1;
+//                $data['weight']    = 0;
+//                $this->moxi_db->insert(self::MD_ITEM_RCMD,$data);
+//                redirect('bbs_tag_promotion/item_promotion_list/'.$tag_id);
+//            }else{
+//                md_common::display_javascript('项目已存在!',site_url('bbs_tag_promotion/item_promotion_list/'.$tag_id));
+//            }
+//        }
+//    }
+//    public function del_item_promotion($id,$tag_id)
+//    {
+//        $id = (int)$id;
+//        $tag_id = (int)$tag_id ;
+//        $sql = "DELETE FROM `bbs_item_promotion` WHERE `id`={$id}";
+//        $this->moxi_db->query($sql);
+//        $res = $this->moxi_db->affected_rows();
+//        if($res){
+//            $return_data = array(
+//                'status' => 1,
+//                'msg'    => '删除成功'
+//            );
+//        }else{
+//            $return_data = array(
+//                'status' => 0,
+//                'msg'    => '删除异常'
+//            );
+//        }
+//        md_common::display_javascript($return_data['msg'],site_url('bbs_tag_promotion/item_promotion_list/'.$tag_id));
+//
+//    }
+//    public function change_item_weight(){
+//        $id = (int) _pv('id');
+//        $weight = (int) _pv('weight');
+//        $data['weight'] = $weight;
+//        $this->moxi_db->from(self::MD_ITEM_RCMD);
+//        $this->moxi_db->where('id',$id);
+//        $this->moxi_db->update(self::MD_ITEM_RCMD,$data);
+//        $res = $this->moxi_db->affected_rows();
+//        if($res){
+//            $return_data = array(
+//                'status' => 1,
+//                'msg'    => "更改成功"
+//            );
+//        }else{
+//            $return_data = array(
+//                'status' => 0,
+//                'msg'    => "更改异常"
+//            );
+//        }
+//        echo json_encode($return_data);
+//    }
+}

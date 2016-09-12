@@ -1,0 +1,105 @@
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<form id="act-editor" class="panel" action="/activity/addnew" method="post" style="padding: 8.5px;margin: 0 0 9px;border: 1px solid rgba(0, 0, 0, 0.15);-webkit-border-radius: 4px;moz-border-radius: 4px;border-radius: 4px;">
+    <table class="table table-condensed table-hover">
+        <thead>
+            <tr>
+                <th width="90">增加新活动</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>项目ID</td>
+                <td><input type="text" name="pro_id" placeholder="项目ID"></td>
+            </tr>
+            <tr>
+                <td>用户ID</td>
+                <td><input type="text" name="user_id" placeholder="用户ID"></td>
+            </tr>
+            <tr>
+                <td>活动开始时间</td>
+                <td>
+                    <div class="input-append date form_datetime">
+                        <input type="text" name='start_time' placeholder="活动开始时间">
+                        <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td>活动结束时间</td>
+                <td>
+                    <div class="input-append date form_datetime">
+                        <input type="text" name='end_time' placeholder="活动结束时间">
+                        <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td>活动名称</td>
+                <td><input type="text" name="name" placeholder="活动名称"></td>
+            </tr>
+            <tr>
+                <td>活动描述</td>
+                <td><textarea name="des" placeholder="活动描述" rows="3"></textarea></td>
+            </tr>
+            <tr>
+                <td>每天开始时间</td>
+                <td>
+                    <div class="input-append date form_datetime_day">
+                        <input type="text" name='day_start' placeholder="每天开始时间">
+                        <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td>每天结束时间</td>
+                <td>
+                    <div class="input-append date form_datetime_day">
+                        <input type="text" name='day_end' placeholder="每天结束时间">
+                        <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td>计奖策略</td>
+                <td>
+                    <input type="text" name="algo" placeholder="计奖策略">
+                    <span>值1: 排列5</span>
+                </td>
+            </tr>
+            <tr>
+                <td>页面模板</td>
+                <td><input type="text" name="view" placeholder="页面模板"></td>
+            </tr>
+        </tbody>
+    </table>
+    <input type="submit" class="btn btn-primary" value="保存">
+</form>
+
+
+
+
+
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd hh:mm:ss",
+            pickTime: true
+        });
+        $('.form_datetime_day').datetimepicker({
+            language: 'zh-CN',
+            format: "hh:mm:ss",
+            pickTime: true,
+            pickDate: false
+        });
+    });
+</script>
+
+
+<?php $this->load->view('ckad/footer'); ?>
+
+

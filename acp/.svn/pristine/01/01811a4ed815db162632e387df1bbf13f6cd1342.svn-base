@@ -1,0 +1,680 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Test extends MD_Controller {
+
+    public $redis;
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('bbs/bbs_m');
+        $init = new Redis();
+        $host = $this->config->item('md_redis');
+        $init->connect("{$host['ip']}", "{$host['port']}");
+        $this->redis = $init;
+        $other_db = $this->config->item('other_db');
+        if ($other_db) {
+            foreach ($other_db as $key => $value) {
+                $this->$key = &DB($value);
+            }
+        }
+    }
+
+    public function elastic() {
+        require_once('libraries/elastic/vendor/autoload.php');
+        $host = $this->config->item('md_elasticsearch');
+        $hosts = ["{$host['ip']}:{$host['port']}"];
+        $client = Elasticsearch\ClientBuilder::create()->setHosts($hosts)->build();
+        $param = [
+            "index" => "logstash-2016.05.*,logstash-2016.06.*,logstash-2016.07.01",
+            //"search_type" => "count",
+            "size" => 10000,
+            "fields" => "url",
+            "body" => [
+                "query" => [
+                    "filtered" => [
+                        "query" => [ "query_string" => [ "query" => "url:\"xid=3045\" AND url:pay_id", "analyze_wildcard" => true]],
+                    ]
+                ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $number = array();
+        $i = 0;
+        foreach ($reslut['hits']['hits'] as $key => $val) {
+            if (preg_match("/^http:\/\/(m|www|zhongchou).modian.com\/pay\/pay_success\?(pay_id=[0-9]+&xid=[0-9]+).*$/", $val['fields']['url'][0], $arr)) {
+                preg_match("/pay_id=([0-9]+)/", $arr[2], $shu);
+                $number[$i]['shu'] = $shu[1];
+                $i++;
+            }
+        }
+        $this->load->helper('excel');
+        export_to_csv(array("shu" => "pay_id"), $number, "3045订单ID");
+    }
+
+    public function my_test() {
+        $stime = "2016-07-01 00:00:00";
+        $etime = "2016-08-01 00:00:00";
+        try {
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_modian", "devroot", "aR7VGnEME");
+            $reslut = $pdo->query("SELECT `pro_type`,`category`,`id`,`short_title`,`user_id`,`goal`,`start_time`,`end_time`,`moxi_post_id` FROM `md_product` WHERE `if_show` = 1 AND `start_time` >= '{$stime}' AND `start_time` < '{$etime}' ORDER BY `pro_type`");
+            $lib = array();
+            foreach ($reslut as $key => $value) {
+                for ($i = 0; $i <= 8; $i++) {
+                    unset($value[$i]);
+                }
+                $lib[$value['id']] = $value;
+                $sql = "SELECT SUM(`amount`) AS shu,COUNT(*) AS form,COUNT(DISTINCT `user_id`) AS indenpendent FROM `md_product_back` WHERE `pro_id` = '{$value['id']}' AND (`if_pay` = 1 OR `if_pay` = 3)";
+                $resluts = $pdo->query($sql);
+                foreach ($resluts as $kk => $vv) {
+                    if ($vv['shu'] == null) {
+                        $vv['shu'] = 0;
+                    }
+                    $lib[$value['id']]['money'] = $vv['shu'];
+                    $lib[$value['id']]['form'] = $vv['form'];
+                    $lib[$value['id']]['indenpendent'] = $vv['indenpendent'];
+                }
+                $sql = "SELECT COUNT(*) as shu FROM `md_product_favors` WHERE `pro_id` = '{$value['id']}' AND `type` = 1";
+                $resluts = $pdo->query($sql);
+                foreach ($resluts as $kk => $vv) {
+                    if ($vv['shu'] == null) {
+                        $vv['shu'] = 0;
+                    }
+                    $lib[$value['id']]['fans'] = $vv['shu'];
+                }
+            }
+            $pdo = null;
+        } catch (PDOException $e) {
+            die("Error!: " . $e->getMessage() . "<br/>");
+        }
+        try {
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_moxi", "devroot", "aR7VGnEME");
+            foreach ($lib as $k => $v) {
+                $num = $v['moxi_post_id'] % 10;
+                $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_{$num}` WHERE `post_id` = '{$v['moxi_post_id']}' AND `isshow` = 1";
+                $reslut = $pdo->query($sql);
+                foreach ($reslut as $kk => $vv) {
+                    $lib[$k]['comment'] = $vv['shu'];
+                }
+                $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_{$num}` WHERE `post_id` = '{$v['moxi_post_id']}' AND `reply_fuid` = {$v['user_id']}";
+                $reslut = $pdo->query($sql);
+                foreach ($reslut as $kk => $vv) {
+                    $lib[$k]['init'] = $vv['shu'];
+                }
+            }
+        } catch (PDOException $e) {
+            die("Error!: " . $e->getMessage() . "<br/>");
+        }
+        foreach ($lib as $key => $val) {
+            switch(intval($val['pro_type'])){
+                case 1: $lib[$key]['pro_type'] = "实物回报"; break;
+                case 2: $lib[$key]['pro_type'] = "著作转让"; break;
+                case 3: $lib[$key]['pro_type'] = "未知"; break;
+                case 4: $lib[$key]['pro_type'] = "创意"; break;
+                default : break;
+            }
+            if ($val['money'] < $val['goal']) {
+                $lib[$key]['state_money'] = "未筹满";
+            } else {
+                $lib[$key]['state_money'] = "已筹满";
+            }
+            if (time() > strtotime($val['end_time'])) {
+                $lib[$key]['state_time'] = "已结束";
+            } else {
+                $lib[$key]['state_time'] = "未结束";
+            }
+            if ($val['goal']) {
+                $lib[$key]['per_money'] = round(($val['money'] * 100) / $val['goal'], 2) . "%";
+            } else {
+                $lib[$key]['per_money'] = "0%";
+            }
+            if (strtotime($val['end_time']) - strtotime($val['start_time']) != 0) {
+                $lib[$key]['per_time'] = round((time() - strtotime($val['start_time'])) * 100 / (strtotime($val['end_time']) - strtotime($val['start_time'])), 2) . "%";
+            } else {
+                $lib[$key]['per_time'] = "100%";
+            }
+            if ($val['indenpendent'] != 0) {
+                $lib[$key]['avg_money'] = round(($val['money'] / $val['indenpendent']), 2);
+            } else {
+                $lib[$key]['avg_money'] = 0;
+            }
+        }
+        $arr_title = array("category" => "分类", "id" => "项目ID", "pro_type" => "项目类别", "short_title" => "项目名称", "user_id" => "发起人ID", "goal" => "资金目标",
+            "money" => "已筹金额", "per_money" => "完成百分比", "per_time" => "时间百分比", "state_money" => "筹资额状态", "state_time" => "时间状态",
+            "fans" => "关注数", "start_time" => "开始时间", "end_time" => "结束时间", "comment" => "评论数", "init" => "发起人回复数", "avg_money" => "客单价",
+            "indenpendent" => "支持人数");
+        $path_file = "项目统计数据表";
+        $this->load->helper('excel');
+        //print_r($lib);
+        export_to_csv($arr_title, $lib, $path_file);
+    }
+
+    public function my_test1() {
+        echo date("Y-m-d H:i:s", 1467302400);exit;
+        $stime = "2016-07-01 00:00:00";
+        $etime = "2016-08-01 00:00:00";
+        try{
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_modian", "devroot", "aR7VGnEME");
+            $reslut = $pdo->query("SELECT `moxi_post_id` FROM `md_product` WHERE `if_show` = 1 AND ((`end_time` > '{$stime}' AND `start_time` <= '{$stime}') OR (`end_time` > '{$etime}' AND `start_time` < '{$etime}') OR (`end_time` < '{$etime}' AND `start_time` >= '{$stime}'))");
+            $lib = array();
+            foreach($reslut as $key => $value){
+                $lib[] = $value[0];
+            }
+            $pdo = null;
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+        try{
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_moxi", "devroot", "aR7VGnEME");
+            $data = array();
+            foreach($lib as $k => $v){
+                $num = $v % 10;
+                $sql = "SELECT FROM_UNIXTIME(`ctime`, '%Y%m') AS riqi,COUNT(*) AS shu FROM `bbs_reply_{$num}` WHERE `post_id` = {$v} AND `ctime` >= '".strtotime($stime)."' AND `ctime` < '".strtotime($etime)."' AND `isshow` = 1 GROUP BY riqi";
+                //echo $sql."\n";
+                $reslut = $pdo->query($sql);
+                foreach($reslut as $kk => $vv){
+                    $key = intval($vv[0]);
+                    if(isset($data[$key])){
+                        $data[$key] += $vv[1];
+                    }else{
+                        $data[$key] = $vv[1];
+                    }
+                }
+            }
+            ksort($data);
+            print_r($data);
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+    }
+
+    public function my_test2() {
+        try {
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_modian", "devroot", "aR7VGnEME");
+            $reslut = $pdo->query("SELECT DATE_FORMAT(`dtime`, '%Y%m%d') AS riqi,`user_reg_from_web` AS shu FROM `md_statistics_user` WHERE `dtime` >= '2016-04-01 00:00:00' AND `dtime` < '2016-05-01 00:00:00'");
+            $he_lib = array();
+            foreach ($reslut as $key => $value) {
+                $he_lib[$value['riqi']] = $value['shu'];
+            }
+            $pdo = null;
+            print_r($he_lib);
+        } catch (PDOException $e) {
+            die("Error!: " . $e->getMessage() . "<br/>");
+        }
+    }
+
+    public function ipcnt($pro_id) {
+        $pro_id = intval($pro_id);
+        if (empty($pro_id)) {
+            show_error('error pro_id.');
+        }
+
+        $this->config->load('database', NULL, TRUE);
+        $other_db = $this->config->item('other_db');
+        if (!empty($other_db) && !empty($other_db['tongji_db'])) {
+            $this->tongji_db = &DB($other_db['tongji_db']);
+        }
+
+        $sql = "SELECT page, ip, COUNT(*) AS cc
+                FROM (
+                    SELECT `md_statistics_stay_acc_log`.`page`, `md_statistics_stay_acc_log`.`ip`
+                    FROM `md_statistics_stay_acc_log`
+                        JOIN `md_product_back`
+                            ON `md_product_back`.`id`=`md_statistics_stay_acc_log`.`bid`
+                                AND `md_statistics_stay_acc_log`.`page`={$pro_id}
+                                AND `md_statistics_stay_acc_log`.`bid`!=0
+                                AND `md_product_back`.`pro_id`={$pro_id}
+                                AND `md_product_back`.`if_pay`=1
+                                AND `md_product_back`.`rew_id`!=-3
+                    GROUP BY uid) as tt
+                GROUP BY ip
+                ORDER BY cc DESC";
+
+        $res = $this->tongji_db->query($sql)->result_array();
+
+        $total_cnt = 0;
+        $qucong_cnt = 0;
+        foreach ($res as $row) {
+            $tmp_cnt = intval($row['cc']);
+
+            $total_cnt += $tmp_cnt;
+
+            if ($tmp_cnt > 2) {
+                $qucong_cnt += 2;
+            } else {
+                $qucong_cnt += $tmp_cnt;
+            }
+        }
+
+        $data['total_cnt'] = $total_cnt;
+        $data['qucong_cnt'] = $qucong_cnt;
+        $data['the_ref'] = $res;
+        $this->load->view('test/ipcnt', $data);
+    }
+
+    public function index() {
+//        print_r($this->redis->hGetAll("product_rew_2108"));exit;
+//        for ($i = 1;$i < 10000; $i++) {
+//            echo $this->redis->del("product_data_".$i);
+//        }
+//        echo $this->redis->del("product_rew_detail");
+//        exit;
+//        for ($i = strtotime("2015-01-01"); $i <= strtotime("2016-08-08"); $i += 86400) {
+//            $sql = "select * from md_statistics_rew where stime = '".date("Y-m-d", $i)."'";
+//            $reslut = $this->db->query($sql)->result_array();
+//            $arr = [];
+//            foreach ($reslut as $key => $val) {
+//                $arr[$val['pro_id']]['stime'] = $val['stime'];
+//                $arr[$val['pro_id']][$val['rew_id']]['money'] = $val['money'];
+//                $arr[$val['pro_id']][$val['rew_id']]['amount'] = $val['amount'];
+//                $arr[$val['pro_id']][$val['rew_id']]['content'] = $val['content'];
+//                $arr[$val['pro_id']][$val['rew_id']]['number_person'] = $val['number_person'];
+//            }
+//            foreach ($arr as $key => $val) {
+//                $field = "product_rew_".$key;
+//                $stime = $val['stime'];
+//                unset($val['stime']);
+//                $this->redis->hSet($field, strtotime($stime), serialize($val));
+//            }
+//            echo date("Y-m-d",$i)."\n";
+//        }
+//        exit;
+        try {
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_moxi", "devroot", "aR7VGnEME");
+        } catch (PDOException $e) {
+            die("Error!: " . $e->getMessage() . "<br/>");
+        }
+        //for ($i = strtotime("2016-07-04"); $i <= strtotime("2016-08-08"); $i += 86400) {
+            //查看当前在线的项目
+            $i = time();
+            $data = [];
+            $moxi_post_id = [];
+            $examine_modify_time = [];
+            $stime = date("Y-m-d", $i - 86400);
+            $end_time = date("Y-m-d 00:00:00", $i);
+            $start_time = date("Y-m-d 00:00:00", $i - 86400);
+            $md_plan = ["web" => 0, "wap" => 0, "ios" => 0, "android" => 0];
+            $if_pay = ["amount" => 0, "indenpendent" => 0, "dingdan" => 0];
+            $sql = "SELECT `id`,`moxi_post_id`,`examine_modify_time` FROM `md_product` WHERE ((`start_time` <= '{$start_time}' AND `end_time` > '{$start_time}') OR (`end_time` > '"
+                    . "{$end_time}' AND `start_time` < '{$end_time}') OR (`start_time` >= '{$start_time}' AND `end_time` < '{$end_time}')) AND `if_show` = 1 AND `pro_type` = 1";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+            foreach ($reslut as $key => $val) {
+                $moxi_post_id[$val['id']] = $val['moxi_post_id'];
+                $examine_modify_time[$val['id']] = $val['examine_modify_time'];
+                $data[$val['id']]['md_plan'] = $md_plan;
+                $data[$val['id']]['new_user'] = 0;
+                $data[$val['id']]['fans'] = 0;
+                $data[$val['id']]['succes'] = $if_pay;
+                $data[$val['id']]['defeated'] = $if_pay;
+            }
+
+            $sql = "SELECT `pro_id`,`if_pay`,SUM(`amount`) AS money,COUNT(DISTINCT `user_id`) AS indenpendent,COUNT(*) AS dingdan FROM `md_product_back` "
+                    . "WHERE `pro_id` > 0 AND (`if_pay` = 1 OR `if_pay` = 3) AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`if_pay`";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    if ($val['if_pay'] == 1) {
+                        $data[$val['pro_id']]['succes']['amount'] = $val['money'];
+                        $data[$val['pro_id']]['succes']['indenpendent'] = $val['indenpendent'];
+                        $data[$val['pro_id']]['succes']['dingdan'] = $val['dingdan'];
+                    }
+                    if ($val['if_pay'] == 3) {
+                        $data[$val['pro_id']]['defeated']['amount'] = $val['money'];
+                        $data[$val['pro_id']]['defeated']['indenpendent'] = $val['indenpendent'];
+                        $data[$val['pro_id']]['defeated']['dingdan'] = $val['dingdan'];
+                    }
+                }
+            }
+
+            $sql = "SELECT `pro_id`,`md_plan`,COUNT(*) AS dingdan FROM `md_product_back` WHERE `pro_id` > 0 AND `if_pay` = 1 AND "
+                    . "`ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`md_plan`";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['md_plan'][$val['md_plan']] = $val['dingdan'];
+                }
+            }
+            $sql = "SELECT pro.`id`,rew.`id` AS rew_id,rew.`money`,rew.`content` FROM `md_product` pro INNER JOIN `md_product_rewards` rew ON "
+                    . "pro.`id` = rew.`pro_id` WHERE ((pro.`start_time` <= '{$start_time}' AND pro.`end_time` > '{$start_time}') OR (pro.`end_time` > '"
+                    . "{$end_time}' AND pro.`start_time` < '{$end_time}') OR (pro.`start_time` >= '{$start_time}' AND pro.`end_time` < '{$end_time}')) "
+                    . "AND pro.`if_show` = 1 AND pro.`pro_type` = 1 AND rew.`if_show` = 1";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['id']])) {
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['money'] = $val['money'];
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['content'] = $val['content'];
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['number_person'] = 0;
+                    $data[$val['id']]['rew_id'][$val['rew_id']]['amount'] = 0;
+                }
+                if (!isset($data[$val['id']]['rew_id'][-3])) {
+                    $data[$val['id']]['rew_id'][-3]['money'] = 0;
+                    $data[$val['id']]['rew_id'][-3]['content'] = "支持梦想，不需要回报";
+                    $data[$val['id']]['rew_id'][-3]['number_person'] = 0;
+                    $data[$val['id']]['rew_id'][-3]['amount'] = 0;
+                }
+            }
+
+            $sql = "SELECT `pro_id`,`rew_id`,COUNT(*) AS shu,SUM(`amount`) AS money FROM `md_product_back` WHERE `pro_id` > 0 AND `ctime` >= '"
+                    . "{$start_time}' AND `ctime` < '{$end_time}' AND `if_pay` = 1 GROUP BY `pro_id`,`rew_id`";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['rew_id'][$val['rew_id']]['number_person'] = $val['shu'];
+                    $data[$val['pro_id']]['rew_id'][$val['rew_id']]['amount'] = $val['money'];
+                }
+            }
+
+            $sql = "SELECT `pro_id`,COUNT(*) AS fans FROM `md_product_favors` WHERE `type` = 1 AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['fans'] = $val['fans'];
+                }
+            }
+
+            foreach ($moxi_post_id as $key => $val) {
+                $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_" . ($val % 10) . "` WHERE `post_id` = {$val} AND `isshow` = 1 AND `ctime` >= "
+                        . "UNIX_TIMESTAMP('{$start_time}') AND `ctime` < UNIX_TIMESTAMP('{$end_time}')";
+                //$reslut = $this->moxi_db->query($sql)->row_array();
+                $reslut = $pdo->query($sql);
+                foreach ($reslut as $vvv) {
+                   if (isset($data[$key])) {
+                        $data[$key]['comment'] = $vvv['shu'];
+                    }
+                }
+            }
+
+            $sql = "SELECT `pro_id`,DATE_FORMAT(`ctime`,'%y-%m-%d') AS riqi,`title` FROM `md_product_update` WHERE `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`";
+            $reslut = $this->db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    $data[$val['pro_id']]['update'][] = $val['title'];
+                }
+            }
+
+            $sql = "SELECT a.`user_id`,b.`ctime` AS riqi,b.`pro_id`,c.`examine_modify_time`,d.`ctime` FROM `md_product_back` a "
+                    . "INNER JOIN `md_product_back` b ON a.`user_id` = b.`user_id` INNER JOIN `md_product` c ON b.`pro_id` = c.`id` "
+                    . "INNER JOIN `md_users` d ON a.`user_id` = d.`id` WHERE a.`ctime` >= '{$start_time}' AND a.`ctime` < '{$end_time}' AND b.`pro_id` > 0 "
+                    . "AND (b.`if_pay` = 1 OR b.`if_pay` = 3) GROUP BY a.`user_id` HAVING MIN(riqi) >= '{$start_time}' AND MIN(riqi) < '{$end_time}'";
+            $reslut = $this->tongji_db->query($sql)->result_array();
+
+            foreach ($reslut as $key => $val) {
+                if (isset($data[$val['pro_id']])) {
+                    if (strtotime($val['examine_modify_time']) < strtotime($val['ctime'])) {
+                        $data[$val['pro_id']]['new_user'] ++;
+                    }
+                }
+            }
+            
+            //循环数组，将数据存入数据库
+            $insert1 = [];
+            $insert2 = [];
+            foreach ($data as $key => $val) {
+                $pro_data = [];
+                $pro_data = [
+                    'stime' => $stime,
+                    'md_plan_web' => $val['md_plan']['web'],
+                    'md_plan_wap' => $val['md_plan']['wap'],
+                    'md_plan_ios' => $val['md_plan']['ios'],
+                    'md_plan_android' => $val['md_plan']['android'],
+                    'new_user' => $val['new_user'],
+                    'pay_succes_amount' => $val['succes']['amount'],
+                    'pay_succes_indenpendent' => $val['succes']['indenpendent'],
+                    'pay_succes_dingdan' => $val['succes']['dingdan'],
+                    'pay_defeated_amount' => $val['defeated']['amount'],
+                    'pay_defeated_indenpendent' => $val['defeated']['indenpendent'],
+                    'pay_defeated_dingdan' => $val['defeated']['dingdan'],
+                    'fans' => $val['fans'],
+                    'comment' => $val['comment']
+                ];
+                $field = "product_data_" . $key;
+                $this->redis->hSet($field, strtotime($stime), serialize($pro_data));
+                $field = "product_rew_" . $key;
+                $this->redis->hSet($field, strtotime($stime), serialize($val['rew_id']));
+                $arr1 = [];
+                $arr1 = [
+                    'pro_id' => $key,
+                    'stime' => $stime,
+                    'md_plan_web' => $val['md_plan']['web'],
+                    'md_plan_wap' => $val['md_plan']['wap'],
+                    'md_plan_ios' => $val['md_plan']['ios'],
+                    'md_plan_android' => $val['md_plan']['android'],
+                    'new_user' => $val['new_user'],
+                    'pay_succes_amount' => $val['succes']['amount'],
+                    'pay_succes_indenpendent' => $val['succes']['indenpendent'],
+                    'pay_succes_dingdan' => $val['succes']['dingdan'],
+                    'pay_defeated_amount' => $val['defeated']['amount'],
+                    'pay_defeated_indenpendent' => $val['defeated']['indenpendent'],
+                    'pay_defeated_dingdan' => $val['defeated']['dingdan'],
+                    'fans' => $val['fans'],
+                    'comment' => $val['comment']
+                ];
+                $insert1[] = $arr1;
+                foreach ($val['rew_id'] as $kk => $vv) {
+                    $arr2 = [];
+                    $arr2 = [
+                        'pro_id' => $key,
+                        'stime' => $stime,
+                        'rew_id' => $kk,
+                        'money' => $vv['money'],
+                        'content' => $vv['content'],
+                        'number_person' => $vv['number_person'],
+                        'amount' => $vv['amount']
+                    ];
+                    $insert2[] = $arr2;
+                }
+            }
+            if (isset($insert1)) {
+                $this->db->delete('md_statistics_cp', array('stime' => $stime)); 
+                $this->db->insert_batch('md_statistics_cp', $insert1); 
+                unset($insert1);
+            }
+            if (isset($insert2)) {
+                $this->db->delete('md_statistics_rew', array('stime' => $stime)); 
+                $this->db->insert_batch('md_statistics_rew', $insert2); 
+                unset($insert2);
+            }
+            echo $stime."\n";
+        //}
+    }
+
+    public function product_statistics() {
+        try {
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_moxi", "devroot", "aR7VGnEME");
+        } catch (PDOException $e) {
+            die("Error!: " . $e->getMessage() . "<br/>");
+        }
+        
+        $i = time();
+        $data = [];
+        $moxi_post_id = [];
+        $examine_modify_time = [];
+        $stime = date("Y-m-d", $i);
+        $end_time = date("Y-m-d H:i:s", $i);
+        $start_time = date("Y-m-d 00:00:00", $i);
+        $md_plan = ["web" => 0, "wap" => 0, "ios" => 0, "android" => 0];
+        $if_pay = ["amount" => 0, "indenpendent" => 0, "dingdan" => 0];
+        $sql = "SELECT `id`,`moxi_post_id`,`examine_modify_time` FROM `md_product` WHERE ((`start_time` <= '{$start_time}' AND `end_time` > '{$start_time}') OR (`end_time` > '"
+                . "{$end_time}' AND `start_time` < '{$end_time}') OR (`start_time` >= '{$start_time}' AND `end_time` < '{$end_time}')) AND `if_show` = 1 AND `pro_type` = 1";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+        foreach ($reslut as $key => $val) {
+            $moxi_post_id[$val['id']] = $val['moxi_post_id'];
+            $examine_modify_time[$val['id']] = $val['examine_modify_time'];
+            $data[$val['id']]['md_plan'] = $md_plan;
+            $data[$val['id']]['new_user'] = 0;
+            $data[$val['id']]['fans'] = 0;
+            $data[$val['id']]['succes'] = $if_pay;
+            $data[$val['id']]['defeated'] = $if_pay;
+        }
+
+        $sql = "SELECT `pro_id`,`if_pay`,SUM(`amount`) AS money,COUNT(DISTINCT `user_id`) AS indenpendent,COUNT(*) AS dingdan FROM `md_product_back` "
+                . "WHERE `pro_id` > 0 AND (`if_pay` = 1 OR `if_pay` = 3) AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`if_pay`";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                if ($val['if_pay'] == 1) {
+                    $data[$val['pro_id']]['succes']['amount'] = $val['money'];
+                    $data[$val['pro_id']]['succes']['indenpendent'] = $val['indenpendent'];
+                    $data[$val['pro_id']]['succes']['dingdan'] = $val['dingdan'];
+                }
+                if ($val['if_pay'] == 3) {
+                    $data[$val['pro_id']]['defeated']['amount'] = $val['money'];
+                    $data[$val['pro_id']]['defeated']['indenpendent'] = $val['indenpendent'];
+                    $data[$val['pro_id']]['defeated']['dingdan'] = $val['dingdan'];
+                }
+            }
+        }
+
+        $sql = "SELECT `pro_id`,`md_plan`,COUNT(*) AS dingdan FROM `md_product_back` WHERE `pro_id` > 0 AND `if_pay` = 1 AND "
+                . "`ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`,`md_plan`";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                $data[$val['pro_id']]['md_plan'][$val['md_plan']] = $val['dingdan'];
+            }
+        }
+        $sql = "SELECT pro.`id`,rew.`id` AS rew_id,rew.`money`,rew.`content` FROM `md_product` pro INNER JOIN `md_product_rewards` rew ON "
+                . "pro.`id` = rew.`pro_id` WHERE ((pro.`start_time` <= '{$start_time}' AND pro.`end_time` > '{$start_time}') OR (pro.`end_time` > '"
+                . "{$end_time}' AND pro.`start_time` < '{$end_time}') OR (pro.`start_time` >= '{$start_time}' AND pro.`end_time` < '{$end_time}')) "
+                . "AND pro.`if_show` = 1 AND pro.`pro_type` = 1 AND rew.`if_show` = 1";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['id']])) {
+                $data[$val['id']]['rew_id'][$val['rew_id']]['money'] = $val['money'];
+                $data[$val['id']]['rew_id'][$val['rew_id']]['content'] = $val['content'];
+                $data[$val['id']]['rew_id'][$val['rew_id']]['number_person'] = 0;
+                $data[$val['id']]['rew_id'][$val['rew_id']]['amount'] = 0;
+            }
+            if (!isset($data[$val['id']]['rew_id'][-3])) {
+                $data[$val['id']]['rew_id'][-3]['money'] = 0;
+                $data[$val['id']]['rew_id'][-3]['content'] = "支持梦想，不需要回报";
+                $data[$val['id']]['rew_id'][-3]['number_person'] = 0;
+                $data[$val['id']]['rew_id'][-3]['amount'] = 0;
+            }
+        }
+
+        $sql = "SELECT `pro_id`,`rew_id`,COUNT(*) AS shu,SUM(`amount`) AS money FROM `md_product_back` WHERE `pro_id` > 0 AND `ctime` >= '"
+                . "{$start_time}' AND `ctime` < '{$end_time}' AND `if_pay` = 1 GROUP BY `pro_id`,`rew_id`";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                $data[$val['pro_id']]['rew_id'][$val['rew_id']]['number_person'] = $val['shu'];
+                $data[$val['pro_id']]['rew_id'][$val['rew_id']]['amount'] = $val['money'];
+            }
+        }
+
+        $sql = "SELECT `pro_id`,COUNT(*) AS fans FROM `md_product_favors` WHERE `type` = 1 AND `ctime` >= '{$start_time}' AND `ctime` < '{$end_time}' GROUP BY `pro_id`";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                $data[$val['pro_id']]['fans'] = $val['fans'];
+            }
+        }
+
+        foreach ($moxi_post_id as $key => $val) {
+            $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_" . ($val % 10) . "` WHERE `post_id` = {$val} AND `isshow` = 1 AND `ctime` >= "
+                    . "UNIX_TIMESTAMP('{$start_time}') AND `ctime` < UNIX_TIMESTAMP('{$end_time}')";
+            //$reslut = $this->moxi_db->query($sql)->row_array();
+            $reslut = $pdo->query($sql);
+            foreach ($reslut as $vvv) {
+               if (isset($data[$key])) {
+                    $data[$key]['comment'] = $vvv['shu'];
+                }
+            }
+        }
+        
+        $sql = "SELECT a.`user_id`,b.`ctime` AS riqi,b.`pro_id`,c.`examine_modify_time`,d.`ctime` FROM `md_product_back` a "
+                . "INNER JOIN `md_product_back` b ON a.`user_id` = b.`user_id` INNER JOIN `md_product` c ON b.`pro_id` = c.`id` "
+                . "INNER JOIN `md_users` d ON a.`user_id` = d.`id` WHERE a.`ctime` >= '{$start_time}' AND a.`ctime` < '{$end_time}' AND b.`pro_id` > 0 "
+                . "AND (b.`if_pay` = 1 OR b.`if_pay` = 3) GROUP BY a.`user_id` HAVING MIN(riqi) >= '{$start_time}' AND MIN(riqi) < '{$end_time}'";
+        $reslut = $this->tongji_db->query($sql)->result_array();
+
+        foreach ($reslut as $key => $val) {
+            if (isset($data[$val['pro_id']])) {
+                if (strtotime($val['examine_modify_time']) < strtotime($val['ctime'])) {
+                    $data[$val['pro_id']]['new_user'] ++;
+                }
+            }
+        }
+        //循环数组，将数据存入数据库
+        $field = "product_statistics_today";
+        $this->redis->del($field);
+        $insert1 = [];
+        $insert2 = [];
+        foreach ($data as $key => $val) {
+            $val['stime'] = $stime;
+            $this->redis->hSet($field, $key, serialize($val));
+            $arr1 = [];
+            $arr1 = [
+                'pro_id' => $key,
+                'stime' => $stime,
+                'md_plan_web' => $val['md_plan']['web'],
+                'md_plan_wap' => $val['md_plan']['wap'],
+                'md_plan_ios' => $val['md_plan']['ios'],
+                'md_plan_android' => $val['md_plan']['android'],
+                'new_user' => $val['new_user'],
+                'pay_succes_amount' => $val['succes']['amount'],
+                'pay_succes_indenpendent' => $val['succes']['indenpendent'],
+                'pay_succes_dingdan' => $val['succes']['dingdan'],
+                'pay_defeated_amount' => $val['defeated']['amount'],
+                'pay_defeated_indenpendent' => $val['defeated']['indenpendent'],
+                'pay_defeated_dingdan' => $val['defeated']['dingdan'],
+                'fans' => $val['fans'],
+                'comment' => $val['comment']
+            ];
+            $insert1[] = $arr1;
+            foreach ($val['rew_id'] as $kk => $vv) {
+                $arr2 = [];
+                $arr2 = [
+                    'pro_id' => $key,
+                    'stime' => $stime,
+                    'rew_id' => $kk,
+                    'money' => $vv['money'],
+                    'content' => $vv['content'],
+                    'number_person' => $vv['number_person'],
+                    'amount' => $vv['amount']
+                ];
+                $insert2[] = $arr2;
+            }
+        }
+        if (isset($insert1)) {
+            $this->db->query("DELETE FROM `md_statistics_cp` WHERE `stime` = '{$stime}'");
+            $this->db->insert_batch('md_statistics_cp', $insert1); 
+            unset($insert1);
+        }
+        if (isset($insert2)) {
+            $this->db->query("DELETE FROM `md_statistics_rew` WHERE `stime` = '{$stime}'");
+            $this->db->insert_batch('md_statistics_rew', $insert2); 
+            unset($insert2);
+        }
+    }
+
+    public function snh48() {
+        $sql = "SELECT id,pro_id FROM md_product_rewards WHERE if_show = 0 AND pro_id > 0";
+        $reslut = $this->tongji_db->query($sql)->result_array();;
+        foreach ($reslut as $val) {
+            $arr = [];
+            $sql = "DELETE FROM `md_statistics_rew` WHERE pro_id = ".$val['pro_id']." AND rew_id = ".$val['id'];
+            $this->db->query($sql);
+            $str = $this->redis->hGet("product_rew_detail", $val['pro_id']);
+            $arr = unserialize($str);
+            unset($arr[$val['id']]);
+            $this->redis->hSet("product_rew_detail", $val['pro_id'], serialize($arr));
+        }
+    }
+
+
+}

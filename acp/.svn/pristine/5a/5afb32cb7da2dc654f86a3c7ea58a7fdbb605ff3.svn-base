@@ -1,0 +1,356 @@
+<?php	
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_init_redis extends CI_Controller {
+
+		public function __construct(){
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->helper('excel_helper');
+		}
+
+		/**
+		 *
+		 * 	初始化回复的redis计数
+		 *
+		 */
+		public function init_reply($post_id = 0)
+		{
+	        $redis_conf = config_item('md_redis');
+	        if ($redis_conf) {
+	            $bbs_counter = new Redis();
+	            $bbs_counter->pconnect($redis_conf['ip'], $redis_conf['port']);
+	        }
+
+	        if(empty($post_id)){
+				$where = array(
+							'isverified' => 1,
+							'isshow' => 1
+						);
+				$this->moxi_db->select('post_id');
+				$this->moxi_db->from('bbs_post');
+				$this->moxi_db->where($where);
+				$post_list = $this->moxi_db->get()->result_array();
+			}else{
+				$post_list = array(array('post_id' => $post_id));
+			}
+			foreach($post_list as $post_info)
+			{
+
+				// 更新帖子 reply_num
+	            $count_key = $this->bbs_m->get_counter_key('post_comments', $post_info['post_id'], null);
+	            $bbs_counter->delete($count_key);
+	            $this->bbs_post_m->count_post_comments($post_info['post_id'], null);
+	            $count_val = $bbs_counter->get($count_key);
+	            echo "<p>更新帖子ID：{$post_info['post_id']}</p>";
+	            echo "<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;update key: {$count_key} ===> {$count_val}</p>";
+
+				// 更新帖子 top_reply_num
+	            $count_key = $this->bbs_m->get_counter_key('post_comments', $post_info['post_id'], 0);
+	            $bbs_counter->delete($count_key);
+	            $this->bbs_post_m->count_post_comments($post_info['post_id']);
+	            $count_val = $bbs_counter->get($count_key);
+	            echo "<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;update key: {$count_key} ===> {$count_val}</p>";
+
+				// 更新回复 reply_r_num
+				$reply_where = array(
+									'post_id' => $post_info['post_id'],
+									'reply_rid' => 0,
+									'isverified' => 1,
+									// 'isshow' => 1 		// 手动删除的回复数，应该也计数(删回复，数目并不减)
+								);
+				$reply_table = $this->bbs_m->get_reply_table($post_info['post_id']);
+				$this->moxi_db->from($reply_table);
+				$this->moxi_db->where($reply_where);
+				$reply_list = $this->moxi_db->get()->result_array();
+				if($reply_list){
+					echo "<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;更新顶级回复的计数：</p>";
+					foreach($reply_list as $reply_info){
+			            $count_key = $this->bbs_m->get_counter_key('post_comments', $post_info['post_id'], $reply_info['reply_id']);
+			            $bbs_counter->delete($count_key);
+			            $this->bbs_post_m->count_post_comments($post_info['post_id'], $reply_info['reply_id']);
+			            $count_val = $bbs_counter->get($count_key);
+			            echo "<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;update key: {$count_key} ===> {$count_val}</p>";
+					}
+				}else{
+					echo "<p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;该帖子无回复</p>";
+				}
+				++$i;
+	        }
+	        echo "<p>共更新 $i 篇帖子</p>";
+		}
+
+		/**
+		 *
+		 * 	导出某个帖子的所有回复，显示 '时间', 'uid', '昵称', '评论内容'
+		 *
+		 */
+		public function export_reply($post_id)
+		{
+			$reply_table = $this->bbs_m->get_reply_table($post_id) . ' r';
+			$reply_content_table = $this->bbs_m->get_reply_content_table($post_id) . ' rc';
+			$sql = "select r.ctime, r.reply_fuid, rc.content from $reply_table inner join $reply_content_table on r.reply_id = rc.reply_id where r.post_id = $post_id";
+			$reply_list = $this->moxi_db->query($sql)->result_array();
+
+			$uid_array = array();
+			foreach ($reply_list as $reply_info){
+				$uid_array = $reply_info['reply_fuid'];
+			}	
+			$uid_array = array_unique($uid_array);
+
+			// 查找用户昵称
+			$this->db->select('id, username, nickname');
+			$this->db->from('md_users');
+			$this->db->where_in('id', $uid_array);
+			$userlist = $this->db->get()->result_array();
+
+			foreach($reply_list as &$reply_info){
+				foreach($userlist as $user_info){
+					if($user_info['id'] == $reply_info['reply_fuid']){
+						$reply_info['nickname'] = trim($user_info['nickname']) ? $user_info['nickname'] : $user_info['username'];
+					}
+				}
+				$reply_info['time'] = date('Y-m-d H:i:s', $reply_info['ctime']);
+			}
+
+			$arr_title = array(
+							'time'=>'时间',
+							'reply_fuid'=>'用户ID',
+							'nickname'=>'昵称',
+							'content'=>'评论内容'
+						);
+			export_to_excel($arr_title, $reply_list, 'reply_content.xls');
+
+		}
+
+		/**
+		 *
+		 * 	统计 单天 | 一段时间内每天的 发帖数和回帖数
+		 *
+		 */
+		public function stat_post_reply_num($s_date, $e_date = '')
+		{
+			$s_date = (string) $s_date;
+			$e_date = (string) $e_date;
+			$s_date_arr = explode('-', $s_date);
+			$y = $s_date_arr[0];
+			$m = $s_date_arr[1];
+			$d = $s_date_arr[2];
+
+			$arr_title = array(
+							'date' => '日期',
+							'post_num' => '发帖数',
+							'reply_num' => '回帖数'
+						);
+
+			// 表示统计所有，否则只统计某天
+			if( empty($e_date) ){
+				$rows[] = $this->_stat_post_reply_num_day($d, $m, $y);
+			}else{
+				$day_count = ceil((strtotime($e_date) - strtotime($s_date)) / 86400);
+				if($day_count < 1){
+					echo '时间输入有误！';
+				}
+
+				$months_31days = array(1,3,5,7,8,10,12);
+				$months_30days = array(4,6,9,11);
+
+				for($i = 0; $i < $day_count; $i++){
+					$rows[] = $this->_stat_post_reply_num_day($d, $m, $y);
+					if(in_array($m, $months_31days)){
+						if($d == 31){
+							$d = 1;
+							if($m == 12){
+								$m = 1;
+								++$y; 
+							}else{
+								++$m;
+							}
+						}else{
+							++$d;
+						}
+					}elseif(in_array($m, $months_30days)){
+						if($d == 30){
+							$d = 1;
+							++$m;
+						}else{
+							++$d;
+						}
+					}else{
+						if(($y%4 == 0 && $y%100 !=0) || $y%400 == 0){
+							if($d == 29){
+								$d = 1;
+								++$m;
+							}else{
+								++$d;
+							}
+						}else{
+							if($d == 28){
+								$d = 1;
+								++$m;
+							}else{
+								++$d;
+							}
+						}
+					}
+				}
+			}
+			export_to_excel($arr_title, $rows, 'post_reply_num.xls');
+		}
+
+		private function _stat_post_reply_num_day($d, $m, $y)
+		{
+			$s_time = mktime(0, 0, 0, $m, $d, $y);
+			$e_time = mktime(23, 59, 59, $m, $d, $y);
+			$date = "$y/$m/$d";
+
+			$post_sql = "select count(*) as post_num from bbs_post where ctime > $s_time and ctime < $e_time";
+			$post_count_info = $this->moxi_db->query($post_sql)->row_array();
+			$post_num = $post_count_info['post_num'] ? (int) $post_count_info['post_num'] : 0;
+
+			$reply_sql = "
+							select count(*) as reply_num from bbs_reply_0 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_1 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_2 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_3 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_4 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_5 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_6 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_7 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_8 where ctime > $s_time and ctime < $e_time
+							union
+							select count(*) as reply_num from bbs_reply_9 where ctime > $s_time and ctime < $e_time
+						 ";
+			$reply_count_list = $this->moxi_db->query($reply_sql)->result_array();
+			$reply_num = 0;
+			foreach($reply_count_list as $reply_count_info){
+				$reply_num += $reply_count_info['reply_num'];
+			}
+
+			$row = array(
+						'date' => $date,
+						'post_num' => $post_num,
+						'reply_num' => $reply_num 
+					);
+			return $row;
+		}
+
+		/**
+		 *
+		 * 	初始化post_tag对应关系
+		 *
+		 */
+		public function init_post_tag_map()
+		{
+
+			// 清空之前的数据 - 发现没权限，手动删除
+			/*
+				$sql = 'TRUNCATE TABLE `bbs_post_tag_map`';
+				$this->moxi_db->query($sql);
+			*/
+
+			// 查询并开始重新插入数据
+			$this->moxi_db->select('post_id, tagids, ctime');
+			$this->moxi_db->from('bbs_post');		
+			$post_list = $this->moxi_db->get()->result_array();
+			$i = 0;
+			foreach($post_list as $post_info)
+			{
+				$i++;
+				$post_tag_data = array();
+				$post_tag_data['post_id'] = $post_info['post_id'];
+				$post_tag_data['ctime'] = $post_info['ctime'];
+				$tag_ids = $this->bbs_post_m->get_add_tag_ids($post_info['tagids']);
+				$add_bool = $this->bbs_post_m->add_post_tag_batch($post_tag_data, $tag_ids);
+				if( ! $add_bool){
+					echo "初始化帖子ID为{$post_info['post_id']}的对应关系失败";
+					exit;
+				}
+				echo "{$i}.初始化帖子ID为{$post_info['post_id']}的对应关系成功<br>";
+			}
+		}
+
+		/**
+		 *
+		 * 	转换tag汉子为拼音
+		 *
+		 */
+		public function hanzi_convert_pinyin()
+		{
+			$keys = $this->bbs_m->get_keys('bbs_tag_pinyin_*');
+			$this->bbs_m->delete($keys);
+			$this->load->config('pinyin');
+			$pinyin = config_item('pinyin');
+			$this->moxi_db->from('bbs_tag');
+			$this->moxi_db->select('tag_id, tag_name');
+			$tag_list = $this->moxi_db->get()->result_array();
+			$tag_pinyin_list = array();
+			foreach($tag_list as $tag_info)
+			{
+				$tag_pinyin = '';
+				$arr = $set = $where = array();
+				preg_match_all('/./u', $tag_info['tag_name'], $arr);
+				foreach($arr[0] as $single){
+					if(preg_match('/[\w\, \'\/]|’|‘|，|\\|\-/', $single)){
+						$tag_pinyin .= $single;
+					}else{
+						$tag_pinyin .= $pinyin[$single];
+					}
+				}
+				while(in_array($tag_pinyin, $tag_pinyin_list)){
+					$tag_pinyin .= 1; 		// 如果已存在，每次随机拼接一个0-9的数字	
+				}
+				$tag_pinyin_list[] = $tag_pinyin; 	// 生成一个拼音，记录到数组
+
+				$set = array('tag_pinyin' => $tag_pinyin);
+				$where = array('tag_id' => $tag_info['tag_id']);
+				$update_bool = $this->moxi_db->update('bbs_tag', $set, $where);
+				if( ! $update_bool){
+					exit('初始化 MySQL 拼音字段失败，请检查！');
+				}
+
+				// 更新redis的记录
+
+				// 更新redis中tag_pinyin对应的键
+				$key_pinyin = $this->bbs_m->get_key('tag_pinyin', $tag_pinyin);
+				$set_pinyin_bool = $this->bbs_m->set($key_pinyin, $tag_info['tag_id']);
+
+				// 更新redis中tag_id对应的键
+				$key_id = $this->bbs_m->get_key('tag_id', $tag_info['tag_id']);
+				$set_id_bool = $this->bbs_m->set($key_id, $tag_pinyin);
+				if( ! $set_pinyin_bool || ! $set_id_bool){
+					exit('初始化 Redis 拼音字段失败，请检查！');
+				}
+				echo "<p>替换 {$tag_info['tag_name']} ====> $tag_pinyin 成功!</p>";
+			}
+		}
+
+		public function test(){
+			$this->load->config('pinyin');
+			$pinyin = config_item('pinyin');
+			$str = '董学敏';
+			$tag_pinyin_list = array();
+			$tag_pinyin = '';
+			$arr = $set = $where = array();
+			preg_match_all('/./u', $str, $arr);
+			foreach($arr[0] as $single){
+				$tag_pinyin .= $pinyin[$single];
+			}
+			if( ! in_array($tag_pinyin, $tag_pinyin_list)){
+				$tag_pinyin_list[] = $tag_pinyin; 	// 生成一个拼音，记录到数组
+			}else{
+				$tag_pinyin_list[] = $tag_pinyin . random(0, 9); 		// 如果已存在，每次随机拼接一个0-9的数字	
+			}
+			echo $tag_pinyin;exit;
+		}
+
+	}

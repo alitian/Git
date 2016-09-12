@@ -1,0 +1,228 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<script type="text/javascript">
+    $(function() {
+        $('.datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+    });
+
+</script>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/market_manage/recruit">市场管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+		<form class="forms addform" name="addform" id="addform" action="" method="post">
+			<input type="hidden" id='easy_id' name='easy_id' value="" />
+			<input type="hidden" id='create_type' name='create_type' value="3" /> 
+        	<div id="p1" class="easyui-panel" title="基本信息" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">
+				<div id="edit_pro" class="edit_pro">
+				<input type="hidden" id='recruit_id' name='recruit_id' value="<?php echo $recruit_mess['id'];?>" />
+					<div class="span10">
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">标题:</span>
+								<input type="text" id='title' name='title' value="<?php echo $recruit_mess['title'];?>"/>
+							</div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">标签:</span>
+						        <input  type="text" id='tag' name='tag' value="<?php echo $recruit_mess['tag'];?>" placeholder="多个标签以,分隔"/>
+						    </div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">头部背景图:</span>
+								<input style="margin-left:20px;" type="text" name="background" id="background" value="<?php echo $recruit_mess['background'];?>"><input type="file" id="background_0" name="background_0" value="" onChange="up_background_pic(0);">					    	
+						    	<span style="color:red;">(图片尺寸：1920 * 600)</span>																						    
+						    </div>
+						</div>				
+						
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">中部连接:</span>								
+						    </div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片01:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_0" value="<?php echo $back_pic[0];?>"><input type="file" id="pic_0" name="pic_0" value="" onChange="up_more_pic(0);">					    	
+									<span style="color:red;">(图片尺寸：235 * 490)</span>																						    
+
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='pic_intro[]' value="<?php echo $back_intro[0];?>" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text" name='back_html[]' class='pic_con' value="<?php echo $back_con[0];?>" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片02:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_1" value="<?php echo $back_pic[1];?>"><input type="file" id="pic_1" name="pic_1" value="" onChange="up_more_pic(1);">					    	
+								   	<span style="color:red;">(图片尺寸：490 * 235)</span>																						    
+		
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='pic_intro[]' value="<?php echo $back_intro[1];?>" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='back_html[]' class='pic_con' value="<?php echo $back_con[1];?>" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片03:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_3" value="<?php echo $back_pic[2];?>"><input type="file" id="pic_3" name="pic_3" value="" onChange="up_more_pic(3);">					    	
+							    	<span style="color:red;">(图片尺寸：235 * 235)</span>																						    
+
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text" name='pic_intro[]' value="<?php echo $back_intro[2];?>" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='back_html[]' class='pic_con' value="<?php echo $back_con[2];?>" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片04:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_4" value="<?php echo $back_pic[3];?>"><input type="file" id="pic_4" name="pic_4" value="" onChange="up_more_pic(4);">					    	
+							    	<span style="color:red;">(图片尺寸：235 * 235)</span>																						    
+
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='pic_intro[]' value="<?php echo $back_intro[3];?>" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='back_html[]' class="pic_con" value="<?php echo $back_con[3];?>" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片05:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_5" value="<?php echo $back_pic[4];?>"><input type="file" id="pic_5" name="pic_5" value="" onChange="up_more_pic(5);">					    	
+							    	<span style="color:red;">(图片尺寸：490 * 235)</span>
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text" name='pic_intro[]' value="<?php echo $back_intro[4];?>" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='back_html[]' class='pic_con' value="<?php echo $back_con[4];?>" />
+							    </div>
+							    							    
+							</div>							
+						</div>
+					</div>
+				</div>
+			</div>
+		</form>
+	</div>
+	<div class="span1">                 
+		<button class="btn btn-primary" id="btn_submit" name="btn_submit" style="width:150px">提交</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>
+	</div>               	
+</div>
+<script type="text/javascript">
+$(document).ready(function(){ 
+
+	//点击提交按钮
+    $("#btn_submit").click(function(){
+        var  title = $("#title").val();
+        if(title.length==0){
+            alert("请输入标题");
+            return false;
+        }
+        var tag = $("#tag").val();
+        if(tag.length==0){
+            alert("请输入标签");
+            return false;
+        }
+        var back_pic = document.getElementsByName("pic_hidden[]");       
+        var back_pic_intro = document.getElementsByName("pic_intro[]");        
+	    addform.action="/market_manage/add_recruit/";
+	    addform.submit();
+      	
+    });
+});
+</script>
+<script type="text/javascript">
+//上多奖品图片
+function up_more_pic(j){
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	$.ajaxFileUpload({
+		 url:'/market_manage/upload_recruit_back_pic/'+j, //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:'pic_'+j,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $('#pic_hidden_'+j).val(data.pic);
+			 }else{
+				 alert("文件上传失败");
+				 return false;
+			 }
+		 },
+	})
+}
+
+function up_background_pic(m){
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	$.ajaxFileUpload({
+		 url:'/market_manage/upload_back_pic/'+m, //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:'background_'+m,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $('#background').val(data.pic);
+			 }else{
+				 alert("文件上传失败");
+				 return false;
+			 }
+		 },
+	})	
+}
+</script>
+<?php $this->load->view('ckad/footer')?>

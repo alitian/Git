@@ -1,0 +1,110 @@
+<?php
+
+require_once BASEPATH . 'libraries/MD_Controller.php';
+
+class Acp_Controller extends MD_Controller {
+
+    protected $_public_uri = array('pay_ad:cross_users', 'main:site', 'log:index', 'main:logout', 'admin_user:set_pwd', 'ext:virtual_order', 'project:upload_file', 'user:index', 'edm_ad:get_short_url');
+
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $other_db = $this->config->item('other_db');
+        if ($other_db) {
+            foreach ($other_db as $key => $value) {
+                $this->$key = &DB($value);
+            }
+        }
+        $this->load->model('Common');
+        $this->load->helper('md_admin');
+        $this->load->model('Admin_m');
+        $this->load->library('Md_log');
+        $ip = '127.0.0.1';
+        if (method_exists($this->Common, 'get_real_ip')) {
+            $ip = $this->Common->get_real_ip();
+        }
+        $message = array(
+            'ip' => $ip,
+            'uri' => $_SERVER['REQUEST_URI'],
+            'session' => $_SESSION,
+            'post' => $_POST,
+            'get' => $_GET,
+        );
+        Md_log::info($message, 'acp_access');
+        if (!strstr($_SERVER['REQUEST_URI'], "/main/login")) {
+            if (!$_SESSION['admin_id']) {
+                $_SESSION['admin_from_url'] = "http://" . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                redirect('main/login');
+                exit;
+            } else {
+                $RTR = & load_class('Router', 'core');
+                $controller = $RTR->fetch_class();
+                $action = $RTR->fetch_method();
+                if (!in_array("{$controller}:{$action}", $_SESSION['power_uri'])) {
+                    redirect('main/site');
+                }
+            }
+        }
+    }
+
+}
+
+/**
+ * 脚本专用父类
+ */
+class Deamon_Controller extends MD_Controller {
+
+    public $warning_mailer = array('zhewang@modian.com');
+    public $warning_mobile = array('13681111385');
+    public $pid_config;
+    protected $_timeout = array();
+    private $_file;
+    private $_a;
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('Common');
+        $this->pid_config = array('pid_path' => LOG_DIR . 'pid/');
+        $RTR = & load_class('Router', 'core');
+        $this->_c = $RTR->fetch_class();
+        $this->_a = $RTR->fetch_method();
+        $data = array('run_time' => time());
+        $file = $this->_c . "_" . $this->_a . ".pid";
+        $this->_file = $this->pid_config['pid_path'] . $file;
+        //王哲 20141218
+        //问题描述：当crontab 时间内脚本未执行完，新的脚本又将启动，导致2个脚本重叠执行处理事务重叠
+        //解决定时脚本重叠执行的问题,执行超时发邮件
+        if (file_exists($this->_file)) {
+            $pid_info = file_get_contents($this->_file);
+            $pid_info = unserialize($pid_info);
+            $timeout = isset($this->_timeout[$this->_c . "_" . $this->_a]) ? $this->_timeout[$this->_c . "_" . $this->_a] : 60 * 30;
+            //超时发出警告
+            if ((time() - $pid_info['run_time']) > $timeout) {
+                foreach ($this->warning_mailer as $mail) {
+                    $this->Common->send_email($mail, "警告：{$file}运行{$timeout}秒未停止", '如题' . date("Y-m-d H:i:s", $pid_info['run_time']));
+                }
+                $pid_info['send_mail'] = isset($pid_info['send_mail']) ? $pid_info['send_mail'] + 1 : 1;
+                if ($pid_info['send_mail'] % 60 == 0) {
+                    foreach ($this->warning_mobile as $mobile) {
+                        //$this->Common->send_message($mobile, "警告：{$file}运行{$timeout}秒未停止", 'normal');
+                    }
+                }
+                $r = file_put_contents($this->_file, serialize($pid_info), FILE_WRITE_MODE);
+            }
+            throw new Exception("上一个进程没有停止");
+        } else {
+            if (!file_exists(dirname($this->_file)))
+                mkdir(dirname($this->_file), 0777, true);
+            $fp = fopen($this->_file, "a+");
+            flock($fp, LOCK_EX);
+            fwrite($fp, serialize($data));
+            flock($fp, LOCK_UN);
+            fclose($fp);
+        }
+    }
+
+    public function __destruct() {
+        unlink($this->_file);
+    }
+
+}

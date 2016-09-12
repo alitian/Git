@@ -1,0 +1,126 @@
+<?php $this->load->view('ckad/header'); ?>
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/default/easyui.css">
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/icon.css">
+<script type="text/javascript" src="<?= static_url(); ?>js/easyui/jquery.easyui.min.js"></script>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<div class="row-fluid">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="查找" style="height:250px;padding:10px;margin:0;" data-options="collapsible:true">
+            <form method="POST" target="_blank" name="form1" id="form1" action="/easyfund/export_refund">
+                <div class="span10">
+                <div class="row-fluid">
+                    <div class="span3">场景名称<input type="text" name="topic" id="topic" placeholder="请输入场景名称" value="" ></div>
+                    <div class="span3">退款项目ID<input type="text" name="pro_id" id="pro_id" placeholder="请输入退款项目ID" value="" ></div>
+                    <div class="span3">发起人ID<input type="text" name="st_id" id="st_id" placeholder="请输入发起人ID" value=""></div>
+                    <div class="span3">退款状态
+                        <select name="refund_status" id="refund_status">
+                            <option value="0">全部</option>
+                            <option value="1">需要退款</option>
+                            <option value="-1">部分退款</option>
+                            <option value="2">退款成功</option>
+                        </select>
+                    </div>
+                </div>
+                </div>
+                <div class="span1" style="height:200px;text-align: center;vertical-align: middle;overflow:hidden;padding:0;">
+                        <button class="btn btn-large btn-primary" type="button" id="search" data-options="iconCls:'icon-search'">查询</button><br /><br />
+                        <button class="btn btn-large" type="submit" id="export2excel" data-options="iconCls:'icon-search'">导出Excel</button>
+                </div>
+            </form>
+        </div>
+        <div><button class="btn btn-large btn-primary" style="background:red" id="batch-refund">批量退款</button>  <!--<button class="btn btn-large btn-primary" style="background:blue" id="syn-status">同步状态</button> --></div>
+        <div class="box-content">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;height:400px" title="轻众筹退款管理"
+                   url="/easyfund/ajax_refund"
+                   title="Load Data" iconCls="icon-save"
+                   remoteSort="true"
+                   sortName="id" sortOrder="DESC" pageSize=10 pagePosition="both"
+                   rownumbers="true" pagination="true">
+                <thead>
+                    <tr>
+                        <th field="ez_id" width="70" align="center">项目编号</th>
+                        <th field="topic" width="70" align="center">场景名称</th>
+                        <th field="type" width="70" align="center">场景分类</th>
+                        <th field="order_num" width="100" align="center">总订单数</th>
+                        <th field="refund_orders" width="150" align="center">需要操作订单数</th>
+                        <th field="refund_status" width="100" align="center">退款状态</th>
+                        <th field="pro_start_time" width="130" align="center">项目开始时间</th>
+                        <th field="pro_end_time" width="130" align="center">项目结束时间</th>
+                        <th field="st_name" width="120" align="center">发起人用户名</th>
+                        <th field="st_wxname" width="120" align="center">发起人微信昵称</th>
+                        <th field="st_mobile" width="150" align="center">发起人手机号</th>
+                        <th field="goal" width="100" align="center">目标金额</th>
+                        <th field="total" width="100" align="center">实际众筹金额</th>
+                        <th field="refund_time" width="150" align="center">退款操作时间</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    $(function(){
+        $("#search").click(function(){
+            $('#tt').datagrid('load',{
+                topic:$("#topic").val(),
+                pro_id:$("#pro_id").val(),
+                st_id:$("#st_id").val(),
+                refund_status:$("#refund_status").val()
+            });
+
+        });
+
+        $("#batch-refund").on('click',function(evt){
+            evt.preventDefault();
+            if(confirm('您确定要执行批量退款操作？') == 0){
+                return FALSE;
+            }
+            ajax_batch_refund();
+        })
+
+        $("#syn-status").on('click',function(evt){
+            evt.preventDefault();
+            if(confirm('您确定要执行同步状态操作？') == 0){
+                return FALSE;
+            }
+            ajax_syn_refund_status();
+
+        })
+
+        function ajax_batch_refund(){
+            $.ajax({
+                url:'/easyfund/ajax_batch_refund',
+                cache:false,
+                contentType:false,
+                processData:false,
+                dataType:'json',
+                success:function(data){
+                    alert(data.msg);
+                }
+            });
+        }
+
+        function ajax_syn_refund_status(){
+            $.ajax({
+                url:'/easyfund/syn_refund_status',
+                cache:false,
+                contentType:false,
+                processData:false,
+                dataType:'json',
+                success:function(data){
+                    alert(data.msg);
+                    $('.pagination-load').click();
+                }
+            })
+        }
+
+
+    });
+
+</script>
+
+

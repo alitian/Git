@@ -1,0 +1,73 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('activity/tabs') ?>
+
+<form class="form-horizontal" action="" method="POST" enctype="multipart/form-data">
+    <div class="control-group">
+        <label class="control-label">数据源</label>
+        <div class="controls">
+            <input type="file" name="file1">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">开奖号码</label>
+        <div class="controls">
+            <input type="text" name="base_num">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">每组成员数</label>
+        <div class="controls">
+            <input type="text" name="group_member_num">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="controls">
+            <input type="submit" value="好">
+        </div>
+    </div>
+</form>
+
+<hr>
+<div>
+    <p>工具使用说明：</p>
+    <ol>
+        <li>数据源。csv格式文件。三列数据，分别为 col-1，col-2, col-3（col-2列数字位数一定要大于等于5位，其他列取值不做要求。比如可以按 back_id, mobile, ctime 三列使用）。第一行数据为标题行（是什么不做要求）。</li>
+        <li>开奖号码。排列五的五位数字，比如12345。<a href="http://baidu.lecai.com/lottery/draw/list/4" target="_blank">点我</a>查看排列五历届开奖号。</li>
+        <li>每组成员数。比如，如需10条一组进行排序，这里填写10。不需要分组（也即所有数据作为一组）时，这里填写所有数据的总条数（大于总条数的数字也可）。</li>
+    </ol>
+</div>
+<hr>
+
+<?php if(isset($winner_ranking_list)): ?>
+    <div class="label label-inverse">
+        <p></p>
+        <p>开奖号： <?= $base_num ?></p>
+        <p>开奖说明</p>
+        <ol>
+            <li>匹配个数最多的，优先，</li>
+            <li>匹配个数相同的，大者优先，</li>
+            <li>没有匹配的，不出现在排名名单中。</li>
+        </ol>
+    </div>
+    <?php foreach ($winner_ranking_list as $ii => $winner_list): ?>
+        <table class="table table-hover table-condensed">
+            <thead>
+                <tr><th>第<?= ($ii+1) ?>组</th></tr>
+            </thead>
+            <tbody>
+            <?php foreach ($winner_list as $winner): ?>
+                <tr>
+                    <td><?= $winner['id'] ?></td>
+                    <td><?= $winner['mobile'] ?></td>
+                    <td><?= $winner['luck_num'] ?></td>
+                    <td><?= $winner['ctime'] ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+
+<?php $this->load->view('ckad/footer'); ?>

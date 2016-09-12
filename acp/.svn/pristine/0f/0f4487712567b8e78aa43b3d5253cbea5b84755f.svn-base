@@ -1,0 +1,236 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Bottom_status extends Acp_Controller {
+    
+     public function __construct() {
+        parent::__construct();
+
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->model('bottom_status_m');
+        $this->load->library('md_refund');
+        $this->load->library('md_memcache');
+    }
+    
+    function index(){
+        $data = array();
+        $all_fater = $this->bottom_status_m->get_bottom_title();
+        $data['all_fater'] = $all_fater;
+	$this->load->view('bottom_status/index', $data);
+    }
+    
+    function ajax_bottom() {
+        $res = array();
+        $result = array();
+        $res = $this->bottom_search();
+        $result = array(
+            'total' => $res["num"],
+            'rows' => $res["search"],
+            'footer' => '',
+        );
+
+        echo json_encode($result);
+    }
+
+    function bottom_search(){
+        header("Content-Type: text/html; charset=utf-8");
+        $search_arr['bottom_id'] = isset($_POST['bottom_id']) ? $_POST['bottom_id'] : '';
+        $search_arr['bottom_name'] = isset($_POST['bottom_name']) ? $_POST['bottom_name'] : '';
+        $search_arr['bottom_son_name'] = isset($_POST['bottom_son_name']) ? $_POST['bottom_son_name'] : '';
+        $search_arr['create_user'] = isset($_POST['create_user']) ? $_POST['create_user'] : '';
+	$search_arr['start_time'] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+	$search_arr['end_time'] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+        
+        $search_arr['page'] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+	$search_arr['rows'] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+        
+        $result = $this->bottom_status_m->bottom_mes_serach($search_arr);
+        $result_num = $this->bottom_status_m->bottom_mes_serach($search_arr,-1);
+        $list_info = array();
+        if (!empty($result)) {
+            foreach ($result as $key => $val) {
+                $res['bottom_id'] = $val['fater_id'];
+                $res['bottom_title'] = $val['title'];
+                $res['bottom_son_title'] = $val['son_title'];
+                if(!empty($val['des'])){
+                    $res['bottom_son_con'] = $val['des'];
+                }else{
+                    $res['bottom_son_con'] = $val['link'];
+                }             
+                $res['op_user'] = $val['op_man'];
+                if ($val['ctime'] == "0000-00-00 00:00:00") {
+                    $res['ctime'] = '';
+                } else {
+                    $res['ctime'] = $val["ctime"];
+                }
+                if ($val['son_if_show'] == 1) {
+                    $res['work'] = '<a href="/bottom_status/edit_bottom/' . $val['fater_id'] . '/' . $val['son_id'] . '">信息编辑</a>|<a href="/bottom_status/down_bottom/' . $val['fater_id'] . '/' . $val['son_id'] . '" id="down_bottom" class="down_bottom" onclick="if(confirm(\'确实要下线<【' . $val["title"] . '】' . $val["son_title"] . '>吗？\')) return true;else return false;">下线</a> ';
+                } else {
+                    $res['work'] = '<a href="/bottom_status/edit_bottom/' . $val['fater_id'] . '/' . $val['son_id'] . '">信息编辑</a>|<a href="/bottom_status/up_bottom/' . $val['fater_id'] . '/' . $val['son_id'] . '" id="up_bottom" class="up_bottom" onclick="if(confirm(\'确实要上线<【' . $val["title"] . '】' . $val["son_title"] . '>吗？\')) return true;else return false;">上线</a> ';
+                }
+
+                $list_info[] = $res;
+            }
+        }
+        $bottom_list_info = array();
+        $bottom_list_info["search"] = $list_info;
+        $bottom_list_info["num"] = $result_num;
+        return $bottom_list_info;      
+    }
+    
+    function create_new_bottom(){
+        $data = array();
+        $all_fater = $this->bottom_status_m->get_bottom_title();
+        $all_fater_son = array();
+        foreach($all_fater as $key=>$val){
+            $all_fater_son[$key]['fater_id'] = $val['fater_id'];
+            $all_fater_son[$key]['title'] = $val['title'];
+            $max_son_id = $this->get_max_son_id($val['fater_id']);
+            $all_fater_son[$key]['new_son_id'] = $max_son_id + 1;
+        }
+        $data['all_fater_son'] = $all_fater_son;
+        $max_fater_id = $this->bottom_status_m->get_max_fater_id();
+        $data['new_fater_id'] = $max_fater_id + 1;
+        //print_r($data['all_fater_son']);exit;
+        $this->load->view('bottom_status/create_bottom', $data);
+    }
+    
+    function get_max_son_id($bottom_id){
+        $max_son_id = $this->bottom_status_m->get_max_son_id($bottom_id);
+        $son_id = $max_son_id;
+        return $son_id;
+    }
+    
+    function edit_bottom($bottom_id,$bottom_son_id){
+        $bottom_mes = $this->bottom_status_m->get_bottom_mes($bottom_id,$bottom_son_id);
+        $data = array();
+        $data['bottom_mes'] = $bottom_mes;
+        $this->load->view('bottom_status/edit_bottom', $data);
+    }
+    
+    function add_edit_bottom(){
+        $user_id = $_SESSION['admin_id'];
+        if (empty($user_id) || $user_id == '') {
+            $from_url = base_url().'main/login';
+            echo json_encode(array('status' => '-3','message' => '您已退出登录，请重新登录','from_url' => $from_url));
+            return false;
+        }else{
+            $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+        }
+        $fater_id = $this->input->post('fater_id', true); 
+        $son_id = $this->input->post('son_id', true); 
+        $title = $this->input->post('title', true); 
+        $son_title = $this->input->post('son_title', true); 
+        $desc = $this->input->post('desc', true);
+        $content = $_POST['content'];
+        $bottom_link = $this->input->post('bottom_link', true); 
+        
+        $des_txt = mb_strimwidth($desc, 0, 100, '...');
+        $unit_key = md5($fater_id.'-'.$son_id);
+        $bottom_mes = array();
+        $bottom_mes['fater_id'] = $fater_id;
+        $bottom_mes['son_id'] = $son_id;
+        $bottom_mes['title'] = $title;
+        $bottom_mes['son_title'] = $son_title;
+        $bottom_mes['des'] = $des_txt;
+        $bottom_mes['content'] = htmlspecialchars($content, ENT_QUOTES);
+        $bottom_mes['link'] = $bottom_link;
+        $bottom_mes['unit_key'] = $unit_key;
+        $bottom_mes['if_show'] = 1;
+        $if_have = $this->bottom_status_m->if_have_bottom($unit_key);
+        if(!empty($if_have['id'])){
+            $update_bottom = $this->bottom_status_m->update_bottom($bottom_mes);
+            $from_url = base_url().'bottom_status/index';
+            echo json_encode(array('status' => '1','message' => '配置已存在，现已重新更新', 'from_url' => $from_url));
+        }else{
+            $bottom_mes['op_man'] = $op_man;
+            $bottom_mes['ctime'] = date('Y-m-d H:i:s');            
+            $inner_bottom = $this->bottom_status_m->inner_bottom($bottom_mes);
+            $from_url = base_url().'bottom_status/index';
+            echo json_encode(array('status' => '1','message' => '新增配置成功','from_url' => $from_url));
+        }
+            
+    }
+    
+    function down_bottom($bottom_id, $bottom_son_id) {
+        $down_bottom = $this->bottom_status_m->down_bottom($bottom_id, $bottom_son_id);
+        redirect("/bottom_status/index");
+        return true;
+    }
+
+    function up_bottom($bottom_id,$bottom_son_id){
+        $up_bottom = $this->bottom_status_m->up_bottom($bottom_id, $bottom_son_id);
+        redirect("/bottom_status/index");
+        return true;
+    }
+    
+    function order_bottom(){
+        $data = array();
+        $all_fater = $this->bottom_status_m->get_bottom_title();
+        $data['all_fater'] = $all_fater;
+    }
+    
+    function ajax_bottom_sort(){
+        ##批量修改排序   
+        $from_url = '/bottom_status/index';
+        if ($_POST['bottom_sort_arr']) {
+            $sort_fater = json_decode($_POST['bottom_sort_arr'],true);
+            $fater_id = json_decode($_POST['bottom_id_arr'],true);
+            for($i=0;$i<count($sort_fater);$i++){
+                $sort_sql = "UPDATE `md_bottom_status` set `list_num`='".$sort_fater[$i]."' WHERE `fater_id`='".$fater_id[$i]."'";
+                $this->db->query($sort_sql);
+            }
+            echo json_encode(array('status' => '1','message' => '父类排序更新成功','from_url' => $from_url));
+        }else{
+            echo json_encode(array('status' => '-1','message' => '父类排序更新异常','from_url' => $from_url));
+        }
+    }
+    
+    function order_son_bottom($bottom_id){
+        $data = array();
+        $all_son = $this->bottom_status_m->get_son_bottom($bottom_id);
+        $data['all_son'] = $all_son;
+        $this->load->view('bottom_status/order_son_bottom', $data);
+    }
+    
+    function ajax_son_bottom_sort(){
+        ##批量修改排序           
+        if ($_POST['son_bottom_sort_arr']) {
+            $fater_id = $_POST['fater_id'];
+            $sort_son = json_decode($_POST['son_bottom_sort_arr'],true);
+            $son_id = json_decode($_POST['son_bottom_id_arr'],true);
+            for($i=0;$i<count($sort_son);$i++){
+                $sort_sql = "UPDATE `md_bottom_status` set `son_list_num`='".$sort_son[$i]."' WHERE `fater_id`='".$fater_id."' AND `son_id`='".$son_id[$i]."'";
+                $this->db->query($sort_sql);
+            }
+            $from_url = '/bottom_status/order_son_bottom/'.$fater_id;
+            echo json_encode(array('status' => '1','message' => '子类排序更新成功','from_url' => $from_url));
+        }else{
+            $from_url = '/bottom_status/index';
+            echo json_encode(array('status' => '-1','message' => '子类排序更新异常','from_url' => $from_url));
+        }
+    }
+    
+    function down_fater_bottom($bottom_id){
+        $down_fater_bottom = $this->bottom_status_m->down_fater_bottom($bottom_id);
+        redirect("/bottom_status/index");
+        return true;
+    }
+    
+    function up_fater_bottom($bottom_id){
+        $up_fater_bottom = $this->bottom_status_m->up_fater_bottom($bottom_id);
+        redirect("/bottom_status/index");
+        return true;
+    }
+    function del_mem(){
+        $cache_key = 'get_bottom_status';
+        $cache_key2 = 'get_son_status%d';
+        md_memcache::delete($cache_key);
+        md_memcache::delete($cache_key2);
+        echo _gc('domain_zhongchou', 'domain') . "/index/set_to_html";
+        file_get_contents(_gc('domain_zhongchou', 'domain') . "/index/set_to_html");
+        redirect("/bottom_status/index");
+    }
+}

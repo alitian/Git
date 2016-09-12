@@ -1,0 +1,213 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Easyfund_cron extends CI_Controller {
+		
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $this->load->helper('url');
+        $this->load->helper('emoji');
+        $this->load->model('Common');
+        $this->load->model('Easyfund_m','Ef');
+        $this->load->model('Diandian_m');
+        $this->load->library('md_weixin');
+        $this->load->library('md_weixin_api');
+                
+    }
+    /**
+     * 同步活动/单独项目
+     * 统计同步 众筹金额；参与人数
+     * Enter description here ...
+     */	
+    function sync_easy(){
+    	$startPage = '0';
+    	$pageSize = '100000';
+    	$pro_list = $this->Diandian_m->get_topic_list($startPage,$pageSize);
+    	for($i=0;$i<count($pro_list);$i++){
+	    	$pro_money = $this->Diandian_m->get_pro_money($pro_list[$i]['id']); 
+	    	if($pro_list[$i]['type'] == '2'){
+	    		if($pro_list[$i]['kind'] ==1){
+	    			$topic_pro_mess = $this->Diandian_m->get_topic_pro_mess($pro_list[$i]['id']);
+	    			$topic_pro_back_nums = $this->Ef->get_backer_total($topic_pro_mess[0]['id']);
+	    			$people_count = isset($topic_pro_back_nums)?$topic_pro_back_nums:"0";
+	    				 
+	    		
+	    		}elseif($pro_list[$i]['kind'] ==0){
+	    			$sub_users_num = $this->Diandian_m->get_sub_users_nums($pro_list[$i]['id']);
+	    			$people_count = isset($sub_users_num['user_num'])?$sub_users_num['user_num']:"0";
+	    		}
+	    	}elseif($pro_list[$i]['type'] == '3'){
+    			$redeallwt_mess = $this->Ef->get_redwallet_mess($pro_list[$i]["topic"]);
+    			$user_nums = $this->Ef->get_sub_nums($redeallwt_mess[0]['id']);
+    			$people_count = isset($user_nums['user_num'])?$user_nums['user_num']:"0";
+	    		
+	    	} 
+	    	$data = array(
+	    		'topic_id' => $pro_list[$i]['id'],
+	    		'people_count' => $people_count,
+	    		'pay_count' => isset($pro_money)?$pro_money:"0"
+	    	);
+	    	$updata_topic = $this->Diandian_m->updata_topic($data);
+    	}
+    	echo('topic更新完成');
+
+    }
+    
+    /**
+     * 更新活动/单独项目
+     * 进行状态
+     * 104----------------初始默认数值；老轻众筹状态
+     * 103----------------进行中
+     * 102----------------众筹成功
+     * 101----------------众筹结束
+     * 100----------------已被下线
+     * Enter description here ...
+     */
+    function sync_easy_status(){
+    	 
+    	$startPage = '0';
+    	$pageSize = '1000000';
+    	$pro_list = $this->Diandian_m->get_topic_lists($startPage,$pageSize);
+    	for($i=0;$i<count($pro_list);$i++){
+    		if (!empty($pro_list[$i]['effect_time']) && $pro_list[$i]['effect_time'] != '0000-00-00 00:00:00'){
+    			$pro_list[$i]['has_started'] = (int) ((time() - strtotime($pro_list[$i]['effect_time'])) / 3600 / 24);
+    			$pro_list[$i]['remaining_hours'] = $pro_list[$i]['effect_day'] * 24 - ceil((time() - strtotime($pro_list[$i]['effect_time'])) / 3600);
+    		}    		
+    		$pro_list[$i]['status'] = '';
+    		if (empty($pro_list[$i]['status'])) {
+    			if($pro_list[$i]['if_show'] == 1){
+    				if($pro_list[$i]['has_started'] >= $pro_list[$i]['effect_day']){
+    					if($pro_list[$i]['pay_count'] >= $pro_list[$i]['goal']){
+    						$pro_list[$i]['status'] = '102';//众筹成功
+    					}else{
+    						$pro_list[$i]['status'] = '101';//众筹结束
+    					}    					
+    				}else{
+    					$pro_list[$i]['status'] = '103';//众筹中
+    				}
+    			}else{
+    				$pro_list[$i]['status'] = '100';
+    			}
+    		}
+	    	$data = array(
+	    		'topic_id' => $pro_list[$i]['id'],
+	    		'status' => $pro_list[$i]['status'],
+	    	);
+	    	$updata_topic = $this->Diandian_m->updata_topic_status($data);
+    		
+    	}
+    	echo('topic状态更新完成'); 
+    }
+    
+	/**
+	 * 微信公共号
+	 * 将微信公共号的全部粉丝遍历出来
+	 * 存入到新的微信绑定表中
+	 * Enter description here ...
+	 * @param unknown_type $total
+	 * @param unknown_type $div
+	 */
+    function sync_weixin_fans(){
+        $i=1;
+        do{
+            $weixin_fans = array();
+            if (!is_dir("/ROOT/log/php/weiixn")) {
+                    mkdir("/ROOT/log/php/weixin" ,0755,true);
+            }
+            $file = fopen("/ROOT/log/php/weixin/openid.txt","a+");
+            if($file) {
+                    $next_openid = fgets($file);
+            }
+            fclose($file);
+            $file1 = fopen("/ROOT/log/php/weixin/openid.txt","a+");
+            $file2=fopen("/ROOT/log/php/weixin/test.txt",'a+');//建立临时文件
+            $i=0;
+            while(!feof($file1)){
+                    $line=fgets($file1);
+                    $i++;
+                    if($i==1){
+                            continue;
+                    }
+                    fputs($file2,$line);
+
+            }
+            fclose($file1);
+            fclose($file2);
+            //rename($tmp,'/ROOT/log/php/weixin/openid.txt');
+            //var_dump($next_openid);       
+            if(empty($next_openid)){
+                    $weixin_mess = $this->md_weixin_api->get_open_weixin_fans();
+            }else{
+                    $weixin_mess = $this->md_weixin_api->get_open_weixin_fans($next_openid);
+            }
+            $file = fopen("/ROOT/log/php/weixin/openid.txt","a+");
+            if($file) {
+                    fwrite($file,$weixin_mess['next_openid']);
+            }
+            fclose($file);
+            error_log ( var_export ( $weixin_mess, true ), 3, "/ROOT/log/php/weixin/open_weixin_fans01.log" );
+            //print_r($weixin_mess);exit('2');
+            $weixin_fans = $weixin_mess['data']['openid'];
+            $all_count = $weixin_mess['total'];
+            $run_num = round($all_count / 10000) + 1;
+            #依次循环获取用户微信信息
+            $auth_type = 'snsapi_userinfo';
+            for($i=0;$i<count($weixin_fans);$i++){
+                    $user_info[$i] = $this->md_weixin_api->get_userinfo($weixin_fans[$i]);
+            }
+            // print_r($user_info);exit;
+            error_log ( var_export ( $user_info, true ), 3, "/ROOT/log/php/weixin/open_weixin_fans02.log" );
+            $md_user_info = array();
+            for($j=0;$j<count($user_info);$j++){
+                    $md_user = $this->Common->get_single_record('md_weixin_binding', array("unionid" => $user_info[$j]['unionid'], 'platform' => 'weixin'));
+                    if(!empty($md_user)){
+                            $md_user_info[$j]['user_id'] = $md_user['user_id'];
+                    }else{
+                            $md_user_info[$j]['user_id'] = 0;
+                    }
+                    $md_user_info[$j]['platform'] = 'weixin';
+                    $md_user_info[$j]['openid'] = $user_info[$j]['openid'];
+                    $md_user_info[$j]['unionid'] = $user_info[$j]['unionid'];
+                    $md_user_info[$j]['user_info'] = serialize($user_info[$j]);
+                    $md_user_info[$j]['nickname'] = emoji_unified_to_html(htmlspecialchars($user_info[$j]['nickname'], ENT_QUOTES));
+                    $md_user_info[$j]['icon'] = isset($user_info[$j]['headimgurl'])?$user_info[$j]['headimgurl']:'NULL';
+                    $md_user_info[$j]['subscribe'] = $user_info[$j]['subscribe'];
+                    $md_user_info[$j]['last_auth_time'] = date('Y-m-d H:i:s',$user_info[$j]['subscribe_time']);
+            }
+            //print_r($md_user_info);exit;
+            foreach($md_user_info as $item){
+                    $if_have = $this->Diandian_m->if_have_weixin_open($item['unionid']);
+                    if(!empty($if_have)){
+                            $updata_open_weixin_fans = $this->Diandian_m->updata_open_weixin_fans($item);
+                    }else{
+                            $inner_open_weixin_fans = $this->Diandian_m->inner_open_weixin_fans($item);
+                    }
+            }       
+           echo $i;
+           $i++; 
+        }while($i <= $run_num);
+    }  
+    
+    function deal_user_score(){
+    	$sql = "UPDATE `md_users` SET `all_score`=0 WHERE 1";
+    	$result = $this->db->query($sql);
+    	
+    	$score_sql = "SELECT * FROM `md_users_score` WHERE 1";
+    	$user_score_mes = $this->db->query($score_sql)->result_array();
+    	foreach($user_score_mes as $item){
+    		$user_sql = "SELECT * FROM `md_users` WHERE id={$item['user_id']}";
+    		$user_mes = $this->db->query($user_sql)->row_array();
+    	    $new_score = $user_mes['all_score'] + $item['score'];
+			if($new_score >= 0){
+				$new_all_score = $new_score;
+			}else{
+				$new_all_score = 0;
+			}   		
+    		$updata_sql = "UPDATE `md_users` SET `all_score`=".$new_all_score."  WHERE `id`='" . $item['user_id']."' ";
+    		$res = $this->db->query($updata_sql); 
+    	}
+    	echo "处理完成";
+    }
+}

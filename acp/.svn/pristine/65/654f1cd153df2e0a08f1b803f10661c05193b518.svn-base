@@ -1,0 +1,120 @@
+<?php	
+	class Bbs_cron_model extends CI_Model{
+
+		const MD_BBS_USER_TABLE = 'bbs_user';
+		const MD_BBS_USER_MANAGER_LOG_TABLE = 'bbs_user_manager_log';
+		const MD_BBS_POST_TAG_MAP_TABLE = 'bbs_post_tag_map';
+		const MD_BBS_POST_MANAGER_LOG_TABLE = 'bbs_post_manager_log';
+
+		public function __construct()
+		{
+			parent::__construct();
+		}
+
+		/** 
+		 * 	获取禁言的用户列表
+		 *
+		 * 	@return 		int 		$banned_user_list
+		 *
+		 */
+		public function get_banned_user_list()
+		{
+			$this->moxi_db->from(self::MD_BBS_USER_TABLE);
+			$this->moxi_db->where('isbanned', 1);	
+			$user_query = $this->moxi_db->get();
+			$banned_user_list = $user_query->result_array();
+			return $banned_user_list;
+		}
+
+		/**
+		 *
+		 * 	解除解禁
+		 *
+		 * 	@param 			array 			$enable_uid_array
+		 */
+		public function enable_users($enable_uid_array)
+		{
+			$set = array(
+						'isbanned' => 0,
+						'ban_s_time' => 0,
+						'ban_e_time' => 0
+					);
+			$this->moxi_db->where_in('uid', $enable_uid_array);
+			$this->moxi_db->update(self::MD_BBS_USER_TABLE, $set);
+		}
+
+		/**
+		 *
+		 * 	插入解禁记录
+		 *
+		 * 	@param 			array 			$enable_uid_array
+		 */
+		public function add_user_manager_log($enable_uid_array)
+		{
+			$time = time();
+			foreach($enable_uid_array as $enable_uid){
+				$set = array(
+							'manager_fuid' => 1, 		// 统一成 id 为1的管理员
+							'manager_tuid' => $enable_uid,
+							'manager_type' => 2,
+							'manager_reason' => '过期系统自动解禁',
+							'ctime' => $time 
+						);
+				$this->moxi_db->insert(self::MD_BBS_USER_MANAGER_LOG_TABLE, $set);
+			}
+		}
+
+		/**
+		 *
+		 * 	在tag-post对应关系表中，获取置顶的帖子的数据
+		 *
+		 */
+		public function get_stick_post_tag_map_list()
+		{
+			$this->moxi_db->from(self::MD_BBS_POST_TAG_MAP_TABLE);
+
+			$this->moxi_db->where('isstick', 1);	
+			$stick_query = $this->moxi_db->get();
+			$stick_list = $stick_query->result_array();
+			return $stick_list;
+		}
+
+		/**
+		 *
+		 * 	取消置顶
+		 *
+		 * 	@param 			array 			$del_stick_id_array
+		 */
+		public function del_stick_map($del_stick_id_array)
+		{
+			$set = array(
+						'isstick' => 0,
+						'stick_s_time' => 0,
+						'stick_e_time' => 0
+					);
+			$this->moxi_db->where_in('id', $del_stick_id_array);
+			$this->moxi_db->update(self::MD_BBS_POST_TAG_MAP_TABLE, $set);
+		}
+
+		/**
+		 *
+		 * 	插入取消置顶记录
+		 *
+		 * 	@param 			array 			$del_stick_id_array
+		 */
+		public function add_post_manager_log($del_stick_id_array)
+		{
+			$time = time();
+			foreach($del_stick_id_array as $del_stick_id){
+				$set = array(
+							'manager_uid' => 1, 		// 统一成 id 为1的管理员
+							'manager_post_id' => $del_stick_id,
+							'manager_type' => 2,
+							'manager_reason' => '过期系统自动取消置顶',
+							'ctime' => $time 
+						);
+				$this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+			}
+		}
+
+	}

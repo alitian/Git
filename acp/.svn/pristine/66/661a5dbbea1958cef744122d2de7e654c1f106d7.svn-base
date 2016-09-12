@@ -1,0 +1,1243 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Project extends Acp_Controller {
+
+    public $pro_if_show = array(
+        '0' => '准备中',
+        '1' => '通过审核',
+        '2' => '待审核',
+        '3' => '审核未通过',
+    );
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->model('Common');
+        $this->load->model('User_m');
+        $this->load->model('Product_m');
+        $this->load->model('Easyfund_m');
+        $this->load->model('Admin_m');
+        $this->load->model('Order_biz');
+        $this->load->model('md_bbs');
+        $this->load->model('Comment_model');
+        
+        $this->load->library('md_refund');
+    }
+
+    public function index() {
+        $data['status'] = $this->pro_if_show;
+        $data['types'] = $this->Common->get_all_type();
+        $this->load->view('project/index', $data);
+    }
+
+    public function _get_order_where($arr_where) {
+        $where = '';
+        if (isset($arr_where['content_check']) && $arr_where['content_check'] !== '') {
+            $where .= " AND pro.`if_show` ='{$arr_where['content_check']}'";
+        }
+        if (isset($arr_where['province']) && $arr_where['province'] !== '') {
+            $where .= " AND pro.`province` ='{$arr_where['province']}'";
+        }
+        if (isset($arr_where['city']) && $arr_where['city'] !== '') {
+            $where .= " AND pro.`city` ='{$arr_where['city']}'";
+        }
+        if (isset($arr_where['md_type']) && $arr_where['md_type'] !== '') {
+            $where .= " AND FIND_IN_SET('{$arr_where['md_type']}',pro.`type_id`) ";
+        }
+        if (isset($arr_where['send_start_time']) && $arr_where['send_start_time'] !== '') {
+            $where .= " AND pro.examine_time>='{$arr_where['send_start_time']}' AND pro.examine_time<>'0000-00-00 00:00:00' ";
+        }
+        if (isset($arr_where['send_end_time']) && $arr_where['send_end_time'] !== '') {
+            $where .= " AND pro.examine_time<='{$arr_where['send_end_time']}' AND pro.examine_time<>'0000-00-00 00:00:00'";
+        }
+        if (isset($arr_where['md_type']) && $arr_where['md_type'] !== '') {
+            $where .= " AND FIND_IN_SET('{$arr_where['md_type']}',pro.`type_id`) ";
+        }
+        if (isset($arr_where['pro_name']) && $arr_where['pro_name'] !== '') {
+            $where .= " AND pro.`name` LIKE '%{$arr_where['pro_name']}%'";
+        }
+        if (isset($arr_where['realname']) && $arr_where['realname'] !== '') {
+            $where .= " AND (usr.nickname='{$arr_where['realname']}' OR usr.realname='{$arr_where['realname']}') ";
+        }
+        if (isset($arr_where['tel']) && $arr_where['tel'] !== '') {
+            $where .= " AND usr.`tel` ='{$arr_where['tel']}'";
+        }
+        if (isset($arr_where['user_id']) && $arr_where['user_id'] !== '') {
+            $where .= " AND pro.`user_id` ='{$arr_where['user_id']}'";
+        }
+//        echo $where;exit;
+        return $where;
+    }
+    /**
+     * 项目打标签
+     * Enter description here ...
+     * @param unknown_type $pro_id
+     */
+    public function edit_pro_tag($pro_id){
+    	$data = array();
+    	//$parent_tag = $this->Product_m->get_parent_tag();
+    	$parent_tag = $this->md_bbs->get_top_tag_list();
+//    	print_r($parent_tag);
+//    	exit;
+    	$have_tag = $this->Product_m->get_pro_tag($pro_id);
+    	$data['pro_id'] = $pro_id;
+    	$data['parent_tag'] = $parent_tag;
+    	$data['have_pro_tag'] = $have_tag;
+    	$this->load->view('project/edit_pro_tag', $data);
+    }
+    /**
+     * 获取对应子标签
+     * Enter description here ...
+     */
+    function get_son_tag(){
+    	
+    	$parent_tag = $this->input->get('parent_tag', true);
+    	//$son_tag = $this->Product_m->get_son_tag($parent_tag);
+    	$son_tag = $this->md_bbs->get_child_tag_list_by_tag_id($parent_tag);
+//    	print_r($son_tag);
+//    	exit;
+    	if(!empty($son_tag)){
+        	echo json_encode(array('status' => '1' ,'res' => $son_tag));
+        }else{
+        	echo json_encode(array('status' => '-1','res' => $son_tag));
+        }    	
+    }
+    /**
+     * 更新项目标签
+     * Enter description here ...
+     */
+    function updata_pro_tag(){
+    	
+    	$pro_id = $this->input->get('pro_id', true);
+    	$pro_tag = $this->input->get('pro_tag', true);
+    	$updata_pro_tag = $this->Product_m->up_pro_tag($pro_id,$pro_tag);
+    	if($updata_pro_tag){
+        	echo json_encode(array('status' => '1'));
+        }else{
+        	echo json_encode(array('status' => '-1'));
+        } 
+    } 
+    public function edit($pro_id) {
+        $this->load->model('product');
+        if ($_POST) {
+
+            $first_figure = '';
+            $first_figure_pc = $_POST['first_figure_pc'];
+            $first_figure_mobile = $_POST['first_figure_mobile'];
+
+            if ($first_figure_pc) {
+                $first_figure['pc'] = $first_figure_pc;
+            }
+            if ($first_figure_mobile) {
+                $first_figure['mobile'] = $first_figure_mobile;
+            }
+            if ($first_figure) {
+                $first_figure = serialize($first_figure);
+            }
+            $update['first_figure'] = $first_figure;
+            $update['short_title'] = $this->input->post('short_title', true);
+            $update['html_buttom'] = $_POST['html_buttom'];
+            $update['category'] = $_POST['category'];
+            $this->Common->update('md_product', array('id' => $pro_id), $update);
+            unset($update);
+        }
+        $this->db->select("md_product.*,md_users.username,md_users.realname,md_users.id_number,md_users.id_image,md_users.gender,md_users.tel,md_users.email");
+        $this->db->join("md_users", "md_product.user_id=md_users.id", "INNER");
+        $this->db->where("md_product.id", $pro_id);
+        $query = $this->db->get("md_product");
+        $res = $query->row_array();
+        $data["res"] = $res;
+        if ($data["res"]['first_figure']) {
+            $data['res']['first_figure'] = unserialize($data['res']['first_figure']);
+        }
+        $this->load->view('project/edit', $data);
+    }
+    
+    public function download_vedio($videoId=''){
+        $downloadId = "c376da5e2a"; //下载ID跟用户ID一样
+        $secretKey = "1d6f3d24336683d8f51adfbc93a3802f";  //下载的密钥，不能泄露
+        $userId = "c376da5e2a";  //用户ID
+        list($usec, $sec) = explode(" ", microtime());
+        $times=((float)$usec + (float)$sec)*1000;
+        $times=substr($times,0,13);
+
+        $randomString = md5(uniqid(rand(), true));
+        $plain = $downloadId.$secretKey.$videoId.$times.$randomString;
+        $sign = md5($plain);
+        $url = "http://dl.videocc.net/".$userId."/source_".$videoId."?downloadId=".$downloadId."&times=".$times."&ran=".$randomString."&sign=".$sign;
+        //echo $url;
+        header ( "Location:" . $url );
+
+    }
+    
+    public function ajax_project() {
+        $base_url = _gc('main_site_url', 'config');
+        $rows = $_POST['rows'];
+        $cur_page = $_POST['page'];
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $limit = " LIMIT " . ($cur_page - 1) * $rows . " ,{$rows}";
+        $order_by = " ORDER BY {$sort} {$order}";
+        $where = $this->_get_order_where($_POST);
+        foreach ($this->Common->get_all_type() as $item) {
+            $all_type[$item['id']] = $item['type_name'];
+        }
+        $sql = "SELECT count(1) c FROM md_product pro INNER JOIN md_users usr ON usr.id=pro.user_id WHERE 1 {$where}";
+        $count = $this->db->query($sql)->row_array();
+        $count = $count['c'];
+        $sql = "SELECT pro.*,usr.nickname,usr.tel,'null' as bd FROM md_product pro INNER JOIN md_users usr ON usr.id=pro.user_id WHERE 1 {$where} {$order_by} {$limit}";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as &$item) {
+            $types = explode(',', $item['type_id']);
+            foreach ($types as &$type) {
+                $type = $all_type[$type];
+            }
+            $item['type_id'] = implode(',', $types);
+            $item['user_id'] = "<a href='{$base_url}/user?id={$item['user_id']}' target='_blank'>{$item['user_id']}</a>";
+            $item['if_show'] = $this->pro_if_show[$item['if_show']];
+            if (stripos($_SESSION['power_ids'], ",33,") !== false) {
+            	if(!empty($item['vedio']) && strpos($item['vedio'],'http://player.polyv.net') !== false){
+					$swf = explode ( "/videos/", $item['vedio'] );
+					$vid_str = explode ( ".swf", $swf [1] );
+					$vid = $vid_str [0];
+            		$item['operation'] .= " | <a href='/project/download_vedio/{$vid}' target='_blank'>视频下载</a>";
+            	}               
+            }
+            if (stripos($_SESSION['power_ids'], ",33,") !== false) {
+                $item['operation'] .= " | <a href='/project/set_place/{$item['id']}' target='_blank'>推荐位设置</a>";
+            }
+            if (stripos($_SESSION['power_ids'], ",35,") !== false) {
+                $item['operation'] .= " | <a href='/project/edit/{$item['id']}' target='_blank'>编辑</a>";
+            }
+            $item['operation'] .= " | <a href='/project/edit_pro_tag/{$item['id']}' target='_blank'>标签编辑</a>";            
+            if (stripos($_SESSION['power_ids'], ",36,") !== false) {
+                $item['operation'] .= " | <a href='/project/check/{$item['id']}' target='_blank'>审核</a>";
+            }
+            if (in_array('project:edit_reward', $_SESSION['power_uri'])) {
+                $item['operation'] .= " | <a href='/project/edit_reward/{$item['id']}' target='_blank'>修改回报</a>";
+            }
+        }
+        $result = array('total' => $count, 'rows' => $result);
+        echo json_encode($result);
+    }
+
+    public function set_place($pro_id) {
+        if ($_POST) {
+            $flag = $this->input->post('flag', true);
+            if ($flag) {
+                $update['flag'] = implode(",", $this->input->post('flag', true));
+            } else {
+                $update['flag'] = '';
+            }
+            $this->Common->update('md_product', array('id' => $pro_id), $update);
+            unset($update);
+        }
+        $this->db->select("md_product.*,md_users.username,md_users.realname,md_users.id_number,md_users.id_image,md_users.gender,md_users.tel,md_users.email");
+        $this->db->join("md_users", "md_product.user_id=md_users.id", "INNER");
+        $this->db->where("md_product.id", $pro_id);
+        $query = $this->db->get("md_product");
+
+        $res = $query->row_array();
+        $flag = $res['flag'];
+        $data['flag'] = explode(',', $flag);
+        $data["res"] = $res;
+        $this->load->view('project/set_place', $data);
+    }
+
+    public function get_detail($pro_id) {
+        $date = date("Y-m-d");
+        $sql = "SELECT pro.*,usr.nickname,usr.tel,'null' as bd,duration-DATEDIFF('{$date} 23:59:59',start_time) as remain_days,(SELECT sum(amount) FROM md_product_back WHERE pro_id=pro.id AND if_pay=1) as back_amount FROM md_product pro INNER JOIN md_users usr ON usr.id=pro.user_id WHERE pro.id='{$pro_id}'";
+        $data['pro_info'] = $this->db->query($sql)->row_array();
+        $this->load->view('project/simple_order_tbl', $data);
+    }
+
+    public function sh_pro() {
+        $pro_id = (int) $this->input->post("id", true);
+        $status = (int) $this->input->post("status", true);
+        $reason = htmlspecialchars($this->input->post("reason", true));
+        $start_time = htmlspecialchars($this->input->post("start_time", true));
+
+
+        if ($pro_id) {
+            $product = $this->Product_m->get_product_info($pro_id);
+            $data = array(
+                'if_show' => $status,
+                'examine_modify_time' => date('Y-m-d H:i:s'),
+            );
+            $data['start_time'] = $start_time;
+            $data['end_time'] = date("Y-m-d H:i:s", $product['duration'] * 24 * 3600 + strtotime($data['start_time']));
+            $query = $this->Common->update('md_product', array('id' => $pro_id), $data);
+
+            if ($query) {
+                md_memcache::flush();
+                $user_detail = $this->User_m->get_user_info($product['user_id']);
+                # 发送邮件和站内信通知用户审核结果				
+                $title = '摩点团队审核通知';
+                if ($status == 1) { //审核通过
+                	
+                	$topic_id = $this->Comment_model->acp_add_thread($product['user_id'], $product["name"],$product["des"], $product["logo"], $product["video"], $product["category"],!empty($product["pro_tag"])?explode(",",$product["pro_tag"]):"");
+                	$pro_result = $this->Common->update('md_product', array('id' => $pro_id), array("moxi_post_id"=>$topic_id));
+                	
+                    $base_url = _gc('domain_zhongchou', 'domain');
+                    file_get_contents("{$base_url}/p/set_to_html/{$pro_id}");
+                    $title = '您提交的' . $product['name'] . '项目成功通过审核！';
+                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '，<br/>';
+                    $content .= '您发起的' . $product['name'] . '项目已经通过审核，您可以到项目管理中查看项目效果并发布更新。如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！';
+                    $content .= '<br/><br/>祝好<br/>摩点团队';
+                } elseif ($status == 3) { //审核未通过
+                    $title = '您提交的' . $product['name'] . '项目未通过审核！';
+                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '，<br/>';
+                    $content .= '抱歉的通知您，您发起的' . $product['name'] . '项目没有通过审核，' . ($reason ? "(拒绝理由:{$reason})" : '') . ' 麻烦您按照项目规范来修改您的项目。如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！';
+                    $content .= '<br/><br/>祝好<br/>摩点团队';
+                }
+                #邮件
+                $this->Common->send_email($product['email'], $title, $content);
+                #站内信通知
+                $insert = array();
+                $insert['to_uid'] = $product['user_id'];
+                $insert['title'] = $title;
+                $insert['content'] = $content;
+                $insert['system'] = 1;
+                $result = $this->Common->add('md_message', $insert);
+                echo 1;
+            } else {
+                echo 3;
+            }
+        }
+    }
+
+    public function check($id) {
+        if ($id != 0) {
+            //编辑单个app是否推荐、头条、首行，第二行
+
+
+            $this->db->select("md_product.*,md_users.username,md_users.realname,md_users.id_number,md_users.id_image,md_users.gender,md_users.tel,md_users.email");
+            $this->db->join("md_users", "md_product.user_id=md_users.id", "INNER");
+            $this->db->where("md_product.id", $id);
+            $query = $this->db->get("md_product");
+
+            $data['account'] = $this->Common->get_single_record('md_product_account', array('pro_id' => $id));
+
+            $res = $query->row_array();
+            $res['end_time'] = date("Y-m-d H:i:s", $res['duration'] * 24 * 3600 + strtotime($res['start_time']));
+            //处理图片地址
+            $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+            preg_match_all($pattern, $res['content'], $matches);
+            foreach ($matches[1] as $key => $value) {
+                //$value = strstr($value,'old')?str_replace('uploads/old', '', $value):$value;
+                $replace[] = cdn_url($value, 'p', 'fix');
+            }
+            $res['content'] = str_replace($matches[1], $replace, $res['content']);
+
+            $res['content'] = $res['content'];
+            $data["res"] = $res;
+
+            $flag = $res['flag'];
+            $data['flag'] = explode(',', $flag);
+
+
+
+            $rewards = $this->Common->get_select_records('md_product_rewards', array('pro_id' => $id));
+            $data['rewards'] = $rewards;
+
+            $data['res']['status'] = $this->pro_if_show[$data['res']['if_show']];
+            $types = explode(',', $data['res']['type_id']);
+            foreach ($this->Common->get_all_type() as $item) {
+                $all_type[$item['id']] = $item['type_name'];
+            }
+            foreach ($types as &$type) {
+                $type = $all_type[$type];
+            }
+            $data['res']['type_id'] = implode(',', $types);
+            $this->load->view('project/check', $data);
+        }
+    }
+
+    public function edit_reward($pro_id, $edit_id = 0) {
+        $data['pro_id'] = $pro_id;
+        $data['edit_id'] = $edit_id;
+        $data['if_address_array'] = array('1' => '邮寄', '2' => '发码', '3' => '邮寄+发码');
+        if ($_POST && $edit_id != 0) {
+            $update = array();
+            $update['num'] = 0;
+            if (isset($_POST['num']) && is_numeric($_POST['num'])) {
+                $update['num'] = $_POST['num'];
+            }
+            if ($_POST['content']) {
+                $update['content'] = $_POST['content'];
+            }
+            if ($_POST['if_address']) {
+                $update['if_address'] = $_POST['if_address'];
+            }
+            if ($_POST['reward_day']) {
+                $update['reward_day'] = $_POST['reward_day'];
+            }
+            if ($_POST['rew_log']) {
+                $update['rew_logo'] = implode('|#|', $_POST['rew_log']);
+            } else {
+                $update['rew_logo'] = '';
+            }
+            if ($update) {
+                $this->Common->update('md_product_rewards', array('id' => $edit_id), $update);
+            }
+        }
+        $data['project'] = $this->Product_m->get_product_info($pro_id);
+        $data['rewards'] = $this->Product_m->get_product_rewards_list($pro_id, 1, 1);
+        $this->load->view('project/edit_reward', $data);
+    }
+
+    public function upload_file($rew_id = 0) {
+        $error = "";
+        $msg = "";
+        $fileElementName = 'img';
+        if (!empty($_FILES[$fileElementName]['error'])) {
+            switch ($_FILES[$fileElementName]['error']) {
+
+                case '1':
+                    $error = 'The uploaded file exceeds the upload_max_filesize directive in php.ini';
+                    break;
+                case '2':
+                    $error = 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form';
+                    break;
+                case '3':
+                    $error = 'The uploaded file was only partially uploaded';
+                    break;
+                case '4':
+                    $error = 'No file was uploaded.';
+                    break;
+
+                case '6':
+                    $error = 'Missing a temporary folder';
+                    break;
+                case '7':
+                    $error = 'Failed to write file to disk';
+                    break;
+                case '8':
+                    $error = 'File upload stopped by extension';
+                    break;
+                case '999':
+                default:
+                    $error = 'No error code avaiable';
+            }
+        } elseif (empty($_FILES[$fileElementName]['tmp_name']) || $_FILES[$fileElementName]['tmp_name'] == 'none') {
+            $error = 'No file was uploaded..';
+        } else {
+            if ($rew_id) {
+                //for security reason, we force to remove all uploaded file
+                $file_name = "{$rew_id}_" . time() . "_" . rand(0, 9);
+                $file_path = realpath(_gc('uploads_path') . "rew");
+                $exten = $this->Common->get_extension($_FILES[$fileElementName]['name']);
+                $file_name = "{$file_name}{$exten}";
+                copy($_FILES[$fileElementName]['tmp_name'], "{$file_path}/{$file_name}");
+                $msg = "uploads/rew/{$file_name}";
+                @unlink($_FILES[$fileElementName]);
+            } else
+                $error = '没有传入回报ID';
+        }
+        $data['error'] = $error;
+        $data['msg'] = $msg;
+        echo json_encode($data);
+    }
+
+    public function end_time($pro_id) {
+        $data = array();
+        $data['pro_id'] = $pro_id;
+        $product_info = $this->Product_m->get_product_info($pro_id);
+        if (isset($_POST['end_time'])) {
+            $start_time = $product_info['start_time'];
+            $end_time = $_POST['end_time'];
+            $duration = ceil((strtotime($end_time) - strtotime($start_time)) / 86400);
+            $update['end_time'] = $end_time;
+            $update['duration'] = $duration;
+            $this->Common->update('md_product', array('id' => $pro_id), $update);
+        }
+        $data['project'] = $this->Product_m->get_product_info($pro_id, '', 1);
+        $this->load->view('project/end_time', $data);
+    }
+
+    public function vote_list($pro_id) {
+        $id = isset($pro_id) ? intval($pro_id) : '';
+        if (empty($id))
+            return false;
+
+        $res = $this->Product_m->get_product_update_list($id);
+        if (empty($res))
+            return false;
+
+        $vote = array();
+        foreach ($res as $k => $v) {
+            $topic = unserialize($v['content']);
+            if ($topic) {
+                $v['content'] = $topic;
+                $vote[] = $v;
+            }
+        }
+
+        $data['vote'] = $vote;
+        $data['pro_id'] = $id;
+        $this->load->view('project/vote_list', $data);
+    }
+
+    public function edit_vote($pro_id, $v_id) {
+        $this->load->model('Vote_m');
+        $id = isset($pro_id) ? intval($pro_id) : '';
+        $v_id = isset($v_id) ? intval($v_id) : '';
+        if (empty($id) || empty($v_id))
+            return false;
+
+        $items = $this->Vote_m->get_item_list($v_id);
+
+        if ($_POST) {
+            $this->load->library('form_validation');
+            $this->form_validation->set_rules('option_name[]', 'option_name', 'required|min_length[1]|max_length[30]');
+            $this->form_validation->set_rules('option_des[]', 'option_des', 'max_length[100]');
+
+            if (!$this->form_validation->run())
+                return false;
+
+            $t = time();
+            foreach ($_POST['option_name'] as $k => $v) {
+                $imgto = '';
+                if ($_FILES['vote_img']['name'][$k]) {
+                    $exten = $this->Common->get_extension($_FILES['vote_img']['name'][$k]);
+                    $imgto = 'vote/' . $id . '_' . $t . $k . $exten;
+                    $ok = copy($_FILES['vote_img']['tmp_name'][$k], _gc('uploads_path') . $imgto);
+                    //$imgto = md_imagick::do_upload($_FILES['vote_img']['tmp_name'][$k],$imgto);
+
+                    $imgnum++;
+                }
+
+                $ins_item[$k] = array('title' => htmlspecialchars($v, ENT_QUOTES), 'item_desc' => htmlspecialchars($_POST['option_des'][$k], ENT_QUOTES), 'img' => $imgto, 'topic_id' => $v_id);
+            }
+
+            $res = $this->Vote_m->add_batch_item_info($ins_item);
+        }
+        $data = array();
+        $data['items'] = $items;
+        $data['pro_id'] = $pro_id;
+        $data['id'] = $v_id;
+        $this->load->view('project/edit_vote', $data);
+    }
+
+    public function modify_vote($pro_id, $id) {
+        $this->load->model('Vote_m');
+        $id = isset($id) ? intval($id) : '';
+        if (empty($id))
+            return false;
+
+        $this->load->library('form_validation');
+        $this->form_validation->set_rules('option_id[]', 'option_id', 'required');
+        $this->form_validation->set_rules('option_name[]', 'option_name', 'required|min_length[1]|max_length[30]');
+        $this->form_validation->set_rules('option_des[]', 'option_des', 'max_length[100]');
+
+        if (!$this->form_validation->run())
+            return false;
+
+        $t = time();
+
+        foreach ($_POST['option_id'] as $k => $v) {
+            $data = array();
+            $item_id = $v;
+            $data = array('title' => htmlspecialchars($_POST['option_name'][$k], ENT_QUOTES), 'item_desc' => htmlspecialchars($_POST['option_des'][$k], ENT_QUOTES));
+            $imgto = '';
+            if ($_FILES['vote_img']['name'][$k]) {
+                $exten = $this->Common->get_extension($_FILES['vote_img']['name'][$k]);
+                $imgto = 'vote/' . $id . '_' . $t . $k . $exten;
+                //$imgto = md_imagick::do_upload($_FILES['vote_img']['tmp_name'][$k],$imgto);
+                $ok = copy($_FILES['vote_img']['tmp_name'][$k], _gc('uploads_path') . $imgto);
+                $data['img'] = $imgto;
+                $imgnum++;
+            }
+
+            $this->Vote_m->update_vote_item($item_id, $data);
+        }
+
+        redirect('project/edit_vote/' . $pro_id . '/' . $id);
+    }
+
+    public function sub_product($pro_id) {
+        $data['pro_id'] = $pro_id;
+        $data['product_info'] = $this->Product_m->get_product_info($pro_id);
+
+        if ($_POST && $pro_id) {
+            $dt['pro_id'] = $pro_id;
+            $dt['title'] = $_POST['title'];
+            $dt['logo'] = $_POST['logo'];
+            $dt['vedio'] = $_POST['vedio'];
+            $dt['developers'] = $_POST['developers'];
+            $dt['developers_des'] = $_POST['developers_des'];
+            $dt['des'] = str_replace("../../uploads", "uploads", $_POST['des']);
+            $dt['max_people'] = $_POST['max_people'];
+            $dt['grabvoyes_time'] = $_POST['grabvoyes_time'];
+            $dt['grabvoyes_end_time'] = $_POST['grabvoyes_end_time'];
+            $dt['start_time'] = $_POST['start_time'];
+            $dt['expected'] = $_POST['expected'];
+            $dt['location'] = $_POST['location'];            
+            $dt['ctime'] = date("Y-m-d H:i:s");
+            $dt['cuid'] = $_SESSION['admin_id'];
+            if (isset($_GET['edit'])) {
+                $this->db->update("md_product_sub", $dt, array('id' => $_GET['edit']));
+            } else {
+                $this->db->insert('md_product_sub', $dt);
+            }
+            redirect('/project/sub_product/' . $pro_id);
+        }
+        if (isset($_GET['del'])) {
+            $this->db->update('md_product_sub', array('if_show' => '0'), array('id' => $_GET['del']));
+            redirect('/project/sub_product/' . $pro_id);
+        }
+        if (isset($_GET['edit'])) {
+            $data['edit'] = $_GET['edit'];
+        }
+        $sql = "select * from md_product_sub where if_show=1 AND pro_id='{$pro_id}' ORDER BY sort DESC,id ASC";
+        $data['list'] = $this->db->query($sql)->result_array();
+        $this->load->view('project/sub_product', $data);
+    }
+
+    public function upload_pic($file_id, $size) {
+        $picture = "";
+        if ($_FILES[$file_id]) {
+            if (!empty($_FILES[$file_id]["name"])) {
+                $this->load->library('md_imagick');
+                $exten = $this->Common->get_extension($_FILES[$file_id]["name"]);
+                $str = date("Ymd");
+                $filename = $str . "_" . time() . "_" . rand(1000, 9999);
+                $to = "{$file_id}/" . $filename . $exten;
+                $picture = md_imagick::web_upload($_FILES[$file_id]["tmp_name"], _gc('uploads_path') . $to, $size);
+            } else {
+                md_common::display_javascript("请选择正确的文件");
+                exit();
+            }
+        }
+
+        $data["pro_picture"] = str_replace(_gc('uploads_path'), "", $picture["pic"]);
+        echo json_encode(array("num" => $picture["num"], "cdn_url" => _gc('cdn_url'), "pic" => str_replace("uploads/", "", $data["pro_picture"])));
+        exit();
+    }
+    
+    /**
+     * 红包管理后台
+     * Enter description here ...
+     */
+	public function redwallet($easy_id){
+		$data = array();
+		$encode = mb_detect_encoding ( $title, array ("ASCII", "UTF-8", "GB2312", "GBK", "BIG5" ) );
+        if ($encode != "UTF-8") {
+            $title = iconv ( 'utf-8','gb2312', $title );
+        }
+		$redwallet_name_arr = $this->Product_m->get_redwallet_name();
+		$data['redwallet_name_arr'] = $redwallet_name_arr;	
+		$data['easy_id'] = $easy_id;	
+		$this->load->view('redwallet/red_wallet', $data);
+	}
+	/**
+	 * 红包管理后台search查询的ajax最终组合方法
+	 * Enter description here ...
+	 */
+	public function ajax_redwallet($easy_id){
+		$res = array();
+		$result = array();
+		$mess = $this->Easyfund_m->get_edit_pro_mess($easy_id); 
+		$res = $this->redwallet_search(1,$easy_id,$mess[0]['topic']);		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+	}
+	/**
+	 * 筹点点后台查询详细方法
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function redwallet_search($mode=1,$easy_id,$title){
+		header("Content-Type: text/html; charset=utf-8");
+		$search_arr["redwallet_id"] = isset($_POST['redwallet_id']) ? $_POST['redwallet_id'] : '';
+		$search_arr["redwallet_name"] = isset($title) ? $title: '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+				 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Product_m->redwallet_mes_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["pro_id"] = $val["id"];
+				$res["pro_name"] = $val["title"];
+				$res["create_user"] = $val["user_name"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				if($val["effect_time"] == "0000-00-00 00:00:00"){
+					$res["start_time"] =$val["ctime"];
+				}else{
+					$res["start_time"] =$val["effect_time"];
+				}
+				
+				$res["end_time"] =$val["end_time"];
+				$res["op_user"] =$val["user_name"];
+				$res["redwallet_need"] = $val["goal"];
+				if($val["kind"] == '0'){
+					$res['redwallet_type'] = "单一红包";
+				}elseif($val["kind"] == '1'){
+					$res['redwallet_type'] = "红包活动";
+				}				
+				if($val["type"] == '1'){
+					$res['redwallet_kind'] = "单方累计";
+				}elseif($val["type"] == '2'){
+					$res['redwallet_kind'] = "双方各累计一半";
+				}
+				//重组红包范围
+				$money_area_arr = explode(",",$val["goal_area"]);
+				if(count($money_area_arr)>1){
+					$money_area = $money_area_arr[0] . '~' . $money_area_arr[1] ;
+					//重组红包比重
+					$red_money_arr = unserialize($val["money"]);
+					$red_money_per_arr = unserialize($val["money_per"]);
+					$money_per = $red_money_arr .':'.$red_money_per_arr.'%' ;
+					$sub_redwallet_arr[$i]['redwallet_per'] = $money_per;
+						
+				}else{
+					$money_area = $money_area_arr[0];
+					$money_per = '';
+				}				
+				$res['redwallet_money'] = $money_area;				
+				$res['redwallet_per'] = $money_per;
+				
+				if($val["if_show"] == '1'){
+					if($val["kind"] == '0'){//单一红包
+						$res["work"] = '<a href="/project/edit_redwallet/'.$easy_id.'/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/project/down_pro/'.$easy_id.'/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要<' .$val["title"].'>下线吗？\')) return true;else return false;">下线</a> ';						
+					}elseif($val["kind"] == '1'){//红包活动
+						$res["work"] = '<a href="/project/edit_redwallet/'.$easy_id.'/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/project/show_son_redwallet/'.$val["id"].'" id="edit" class="edit">查看子红包</a> | <a href="/project/down_pro/'.$easy_id.'/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要<' .$val["title"].'>下线吗？\')) return true;else return false;">下线</a> ';						
+					}
+				}elseif($val["if_show"] == '0'){
+					if($val["kind"] == '0'){//单一红包
+						$res["work"] = '<a href="/project/edit_redwallet/'.$easy_id.'/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/project/up_pro/'.$easy_id.'/'.$val["id"].'" id="up_pro" class="up_pro" onclick="if(confirm(\'确实要<' .$val["title"].'>上线吗？\')) return true;else return false;">上线</a> ';						
+					}elseif($val["kind"] == '1'){//红包活动
+						$res["work"] = '<a href="/project/edit_redwallet/'.$easy_id.'/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/project/show_son_redwallet/'.$val["id"].'" id="edit" class="edit">查看子红包</a> | <a href="/project/up_pro/'.$easy_id.'/'.$val["id"].'" id="up_pro" class="up_pro" onclick="if(confirm(\'确实要<' .$val["title"].'>上线吗？\')) return true;else return false;">上线</a> ';						
+					}
+				}
+				$list_info[] = $res;
+			}
+		}
+		 
+		$redwallet_list_info = array();
+		$redwallet_list_info["search"]= $list_info;
+		return $redwallet_list_info;
+	}
+	/**
+	 * 单红包内容编辑
+	 * Enter description here ...
+	 * @param unknown_type $topic_id
+	 */
+	public function edit_redwallet($easy_id,$topic_id){
+		
+		$data = array();
+		$pro_mess = $this->Product_m->redwallet_mess($topic_id);
+		$easy_mess = $this->Easyfund_m->get_edit_pro_mess($easy_id);
+		$money_area = explode(",",$pro_mess[0]['goal_area']);
+		$data['pro_mess'] = $pro_mess;
+		$data['money_area'] = $money_area;
+		$data['son_title'] = unserialize($pro_mess[0]['son_title']);
+		$data['money'] = unserialize($pro_mess[0]['money']);
+		$data['money_per'] = unserialize($pro_mess[0]['money_per']);
+		$data['con_prize'] = unserialize($pro_mess[0]['consolation_prize']);
+		$data['con_prize_num'] = unserialize($pro_mess[0]['con_prize_num']);
+		$data['con_prize_price'] = unserialize($pro_mess[0]['con_prize_price']);
+		$data['topic_id'] = $topic_id;
+		$data['easy_id'] = $easy_id;
+		$data['easy_mess'] = $easy_mess;
+//		print_r($data);
+//		exit;	
+		
+		$this->load->view('redwallet/edit_redwallet', $data);
+		
+	}	
+	/**
+	 * 添加一个新的红包信息
+	 * Enter description here ...
+	 */
+	public function create_new_redwallet(){
+		$data = array();
+		$this->load->view('redwallet/create_red_wallet', $data);
+		
+	}
+	public function add_new_redwallet(){
+		$create_type = isset($_POST["create_type"])?$_POST["create_type"]:"";//活动创建对应属性 3:红包
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";//红包图		
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";//介绍链接
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";//描述		
+		$wallet_kind = isset($_POST["wallet_kind"])?$_POST["wallet_kind"]:"";//红包属性0：单独 1：活动
+		$new_wallet_title = isset($_POST["new_wallet_title"])?$_POST["new_wallet_title"]:"";//红包标题
+		$pro_id_items = isset($_POST["pro_id_items"])?$_POST["pro_id_items"]:"";//若果是活动包括的子红包名称
+		$wallet_need_money = isset($_POST["wallet_need_money"])?$_POST["wallet_need_money"]:"";//红包总金额
+		$redwallet_tag = isset($_POST["redwallet_tag"])?$_POST["redwallet_tag"]:"";
+		$start_time = isset($_POST["prostart_time"])?$_POST["prostart_time"]:"";
+		$effect_day = isset($_POST["effect_day"])?$_POST["effect_day"]:"";
+		
+		$prize_name = isset($_POST["prize_name"])?$_POST["prize_name"]:"";//主奖品名称
+		$prize_num = isset($_POST["prize_num"])?$_POST["prize_num"]:"0";//主奖品数量
+		$prize_price = isset($_POST["prize_price"])?$_POST["prize_price"]:"0";//主奖品单价
+		$zhichi_people_meth = isset($_POST["zhichi_people_meth"])?$_POST["zhichi_people_meth"]:"1";//主奖品获奖支持人人数方式
+		$zhichi_people = isset($_POST["zhichi_people"])?$_POST["zhichi_people"]:"0";//主奖品获奖支持人人数
+		$zhichi_money_meth = isset($_POST["zhichi_money_meth"])?$_POST["zhichi_money_meth"]:"1";//主奖品获奖众筹金额方式
+		$zhichi_money = isset($_POST["zhichi_money"])?$_POST["zhichi_money"]:"0";//主奖品获奖众筹金额
+		$zhichi_mmeth = isset($_POST["zhichi_mmeth"])?$_POST["zhichi_mmeth"]:"1";//主奖品获奖条件关系
+		
+		$con_prize_item = isset($_POST["con_prize_item"])?$_POST["con_prize_item"]:"";//副奖品名称组
+		$con_prize_num = isset($_POST["con_prize_num"])?$_POST["con_prize_num"]:"";//副奖品数量组
+		$con_prize_price = isset($_POST["con_prize_price"])?$_POST["con_prize_price"]:"";//副奖品单价组
+		$con_prize_people_meth = isset($_POST["con_prize_people_meth"])?$_POST["con_prize_people_meth"]:"1";//副奖品获奖支持人人数方式
+		$con_prize_people = isset($_POST["con_prize_people"])?$_POST["con_prize_people"]:"0";//副奖品获奖支持人人数
+		$con_prize_money_meth = isset($_POST["con_prize_money_meth"])?$_POST["con_prize_money_meth"]:"1";//副奖品获奖众筹金额方式
+		$con_prize_money = isset($_POST["con_prize_money"])?$_POST["con_prize_money"]:"0";//副奖品获奖众筹金额
+		$con_prize_mmeth = isset($_POST["con_prize_mmeth"])?$_POST["con_prize_mmeth"]:"1";//副奖品获奖条件关系
+		
+		$share_title = isset($_POST["share_title"])?$_POST["share_title"]:"";
+		$share_text = isset($_POST["share_text"])?$_POST["share_text"]:"";
+		$money_meth = isset($_POST["money_meth"])?$_POST["money_meth"]:"";
+		if($money_meth == '1'){
+			$fix_money = isset($_POST["fixed_money_num"])?$_POST["fixed_money_num"]:"";//固定金额				
+		}elseif($money_meth == '2'){
+			$low_money = isset($_POST["low_money"])?$_POST["low_money"]:"";//随机红包金额下线
+			$up_money = isset($_POST["up_money"])?$_POST["up_money"]:"";//随机红包金额上线
+			$money_item = isset($_POST["money-item"])?$_POST["money-item"]:"";//随机红包金额限制数
+			$money_percent = isset($_POST["money-percent"])?$_POST["money-percent"]:"";//随机红包金额限制数比例
+				
+		}
+		$open_meth= isset($_POST["open_meth"])?$_POST["open_meth"]:"";//拆红包方式1:单方 2：双方		
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $new_wallet_title . '_' . $redwallet_tag );
+		if($money_meth == '1'){
+			$money_area = $fix_money;
+		}elseif($money_meth == '2'){
+			$money_area =  $low_money . ',' . $up_money;
+		}		
+		$if_show = 0;
+		$data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'tag' => $redwallet_tag,
+ 			'title' => $new_wallet_title,
+ 			'son_title' => serialize($pro_id_items),
+			'money_meth' => $money_meth,	
+ 			'goal' => $wallet_need_money,
+ 			'goal_area' => $money_area,
+ 			'prize' => $prize_name,
+ 			'prize_num' => $prize_num,
+			'prize_price' => $prize_price,
+			'zhichi_people_meth' => $zhichi_people_meth,
+			'zhichi_people' => $zhichi_people,
+			'zhichi_money_meth' => $zhichi_money_meth,
+			'zhichi_money' => $zhichi_money,
+			'zhichi_mmeth' => $zhichi_mmeth,
+ 			'consolation_prize' => serialize($con_prize_item),
+ 			'con_prize_num' => serialize($con_prize_num),
+			'con_prize_price' => serialize($con_prize_price),
+			'con_prize_people_meth' => $con_prize_people_meth,	
+			'con_prize_people' => $con_prize_people,
+			'con_prize_money_meth ' => $con_prize_money_meth,
+			'con_prize_money' => $con_prize_money,
+			'con_prize_mmeth	' => $con_prize_mmeth,			
+ 			'money' => serialize($money_item),
+ 			'money_per' =>serialize($money_percent),
+ 			'type' => $open_meth,
+ 			'kind' => $wallet_kind,
+ 			'effect_time' => $start_time,
+ 			'effect_day' => $effect_day,
+ 			'ctime' => $ctime,		 			
+ 			'end_time' => $end_time,
+ 			'if_show' => $if_show,
+ 			'unit_key' => $unit_key,
+ 			'share_title' => $share_title,
+ 			'share_des' => $share_text,		
+ 			);
+ 			$if_redwallet = $this->Product_m->if_redwallet($data);
+ 			if(!empty($if_redwallet)){
+ 				echo "<script>alert('该红包已经存在!')</script>";
+ 				return false;
+ 			}else{
+ 				$topic_data = array(
+		 			'user_id' => $user_id,
+		 			'user_name' => $op_man,
+		 			'topic' => $new_wallet_title,
+		 			'effect_day' => $effect_day,
+		 			'tag' => $redwallet_tag,	
+		 			'logo' => $logo,
+		 			'intro' => $intro,
+		 			'des' => $des,
+		 			'if_show' => $if_show,
+		 			'unit_key' => $unit_key,
+		 			'type' => $create_type,		 			
+		 			'ctime' => $ctime,
+		 			'start_time' =>$start_time,
+		 			'end_time' => $end_time,
+		 			'goal' => $wallet_need_money,
+		 			'pro_share_title' => $share_title,
+		 			'pro_share_des' => $share_text	
+ 				
+ 				);
+ 				$inner_new_pro = $this->Product_m->inner_new_redwtalle($data);//红包topic表内记录
+ 				$inner_new_topic = $this->Easyfund_m->inner_new_pro($topic_data); //微众筹topic表内记录				
+ 				if($wallet_kind == '1'){
+ 					$son_title = $pro_id_items;
+ 					for($i=0;$i<count($pro_id_items); $i++){
+ 						$mess_data = array();
+ 						$mess_data = array(
+ 							'topic_id' => $inner_new_pro,
+ 							'topic_name' => $new_wallet_title,
+ 							'title' => $pro_id_items[$i],	
+							'money_meth' => $money_meth,	
+				 			'goal' => $wallet_need_money,
+				 			'goal_area' => $money_area,
+				 			'prize' => $prize_name,
+				 			'prize_num' => $prize_num,
+							'prize_price' => $prize_price,
+							'zhichi_people_meth' => $zhichi_people_meth,
+							'zhichi_people' => $zhichi_people,
+							'zhichi_money_meth' => $zhichi_money_meth,
+							'zhichi_money' => $zhichi_money,
+							'zhichi_mmeth' => $zhichi_mmeth,
+				 			'consolation_prize' => serialize($con_prize_item),
+				 			'con_prize_num' => serialize($con_prize_num),
+							'con_prize_price' => serialize($con_prize_price),
+							'con_prize_people_meth' => $con_prize_people_meth,	
+							'con_prize_people' => $con_prize_people,
+							'con_prize_money_meth ' => $con_prize_money_meth,
+							'con_prize_money' => $con_prize_money,
+							'con_prize_mmeth	' => $con_prize_mmeth,			
+				 			'money' => serialize($money_item),
+				 			'money_per' =>serialize($money_percent),
+				 			'type' => $open_meth,
+				 			'kind' => $wallet_kind,
+ 						 	'effect_day' => $effect_day,
+ 							'ctime' => $ctime,
+ 							'start_time' =>	$start_time,	 			
+ 							'end_time' => $end_time,
+ 							'if_show' => '1',
+ 							'unit_key' => $unit_key,
+ 							'share_title' => $share_title,
+ 							'share_des' => $share_text,		
+ 						);
+ 						$inner_son_pro = $this->Product_m->inner_son_redwtalle($mess_data);
+ 					}
+ 				}
+ 				echo "<script>alert('创建成功')</script>";
+ 				redirect("/easyfund/choudiandian_pro");
+ 				return true;
+ 			}
+	}		
+	
+	/**
+	 * 更新单红包
+	 */
+	public function updata_redwallet($easy_id,$topic_id){
+		$create_type = isset($_POST["create_type"])?$_POST["create_type"]:"";//活动创建对应属性 3:红包
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";//红包图		
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";//介绍链接
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";//描述		
+		$new_wallet_title = isset($_POST["new_wallet_title"])?$_POST["new_wallet_title"]:"";//红包标题
+		$wallet_need_money = isset($_POST["wallet_need_money"])?$_POST["wallet_need_money"]:"";//红包总金额
+		$redwallet_tag = isset($_POST["redwallet_tag"])?$_POST["redwallet_tag"]:"";
+		$start_time = isset($_POST["prostart_time"])?$_POST["prostart_time"]:"";
+		$effect_day = isset($_POST["effect_day"])?$_POST["effect_day"]:"";
+		
+		$prize_name = isset($_POST["prize_name"])?$_POST["prize_name"]:"";//主奖品名称
+		$prize_num = isset($_POST["prize_num"])?$_POST["prize_num"]:"0";//主奖品数量
+		$prize_price = isset($_POST["prize_price"])?$_POST["prize_price"]:"0";//主奖品单价
+		$zhichi_people_meth = isset($_POST["zhichi_people_meth"])?$_POST["zhichi_people_meth"]:"1";//主奖品获奖支持人人数方式
+		$zhichi_people = isset($_POST["zhichi_people"])?$_POST["zhichi_people"]:"0";//主奖品获奖支持人人数
+		$zhichi_money_meth = isset($_POST["zhichi_money_meth"])?$_POST["zhichi_money_meth"]:"1";//主奖品获奖众筹金额方式
+		$zhichi_money = isset($_POST["zhichi_money"])?$_POST["zhichi_money"]:"0";//主奖品获奖众筹金额
+		$zhichi_mmeth = isset($_POST["zhichi_mmeth"])?$_POST["zhichi_mmeth"]:"1";//主奖品获奖条件关系
+		
+		$con_prize_item = isset($_POST["con_prize_item"])?$_POST["con_prize_item"]:"";//副奖品名称组
+		$con_prize_num = isset($_POST["con_prize_num"])?$_POST["con_prize_num"]:"";//副奖品数量组
+		$con_prize_price = isset($_POST["con_prize_price"])?$_POST["con_prize_price"]:"";//副奖品单价组
+		$con_prize_people_meth = isset($_POST["con_prize_people_meth"])?$_POST["con_prize_people_meth"]:"1";//副奖品获奖支持人人数方式
+		$con_prize_people = isset($_POST["con_prize_people"])?$_POST["con_prize_people"]:"0";//副奖品获奖支持人人数
+		$con_prize_money_meth = isset($_POST["con_prize_money_meth"])?$_POST["con_prize_money_meth"]:"1";//副奖品获奖众筹金额方式
+		$con_prize_money = isset($_POST["con_prize_money"])?$_POST["con_prize_money"]:"0";//副奖品获奖众筹金额
+		$con_prize_mmeth = isset($_POST["con_prize_mmeth"])?$_POST["con_prize_mmeth"]:"1";//副奖品获奖条件关系
+		
+		$share_title = isset($_POST["share_title"])?$_POST["share_title"]:"";
+		$share_text = isset($_POST["share_text"])?$_POST["share_text"]:"";
+		$money_meth = isset($_POST["money_meth"])?$_POST["money_meth"]:"";
+		if($money_meth == '1'){
+			$fix_money = isset($_POST["fixed_money_num"])?$_POST["fixed_money_num"]:"";//固定金额				
+		}elseif($money_meth == '2'){
+			$low_money = isset($_POST["low_money"])?$_POST["low_money"]:"";//随机红包金额下线
+			$up_money = isset($_POST["up_money"])?$_POST["up_money"]:"";//随机红包金额上线
+			$money_item = isset($_POST["money-item"])?$_POST["money-item"]:"";//随机红包金额限制数
+			$money_percent = isset($_POST["money-percent"])?$_POST["money-percent"]:"";//随机红包金额限制数比例
+				
+		}
+		$open_meth= isset($_POST["open_meth"])?$_POST["open_meth"]:"";//拆红包方式1:单方 2：双方		
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $new_wallet_title . '_' . $redwallet_tag );
+		if($money_meth == '1'){
+			$money_area = $fix_money;
+		}elseif($money_meth == '2'){
+			$money_area =  $low_money . ',' . $up_money;
+		}	
+		$if_show = 0;
+		$data = array( 
+			'topic_id' => $topic_id,
+ 			'tag' => $redwallet_tag,
+ 			'title' => $new_wallet_title,
+			'money_meth' => $money_meth,	
+ 			'goal' => $wallet_need_money,
+ 			'goal_area' => $money_area,
+ 			'prize' => $prize_name,
+ 			'prize_num' => $prize_num,
+			'prize_price' => $prize_price,
+			'zhichi_people_meth' => $zhichi_people_meth,
+			'zhichi_people' => $zhichi_people,
+			'zhichi_money_meth' => $zhichi_money_meth,
+			'zhichi_money' => $zhichi_money,
+			'zhichi_mmeth' => $zhichi_mmeth,
+ 			'consolation_prize' => serialize($con_prize_item),
+ 			'con_prize_num' => serialize($con_prize_num),
+			'con_prize_price' => serialize($con_prize_price),
+			'con_prize_people_meth' => $con_prize_people_meth,	
+			'con_prize_people' => $con_prize_people,
+			'con_prize_money_meth ' => $con_prize_money_meth,
+			'con_prize_money' => $con_prize_money,
+			'con_prize_mmeth	' => $con_prize_mmeth,			
+ 			'money' => serialize($money_item),
+ 			'money_per' =>serialize($money_percent),
+ 			'type' => $open_meth,
+		 	'effect_time' => $start_time,
+ 			'effect_day' => $effect_day,
+ 			'ctime' => $ctime,		 			
+ 			'end_time' => $end_time,
+ 			'if_show' => $if_show,
+ 			'share_title' => $share_title,
+ 			'share_des' => $share_text,		
+		);
+		$topic_data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'topic' => $new_wallet_title,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $redwallet_tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'unit_key' => $unit_key,
+ 			'type' => $create_type,		 			
+ 			'ctime' => $ctime,
+ 			'end_time' => $end_time,
+ 			'goal' => $wallet_need_money,
+ 			'pro_share_title' => $share_title,
+ 			'pro_share_des' => $share_text
+ 		
+ 			);		
+		$inner_new_pro = $this->Product_m->updata_redwtalle($data);
+		$update_new_pro = $this->Easyfund_m->update_pro_mess($easy_id,$topic_data);		
+		echo "<script>alert('更新成功')</script>";
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+	/**
+	 * 红包上线
+	 * Enter description here ...
+	 * @param unknown_type $topic_id
+	 */
+	public function up_pro($easy_id,$topic_id){
+		$go_pro = $this->Product_m->go_pro($topic_id);
+		$go_diandian_pro = $this->Easyfund_m->go_diandian_pro($easy_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;		
+	}
+	
+	/**
+	 * 红包下线
+	 * Enter description here ...
+	 * @param unknown_type $topic_id
+	 */
+	public function down_pro($easy_id,$topic_id){
+		$down_pro = $this->Product_m->down_pro($topic_id);
+		$down_diandian_pro = $this->Easyfund_m->down_diandian_pro($easy_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;		
+		
+	}
+	
+	/**
+	 * 红包属性为活动时
+	 * 查看/编辑对应子红包
+	 * Enter description here ...
+	 * @param unknown_type $topic_id
+	 */
+	public function show_son_redwallet($topic_id){
+		$data = array();
+		$sub_redwallet_arr = $this->Product_m->get_son_redwallet($topic_id);
+		for($i=0;$i<count($sub_redwallet_arr);$i++){
+			//重组红包范围
+			$money_area_arr = explode(",",$sub_redwallet_arr[$i]["goal_area"]);
+			if(count($money_area_arr)>1){
+				$money_area = $money_area_arr[0] . '~' . $money_area_arr[1] ;
+				//重组红包比重
+				$red_money_arr = unserialize($sub_redwallet_arr[$i]["money"]);
+				$red_money_per_arr = unserialize($sub_redwallet_arr[$i]["money_per"]);
+				$money_per = $red_money_arr .':'.$red_money_per_arr.'%' ;
+				$sub_redwallet_arr[$i]['redwallet_per'] = $money_per;
+			}else{
+				$money_area = $money_area_arr[0];
+			}			
+			$sub_redwallet_arr[$i]['redwallet_money'] = $money_area;
+
+		}
+		$data['son_redwallet'] = $sub_redwallet_arr;
+		$this->load->view('redwallet/son_redwallet', $data);
+	}
+	
+	public function up_son_red($topic_id,$id){
+		$go_son_pro = $this->Product_m->up_son_red($topic_id,$id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;		
+		
+	}
+	public function down_son_red($topic_id,$id){
+		$down_son_pro = $this->Product_m->down_son_red($topic_id,$id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;		
+		
+	}
+	
+	/**
+	 * 编辑单独红包的信息
+	 * Enter description here ...
+	 * @param unknown_type $topic_id
+	 * @param unknown_type $id
+	 */
+	public function edit_son_red($topic_id,$id){
+		
+		$data = array();
+		$son_mess = $this->Product_m->son_redwallet_mess($topic_id,$id);	
+		$money_area = explode(",",$son_mess[0]['goal_area']);
+		$data['pro_mess'] = $son_mess;
+		$data['money_area'] = $money_area;
+		$data['money'] = unserialize($son_mess[0]['money']);
+		$data['money_per'] = unserialize($son_mess[0]['money_per']);
+		$data['con_prize'] = unserialize($son_mess[0]['consolation_prize']);
+		$data['con_prize_num'] = unserialize($son_mess[0]['con_prize_num']);
+		$data['con_prize_price'] = unserialize($son_mess[0]['con_prize_price']);
+		$data['topic_id'] = $topic_id;
+		$data['son_id'] = $id;
+		$this->load->view('redwallet/edit_son_redwallet', $data);
+		
+	}
+	
+	public function updata_son_redwallet($topic_id,$id){
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";//介绍链接
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";//描述		
+		$new_wallet_title = isset($_POST["new_wallet_title"])?$_POST["new_wallet_title"]:"";//红包标题
+		$wallet_need_money = isset($_POST["wallet_need_money"])?$_POST["wallet_need_money"]:"";//红包总金额
+		$start_time = isset($_POST["prostart_time"])?$_POST["prostart_time"]:"";
+		$effect_day = isset($_POST["effect_day"])?$_POST["effect_day"]:"";
+		
+		$prize_name = isset($_POST["prize_name"])?$_POST["prize_name"]:"";//主奖品名称
+		$prize_num = isset($_POST["prize_num"])?$_POST["prize_num"]:"0";//主奖品数量
+		$prize_price = isset($_POST["prize_price"])?$_POST["prize_price"]:"0";//主奖品单价
+		$zhichi_people_meth = isset($_POST["zhichi_people_meth"])?$_POST["zhichi_people_meth"]:"1";//主奖品获奖支持人人数方式
+		$zhichi_people = isset($_POST["zhichi_people"])?$_POST["zhichi_people"]:"0";//主奖品获奖支持人人数
+		$zhichi_money_meth = isset($_POST["zhichi_money_meth"])?$_POST["zhichi_money_meth"]:"1";//主奖品获奖众筹金额方式
+		$zhichi_money = isset($_POST["zhichi_money"])?$_POST["zhichi_money"]:"0";//主奖品获奖众筹金额
+		$zhichi_mmeth = isset($_POST["zhichi_mmeth"])?$_POST["zhichi_mmeth"]:"1";//主奖品获奖条件关系
+		
+		$con_prize_item = isset($_POST["con_prize_item"])?$_POST["con_prize_item"]:"";//副奖品名称组
+		$con_prize_num = isset($_POST["con_prize_num"])?$_POST["con_prize_num"]:"";//副奖品数量组
+		$con_prize_price = isset($_POST["con_prize_price"])?$_POST["con_prize_price"]:"";//副奖品单价组
+		$con_prize_people_meth = isset($_POST["con_prize_people_meth"])?$_POST["con_prize_people_meth"]:"1";//副奖品获奖支持人人数方式
+		$con_prize_people = isset($_POST["con_prize_people"])?$_POST["con_prize_people"]:"0";//副奖品获奖支持人人数
+		$con_prize_money_meth = isset($_POST["con_prize_money_meth"])?$_POST["con_prize_money_meth"]:"1";//副奖品获奖众筹金额方式
+		$con_prize_money = isset($_POST["con_prize_money"])?$_POST["con_prize_money"]:"0";//副奖品获奖众筹金额
+		$con_prize_mmeth = isset($_POST["con_prize_mmeth"])?$_POST["con_prize_mmeth"]:"1";//副奖品获奖条件关系
+		
+		$share_title = isset($_POST["share_title"])?$_POST["share_title"]:"";
+		$share_text = isset($_POST["share_text"])?$_POST["share_text"]:"";
+		$money_meth = isset($_POST["money_meth"])?$_POST["money_meth"]:"";
+		if($money_meth == '1'){
+			$fix_money = isset($_POST["fixed_money_num"])?$_POST["fixed_money_num"]:"";//固定金额				
+		}elseif($money_meth == '2'){
+			$low_money = isset($_POST["low_money"])?$_POST["low_money"]:"";//随机红包金额下线
+			$up_money = isset($_POST["up_money"])?$_POST["up_money"]:"";//随机红包金额上线
+			$money_item = isset($_POST["money-item"])?$_POST["money-item"]:"";//随机红包金额限制数
+			$money_percent = isset($_POST["money-percent"])?$_POST["money-percent"]:"";//随机红包金额限制数比例
+				
+		}
+		$open_meth= isset($_POST["open_meth"])?$_POST["open_meth"]:"";//拆红包方式1:单方 2：双方		
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $new_wallet_title . '_' . $redwallet_tag );
+		if($money_meth == '1'){
+			$money_area = $fix_money;
+		}elseif($money_meth == '2'){
+			$money_area =  $low_money . ',' . $up_money;
+		}	
+		$if_show = 1;
+		$data = array( 		
+			'id' => $id,
+			'topic_id' => $topic_id,
+ 			'title' => $new_wallet_title,
+			'money_meth' => $money_meth,	
+ 			'goal' => $wallet_need_money,
+ 			'goal_area' => $money_area,
+ 			'prize' => $prize_name,
+ 			'prize_num' => $prize_num,
+			'prize_price' => $prize_price,
+			'zhichi_people_meth' => $zhichi_people_meth,
+			'zhichi_people' => $zhichi_people,
+			'zhichi_money_meth' => $zhichi_money_meth,
+			'zhichi_money' => $zhichi_money,
+			'zhichi_mmeth' => $zhichi_mmeth,
+ 			'consolation_prize' => serialize($con_prize_item),
+ 			'con_prize_num' => serialize($con_prize_num),
+			'con_prize_price' => serialize($con_prize_price),
+			'con_prize_people_meth' => $con_prize_people_meth,	
+			'con_prize_people' => $con_prize_people,
+			'con_prize_money_meth ' => $con_prize_money_meth,
+			'con_prize_money' => $con_prize_money,
+			'con_prize_mmeth	' => $con_prize_mmeth,			
+ 			'money' => serialize($money_item),
+ 			'money_per' =>serialize($money_percent),
+ 			'type' => $open_meth,
+		 	'effect_day' => $effect_day,
+			'start_time' => $start_time,
+ 			'ctime' => $ctime,		 			
+ 			'end_time' => $end_time,
+ 			'if_show' => $if_show,
+ 			'share_title' => $share_title,
+ 			'share_des' => $share_text,		
+		);
+		$inner_new_pro = $this->Product_m->updata_son_redwtalle($data);
+		echo "<script>alert('更新成功')</script>";
+		redirect("/easyfund/choudiandian_pro");
+		return true;		
+	}
+}

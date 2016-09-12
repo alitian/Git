@@ -1,0 +1,649 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_post extends Acp_Controller 
+	{
+
+		public $perpage = 20;
+		public $base_url;
+		public $site_url;
+		public $uid;
+		public $compress_marker = '_compress';
+		public $list_marker = '_list';
+		public $thumb_marker = '_thumb';
+
+		/**
+		 * 	每个标签下，允许的置顶帖数上限
+		 */
+		public $stick_post_upper_limit = 3;
+		// 新增置顶时间
+		public $stick_time = array(
+						'24小时' => 86400,
+						'3天' => 259200,
+						'7天' => 604800,
+						'14天' => 1209600
+					);
+
+
+		public function __construct()
+		{
+			parent::__construct();	
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+			$this->load->model('bbs_post_model');
+			$this->load->helper('bbs_common');
+			$this->base_url = base_url();
+			$this->site_url = site_url();
+			$vars = array(
+						'base_url' => $this->base_url,
+						'site_url' => $this->site_url
+					);
+			$this->load->vars($vars);
+		}
+
+		/**
+		 *	帖子操作页面
+		 * @param 		int 		$nextpage
+		 */
+		public function postlist($tag_id = 0, $time = '1', $type = 'all', $nickname = 'null', $nextpage = 1)
+		{
+			$submit = $this->input->post('submit', true);
+			$toptag_list = $this->bbs_post_model->get_toptag_list();
+
+			// 筛选条件 ------------------- 放置到URL参数列表中 。 modified by 董学敏 at 8.26
+			/*
+			$tag_id = '0'; 		// 顶级标签
+			$time = '1'; 		// 时间排序
+			$type = 'all'; 		// 全部|精华|置顶
+			$nickname = null; 			// 指定用户昵称
+			*/
+
+			// 这个是单独的搜索
+			$post_id = null; 		// 直接搜索帖子ID
+
+			if($submit)
+			{
+				$post_id = (int) trim($this->input->post('post_id'));
+				if($post_id){
+					$post_info = $this->bbs_post_model->get_post_by_id($post_id);
+					$post_list[] = $post_info; 		// 还是写成二维数组，页面上统一
+					$vars = array(
+								'toptag_list' => $toptag_list,
+								'post_list' => $post_list,
+								'tag_id' => $tag_id,
+								'time' => $time,
+								'type' => $type,
+								'nickname' => $nickname,
+								'post_id' => $post_id
+							);
+					$this->load->vars($vars);
+					$this->load->view('bbs_post/postlist');
+					return;
+				}else{
+					$tag_id = $this->input->post('tag_id', true) ? $this->input->post('tag_id', true) : $tag_id;
+					$time = $this->input->post('time', true) ? $this->input->post('time', true) : $time;
+					$type = $this->input->post('type', true) ? $this->input->post('type', true) : $type;
+					$nickname = trim($this->input->post('nickname', true)) ? trim($this->input->post('nickname', true)) : $nickname;
+					$post_list = $this->bbs_post_model->get_post_list($this->perpage, $nextpage, $tag_id, $time, $type, $nickname);
+					$total_rows = $this->bbs_post_model->get_total_rows($tag_id, $type, $nickname);
+					if(!$post_id) $post_id = null;
+				}
+			}else{
+				$nickname = urldecode($nickname);
+				$post_list = $this->bbs_post_model->get_post_list($this->perpage, $nextpage, $tag_id, $time, $type, $nickname);
+				$total_rows = $this->bbs_post_model->get_total_rows($tag_id, $type, $nickname);
+			}
+			$this->load->library('pagination');
+
+			// 当前页的链接，但是缺失 '分页页数'
+			$cur_url = $this->site_url . "bbs_post/postlist/$tag_id/$time/$type/$nickname";
+			$config = array(
+							'uri_segment' => 7,
+							'base_url' => $cur_url,
+							'total_rows' => $total_rows,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+
+			$vars = array(
+						'toptag_list' => $toptag_list,
+						'post_list' => $post_list,
+						'tag_id' => $tag_id,
+						'time' => $time,
+						'type' => $type,
+						'nickname' => $nickname,
+						'post_id' => $post_id,
+						'pagination' => $pagination,
+					);
+			$this->load->vars($vars);
+			$this->load->view('bbs_post/postlist');
+		}
+
+		/**
+		 *	置顶操作
+		 * 	@param 		int 		$post_id
+		 * 	@param 		str 		$type
+		 */
+		public function stick_post($post_id, $type)
+		{
+			$submit = $this->input->post('stick_submit', true);
+
+			// 想在这里获取锚点！查看$_SERVER，竟然发现没有。后上网查询，发现有人说协议规定，服务器不能获取hash(即锚点)，我们可以通过js来获取，然后通过隐藏域来提交过来！
+			// $hash = trim($this->input->post('hash', true)); 		// 追加上锚点吧
+			// $url = site_url('bbs_post/postlist') . '#' . $hash;
+
+			if($submit){
+
+				// 我们使用js来得到checkbox的数据，拼接成的是一个 ',' 分隔的字符串，转换成数组
+				$tag_id_str = $this->input->post('tag_id_str', true);
+				$tag_id_array = explode(',', $tag_id_str);
+				$stick_time = (int) $this->input->post('stick_time');
+
+				// 这里针对 '置顶' 操作，我们得判断：是否帖子批量要置顶的标签下，已经有标签存在3个置顶帖子，一旦有一个标签达到3个数量，不允许置顶操作，除非用户取消该标签3个置顶帖子中的一个
+				foreach($tag_id_array as $tag_id){
+					if($type == 'stick'){
+						$is_upper_limit = FALSE;
+						$is_upper_limit = $this->bbs_post_model->is_stick_post_upper_limit($tag_id, $this->stick_post_upper_limit); 		// 设置成一个配置项，我们可以随时修改
+						if($is_upper_limit){
+
+							// 发现超出标签最大置顶帖限制，获取当前标签名
+							$tag_info = $this->bbs_post_model->get_tag_info_by_tag_id($tag_id);
+							$return_data = array(
+												'status' => -4,
+												'content' => "操作失败！标签 {$tag_info['tag_name']} 下置顶帖已有3篇，每个标签仅允许置顶3篇帖子，请取消置顶部分帖子后重试！"
+											);
+							echo json_encode($return_data);
+							exit;
+						}
+					}
+				}
+
+				$return = $this->bbs_post_model->update_stick_post($tag_id_array, $post_id, $stick_time, $this->uid);
+				switch($return){
+					case -3:
+						$return_data = array(
+											'status' => -3,
+											'content' => '更新帖子管理操作记录失败'
+										);
+						break;
+					case -2:
+						$return_data = array(
+											'status' => -2,
+											'content' => '取消置顶失败'
+										);
+						break;
+					case -1:
+						$return_data = array(
+											'status' => -1,
+											'content' => '置顶失败'
+										);
+						break;
+					case 1:
+						$return_data = array(
+											'status' => 1,
+											'content' => '置顶成功'
+										);
+						break;
+					case 2:
+						$return_data = array(
+											'status' => 2,
+											'content' => '取消置顶成功'
+										);
+						break;
+				}
+				echo json_encode($return_data);
+				exit;
+			}else{
+
+				/* 	
+					这里也进行修改:
+						点击置顶，显示的只是 '当前帖子未置顶过的标签'
+						点击取消置顶，显示的只是 '当前帖子已经置顶过的标签'
+				 */
+				$tag_list = $this->bbs_post_model->get_tag_list_by_post_id($post_id, $type);
+				if(!empty($tag_list)){
+					$time_stick_flip = array_flip($this->stick_time);
+
+					// 我们来统计每个标签的置顶开始时间和置顶时常
+					foreach($tag_list as &$tag_row){
+
+						// 当取消置顶的时候，我们通过title，显示该标签的置顶时间信息
+						if($type == 'nostick'){
+							$stime = date('Y-m-d h:i:s', $tag_row['stick_s_time']);
+							$etime = date('Y-m-d h:i:s', $tag_row['stick_e_time']);
+							$timestamp_segment = (int) ($tag_row['stick_e_time'] - $tag_row['stick_s_time']);
+							$time_segment = $time_stick_flip[$timestamp_segment];
+							$tag_row['stick_message'] = "当前状态为：置顶。置顶开始时间：{$stime}，结束时间：{$etime}，置顶时长：{$time_segment}";
+						}else{
+							$tag_row['stick_message'] = '静候您的置顶操作';	
+						}
+					}
+				}
+				$vars = array(
+							'post_id' => $post_id,
+							'tag_list' => $tag_list,
+							'type' => $type  // 新增，type，stick 和 nostick
+						);
+				if($type == 'stick'){
+					$vars['stick_time'] = $this->stick_time;
+				}else{
+					$vars['stick_time'] = 0;
+				}
+
+				$this->load->view('bbs_post/stick_post', $vars);
+			}
+		}
+
+		/**
+		 *	精华操作
+		 */
+		public function digest_post()
+		{
+			$post_id = $this->input->post('post_id', true);
+			$type = $this->input->post('type', true);
+			$data = $this->bbs_post_model->digest_post($this->uid, $post_id, $type);
+			echo $data;
+
+		}
+
+		/**
+		 * 	推荐操作
+		 */
+		public function recommend_post()
+		{
+			$post_id = $this->input->post('post_id', true);
+			$return = $this->bbs_post_model->recommend_post($this->uid, $post_id);
+			switch($return){
+				case -1:
+					$return_data = array(
+										'status' => -1,
+										'content' => '更新帖子管理操作记录失败'
+									);
+					break;
+				case  0:
+					$return_data = array(
+										'status' =>  0,
+										'content' => '推荐帖子失败'
+									);
+					break;
+				case  1:
+					$return_data = array(
+										'status' => 1,
+										'content' => '推荐成功'
+									);
+					break;
+			}
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *	编辑标题和内容
+		 * 	@param 		int 		$post_id
+		 */
+		public function edit_post($post_id = 0)
+		{
+			$this->load->helper('emoji_helper');
+			$post_info = $this->bbs_post_model->get_post_info($post_id);
+
+			// 拿到外层来做
+			if($post_info['attachment_list']){
+				foreach($post_info['attachment_list'] as &$attachment){
+					$origin_url = cdn_url($attachment['path']);
+					$sys_point_pos = strrpos($origin_url, '.');
+					$thumb_url = substr($origin_url, 0, $sys_point_pos) . $this->thumb_marker . substr($origin_url, $sys_point_pos);
+					$attachment['image_url'] = $thumb_url;
+					// $attachment['image_url_origin'] = $origin_url;
+				}
+			}
+
+			$submit = $this->input->post('edit_submit', true);
+
+			if ($submit)
+			{
+
+				// 想在这里获取锚点！查看$_SERVER，竟然发现没有。后上网查询，发现有人说协议规定，服务器不能获取hash(即锚点)，我们可以通过js来获取，然后通过隐藏域来提交过来！
+				// $hash = trim($this->input->post('hash', true)); 		// 追加上锚点吧
+				$subject = trim($this->input->post('subject', true));
+				$content = trim($this->input->post('content', true));
+
+				// 添加字数限制
+				if(bbs_strlen($subject) > 100)
+				{
+					$return_data = array(
+										'status' => -1,
+										'content' => '标题不能超过100字'
+									);
+					echo json_encode($return_data);
+					exit;
+				}
+				if(bbs_strlen($content) > 10000)
+				{
+					$return_data = array(
+										'status' => -2,
+										'content' => '内容不能超过10000字'
+									);
+					echo json_encode($return_data);
+					exit;
+				}
+
+				$update_type = '';
+				$p_update = $post_info['subject'] != $subject ? TRUE : FALSE;
+				$c_update = $post_info['content'] != $content ? TRUE : FALSE;
+
+				// 删除附件处理
+				$attachment_ids = trim($this->input->post('attachment_ids', true), ',');
+				$attachment_paths = trim($this->input->post('attachment_paths', true), ',');
+				$pic_url = $post_info['pic_url'];
+				if($attachment_ids){
+					$attachment_id_array = explode(',', $attachment_ids);
+					$attachment_path_array = explode(',', $attachment_paths);
+					$bool = $this->bbs_post_model->del_attachment($post_id, $attachment_id_array);
+					if(!$bool){
+						$return_data = array(
+											'status' => -3,
+											'content' => '删除帖子附件数据库记录失败！'
+										);
+						echo json_encode($return_data);
+						exit;
+					}
+					foreach($attachment_path_array as $key => $attachment_path){
+						$origin_path = ROOTPATH . $attachment_path;
+						$sys_point_pos = strrpos($origin_path, '.');
+						$compress_path = substr($origin_path, 0, $sys_point_pos) . $this->compress_marker . substr($origin_path, $sys_point_pos);
+						$thumb_path = substr($origin_path, 0, $sys_point_pos) . $this->thumb_marker . substr($origin_path, $sys_point_pos);
+						$list_path = substr($origin_path, 0, $sys_point_pos) . $this->list_marker . substr($origin_path, $sys_point_pos);
+						if(!unlink($origin_path)){
+							$return_data = array(
+												'status' => -4,
+												'content' => "删除第" . ($key+1) . "张原图失败"
+											);
+							echo json_encode($return_data);
+							exit;
+						}
+						if(!unlink($compress_path)){
+							$return_data = array(
+												'status' => -5,
+												'content' => "删除第" . ($key+1) . "张压缩图失败"
+											);
+							echo json_encode($return_data);
+							exit;
+						}
+						if(!unlink($thumb_path)){
+							$return_data = array(
+												'status' => -6,
+												'content' => "删除第" . ($key+1) . "张缩略图失败"
+											);
+							echo json_encode($return_data);
+							exit;
+						}
+						if(!unlink($list_path)){
+							$return_data = array(
+												'status' => -7,
+												'content' => "删除第" . ($key+1) . "张列表页- 缩略图失败"
+											);
+							echo json_encode($return_data);
+							exit;
+						}
+					}
+
+				/* 
+					附件删除后，还得判断，帖子的封面图片是否发生变化。如果变化，也得进行修改！
+						1.根据帖子的图片，查看attachment表中是否有记录，有的话，说明封面的图片没有被删除。
+				 		2.封面图片被删除，查看帖子附件列表，如果有，重新更换图片；没有的话，pic_url = ''
+				 */
+					$is_exists = $this->bbs_post_model->is_attachment_exists_by_path($postid, $post_info['pic_url']);
+					if(!$is_exists){
+
+						$p_update = TRUE; 		// 发现封面附件不存在，肯定得修改 post 表了
+
+						// 获取附件列表
+						$attachment_first = $this->bbs_post_model->get_post_attachment_first($post_id);
+						if($attachment_first){
+							$pic_url = $attachment_first['path'];
+						}else{
+							$pic_url = '';
+						}
+					}
+				}
+
+				// 判断需要更新的数据表
+				if($p_update && $c_update) $update_type = 'both';
+				if($p_update && !$c_update) $update_type = 'post';
+				if(!$p_update && $c_update) $update_type = 'content';
+
+				if(empty($update_type)){
+					$return_data = array(
+										'status' => -7,
+										'content' => "未作修改"
+									);
+					echo json_encode($return_data);
+					exit;
+				}
+
+				$status = $this->bbs_post_model->submit_edit_post($this->uid, $post_id, $subject, $content, $pic_url, $update_type);
+				switch($status){
+					case -1:
+						$return_data = array(
+											'status' => -8,
+											'content' => "修改帖子标题或内容失败"
+										);
+						break;
+					case  0:
+						$return_data = array(
+											'status' => -9,
+											'content' => "更新帖子管理操作记录失败"
+										);
+						break;
+					case  1:
+						$return_data = array(
+											'status' => 1,
+											'content' => "修改成功"
+										);
+						break;
+				}
+				echo json_encode($return_data);
+				exit;
+			} else {
+				$vars = array(
+							'uid' => $this->uid,
+							'post_info' => $post_info
+						);
+				$this->load->vars($vars);
+				$this->load->view('bbs_post/edit_post');
+			}
+		}
+
+		/**
+		 *	编辑标签
+		 * 	@param 		int 		$post_id
+		 */
+		public function edit_tags($post_id)
+		{
+			// 获取tagid => tag_name 的数组
+			$post_info = $this->bbs_post_model->get_post_tagids($post_id);
+			$tag_list = $this->bbs_post_model->get_tag_list($post_info['tagids']);
+			$vars = array(
+						'uid' => $this->uid,
+						'post_id' => $post_id,
+						'tag_list' => $tag_list
+					);
+			$this->load->vars($vars);
+			$this->load->view('bbs_post/edit_tags');
+		}
+
+		/**
+		 *	
+		 * 新增帖子标签
+		 *	
+		 */	
+		public function add_post_tag()
+		{
+			$post_id = (int) $this->input->post('post_id', true);
+			$new_tag = trim($this->input->post('new_tag', true));
+
+			if(!$new_tag){
+				$return_data = array(
+									'status' => -1,
+									'content' => '标签不能为空'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			// 查询当前标签是否存在
+			$tag_id = $this->bbs_post_model->is_tag_exists($new_tag);
+			if($tag_id == 0){
+				$return_data = array(
+									'status' => -2,
+									'content' => '标签不存在'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			// 查询该帖子有没有这个标签
+			$is_exists = $this->bbs_post_model->is_tag_exists_in_post($post_id, $tag_id);
+			if($is_exists){
+				$return_data = array(
+									'status' => -3,
+									'content' => '当前帖子中已存在该标签'
+								);
+				echo json_encode($return_data);
+				exit;
+			}
+
+			// 返回新增成功或失败，js追加新增标签
+			$return = $this->bbs_post_model->add_post_tag($this->uid, $post_id, $tag_id);
+			switch($return){
+				case -4:
+					$return_data = array(
+										'status' => -4,
+										'content' => '更新帖子tagids失败'
+									);
+					break;
+				case -5:
+					$return_data = array(
+										'status' => -5,
+										'content' => '新增帖子和tag对应关系失败'
+									);
+					break;
+				case -6:
+					$return_data = array(
+										'status' => -6,
+										'content' => '更新tag表帖子数+1失败'
+									);
+					break;
+				case -7:
+					$return_data = array(
+										'status' => -7,
+										'content' => '更新帖子管理操作记录失败'
+									);
+					break;
+
+				// 为1，表示添加成功，我们返回tag_id
+				case 1:
+					$return_data = array(
+										'status' => $tag_id,
+										'content' => '添加成功'
+									);
+					break;
+
+			}
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *	
+		 * 删除帖子标签
+		 *	
+		 */	
+		public function del_post_tag()
+		{
+			$post_id = $this->input->post('post_id', true);
+			$tag_id = $this->input->post('tag_id', true);
+
+			// 添加判断，是否是顶级标签
+			$is_top = $this->bbs_post_model->is_top_tag($tag_id);
+			if($is_top){
+
+				// 删除顶级标签，必须判断顶级标签的个数，必须保留一个
+				$post_info = $this->bbs_post_model->get_post_tagids($post_id);
+				$tagid_str = $post_info['tagids'];
+				$tagid_array = explode(',', $tagid_str);
+				$count = $this->bbs_post_model->get_top_tag_num($tagid_array);
+
+				if($count == 1){
+					$return_data = array(
+										'status' => -1,
+										'content' => '至少保留一个顶级标签，不可删除'
+									);
+					echo json_encode($return_data);
+					exit;
+				}
+			}
+			$return = $this->bbs_post_model->del_post_tag($this->uid, $post_id, $tag_id);
+			switch($return){
+				case -6:
+					$return_data = array(
+										'status' => -6,
+										'content' => '更新帖子管理操作记录失败'
+									);
+					break;
+				case -5:
+					$return_data = array(
+										'status' => -5,
+										'content' => '更新tag表帖子数-1失败失败'
+									);
+					break;
+				case -4:
+					$return_data = array(
+										'status' => -4,
+										'content' => '删除帖子和tag对应关系失败'
+									);
+					break;
+				case -3:
+					$return_data = array(
+										'status' => -3,
+										'content' => '更新帖子tagids字段失败'
+									);
+					break;
+				case -2:
+					$return_data = array(
+										'status' => -2,
+										'content' => '至少一个tag，不可删除'
+									);
+					break;
+				case 1:
+					$return_data = array(
+										'status' => 1,
+										'content' => '删除成功'
+									);
+					break;
+			}
+			echo json_encode($return_data);
+			exit;
+		}
+
+	}

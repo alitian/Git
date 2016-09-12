@@ -1,0 +1,100 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Counter extends Deamon_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('product_model');
+    }
+
+    /**
+     * 修正产品计数
+     */
+    public function product() {
+        $this->load->model('base/product_base');
+        //获取正在众筹的项目，结束的项目走归档数据
+        $sql = "SELECT id FROM md_product WHERE if_show=1 AND end_time>'" . date("Y-m-d H:i:s") . "'";
+        $pro_list = $this->db->query($sql)->result_array();
+        echo "start ----------------------".date("Y-m-d H:i:s")."--------------------------\n";
+        foreach ($pro_list as $item) {
+            echo "######pro:{$item['id']}######\n";
+            $obj_pro = new Product_base();
+            $obj_product = $obj_pro->get_by_id($item['id']);
+            //支持人数
+            $obj_product->backer_count = $this->product_model->get_backer_count($item['id']);
+            echo "backer_count:{$obj_product->backer_count}\n";
+            //订单数
+            $obj_product->back_count = $this->product_model->get_back_count($item['id']);
+            echo "back_count:{$obj_product->back_count}\n";
+            //支持金额
+            $obj_product->backer_money = $this->product_model->get_backer_money($item['id']);
+            echo "backer_money:{$obj_product->backer_money}\n";
+            $obj_product->save();
+        }
+        //更新数
+        $sql = "select pro_id from md_product_update WHERE if_show=1 AND ctime>'" . date("2013-m-d H:00:00") . "' group by pro_id";
+        $update_list = $this->db->query($sql)->result_array();
+
+        foreach ($update_list as $item) {
+            $obj_pro = new Product_base();
+            $obj_product = $obj_pro->get_by_id($item['pro_id']);
+            $obj_product->update_count = $this->product_model->get_updates_count($item['pro_id']);
+            echo "pro_id:{$item['pro_id']}, update_count:{$obj_product->update_count}\n";
+            $obj_product->save();
+        }
+        echo date("Y-m-d H:i:s") . '---------pro count: ' . count($pro_list) . '. updates count:' . count($update_list) . "\n";
+    }
+
+    /**
+     * 修正回报
+     */
+    public function product_rewards() {
+        $this->load->model('base/product_rewards_base');
+        $sql = "SELECT rew.id FROM md_product pro
+INNER JOIN md_product_rewards rew ON pro.id=rew.pro_id AND rew.if_show=1
+WHERE pro.if_show=1 AND pro.end_time>'" . date("Y-m-d H:i:s") . "'";
+        //支持人数
+        $count = 0;
+        $rew_list = $this->db->query($sql)->result_array();
+        foreach ($rew_list as $item) {
+            $obj_rew = new Product_rewards_base();
+            $obj_reward = $obj_rew->get_by_id($item['id']);
+            $sql = "SELECT count(1) as c FROM md_product_back WHERE if_pay=1 AND rew_id='{$item['id']}'";
+            $res = $this->db->query($sql)->row_array();
+            $obj_reward->back_count = $res['c'];
+            echo "reward_id:{$item['id']}, count:{$res['c']}\n";
+            $obj_reward->save();
+            $count++;
+        }
+        echo date("Y-m-d H:i:s") ."-------------END-------------\n";
+    }
+
+    public function favor_counter() {
+        $ci = &get_instance();
+        $ci->load->model('base/product_counter_base');
+        $sql = "SELECT type, pro_id, count(1) as c FROM md_product_favors GROUP BY pro_id,type";
+        $update_list = $this->db->query($sql)->result_array();
+        foreach ($update_list as $item) {
+            $obj = new product_counter_base();
+            $list = $obj->get_list("pro_id='" . $item['pro_id'] . "'");
+            if ($item['type'] > 0 && $item['type'] < 4) {
+                if ($list) {
+                    $obj->get_by_id($list[0]['id']);
+                    $obj->pro_id = $item['pro_id'];
+                    $obj->{"favor_" . $item['type']} = $item['c'];
+                    $obj->save();
+                } else {
+                    $obj->pro_id = $item['pro_id'];
+                    $obj->{"favor_" . $item['type']} = $item['c'];
+                    print_r($obj->item_data);
+                    $obj->save();
+                }
+            }
+        }
+        echo 'ok';
+    }
+
+}

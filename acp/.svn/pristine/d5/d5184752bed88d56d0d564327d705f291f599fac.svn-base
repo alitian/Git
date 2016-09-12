@@ -1,0 +1,4 @@
+<ul class="nav nav-tabs" role="tablist">
+    <li role="presentation"<?php if ($type == '众筹失败批退'):?> class="active"<?php endif;?>><a href="/weidashang/refund">众筹失败批退</a></li>
+    <li role="presentation"<?php if ($type == '退款结果明细'):?> class="active"<?php endif;?>><a href="/weidashang/refund_info">退款结果明细</a></li>
+</ul>

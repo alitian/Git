@@ -1,0 +1,463 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<script type="text/javascript">
+    $(function() {
+        $('.datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+    });
+
+</script>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/market_manage/recruit">市场管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+		<form class="forms addform" name="addform" id="addform" action="" method="post">
+			<input type="hidden" id='easy_id' name='easy_id' value="" />
+			<input type="hidden" id='create_type' name='create_type' value="3" /> 
+        	<div id="p1" class="easyui-panel" title="基本信息" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">
+				<div id="edit_pro" class="edit_pro">
+					<div class="span10">
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">标题:</span>
+								<input type="text" id='title' name='title' value="" />
+							</div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">标签:</span>
+						        <input  type="text" id='tag' name='tag' value="" placeholder="多个标签以,分隔" />
+						    </div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">中部连接:</span>								
+						    </div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+				            	<input  type="hidden" id="back_html"  name='back_html[]' value="" />
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片01:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_0" value=""><input type="file" id="pic_0" name="pic_0" value="" onChange="up_more_pic(0);">					    	
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='pic_intro[]' value="" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text" class='pic_con' value="" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片02:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_1" value=""><input type="file" id="pic_1" name="pic_1" value="" onChange="up_more_pic(1);">					    	
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='pic_intro[]' value="" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  class='pic_con' value="" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片03:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_3" value=""><input type="file" id="pic_3" name="pic_3" value="" onChange="up_more_pic(3);">					    	
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text" name='pic_intro[]' value="" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  class='pic_con' value="" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片04:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_4" value=""><input type="file" id="pic_4" name="pic_4" value="" onChange="up_more_pic(4);">					    	
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text"  name='pic_intro[]' value="" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  class='pic_con' value="" />
+							    </div>
+							    
+							</div>
+						</div>
+						<div style="border:1px dashed #808080">
+				            <div class="row-fluid" style="margin:10px;">
+								<div class="input-prepend input-append">
+									<span class="add-on">背景图片05:</span>								
+									<input style="margin-left:20px;" type="text" name="pic_hidden[]" id="pic_hidden_5" value=""><input type="file" id="pic_5" name="pic_5" value="" onChange="up_more_pic(5);">					    	
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">介绍链接:</span>								
+		    						<input style="margin-left:20px;" type="text" name='pic_intro[]' value="" />
+							    </div>
+								<div class="input-prepend input-append">
+									<span class="add-on">图片内容:</span>								
+		    						<input style="margin-left:20px;" type="text"  class='pic_con' value="" />
+							    </div>
+							    							    
+							</div>							
+						</div>
+					</div>
+				</div>
+			</div>
+<!--        	<div id="p2" class="easyui-panel" title="大家说信息" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">-->
+<!--				<div id="edit_pro" class="edit_pro">-->
+<!--					<div class="span10">						-->
+<!--						<div class="row-fluid" style="margin-top:10px">-->
+<!--							<div class="input-prepend input-append">-->
+<!--								<span class="add-on">大家说:</span>-->
+<!--								<a id="say_add" href="javascript:;" role="button">添加</a>-->
+<!--						    </div>-->
+<!--						</div>-->
+<!--						<div style="border:1px dashed #808080">-->
+<!--				            <div class="row-fluid" style="margin:10px;">-->
+<!--								<div class="input-prepend input-append">-->
+<!--									<span class="add-on">展示排序:</span>-->
+<!--									<input  type="text"  name='say_sort[]' value=""/>-->
+<!--								</div>				            -->
+<!--								<div class="input-prepend input-append">-->
+<!--									<span class="add-on">上传logo:</span>-->
+<!--									<input style="margin-left:20px;" type="text" name="logo_text[]" id="logo_text_0" value=""><input type="file" id="logo_0" name="logo_0" value="" onChange="up_logo_pic(0);">					    										-->
+<!--								</div>-->
+<!--								<div class="input-prepend input-append">									-->
+<!--									<span class="add-on">大家说-名称:</span>-->
+<!--									<input  type="text"  name='say_title[]' value="" />-->
+<!--								</div>-->
+<!--								<div class="input-prepend input-append">	-->
+<!--									<span class="add-on">大家说-内容:</span>-->
+<!--									<div class="item" >-->
+<!--										<input  type="hidden" id="say_html"  name='say_html' value="" />-->
+<!--										<div class="say_con" style="margin-left:30px;border:solid 1px #000;width:500px;height:300px" contenteditable></div>-->
+<!--									</div>								-->
+<!--								</div>-->
+<!--							</div>							-->
+<!--						</div>	-->
+<!--						<div id="say_item" style="margin:10px">-->
+<!--						</div>																	                     	                    															                     	                    																										                     	                    															                     	                    																											                     	                    															                     	                    																										                     	                    															                     	                    																											                     	                    															                     	                    																										                     	                    															                     	                    																																																													-->
+<!--					</div>-->
+<!--				</div>-->
+<!--			</div>-->
+<!--        	<div id="p3" class="easyui-panel" title="招聘职位" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">-->
+<!--				<div id="edit_pro" class="edit_pro">-->
+<!--					<div class="span10">					-->
+<!--						<div class="row-fluid">-->
+<!--							<div class="input-prepend input-append">-->
+<!--								<span class="add-on">职位:</span>-->
+<!--						        <a id="job_add" href="javascript:;" role="button">添加</a>						        					        -->
+<!--						    </div>-->
+<!--						</div>-->
+<!--						<div style="border:1px dashed #808080">-->
+<!--				            <div class="row-fluid" style="margin:10px;">	-->
+<!--								<div class="input-prepend input-append">-->
+<!--									<span class="add-on">展示排序:</span>-->
+<!--									<input  type="text"  name='job_sort[]' value=""/>-->
+<!--								</div>				            				            			            -->
+<!--								<div class="input-prepend input-append">-->
+<!--									<span class="add-on">职位名称:</span>-->
+<!--									<input type="text"  name='job_name[]' value="" />-->
+<!--									-->
+<!--									<span class="add-on" style="margin-left:8px;">职位类别:</span>-->
+<!--									<input  type="text"  name='job_type[]' value="" placeholder="研发类；运营类 等"/>-->
+<!--								</div>-->
+<!--								<div class="input-prepend input-append">									-->
+<!--									<span class="add-on">招聘类型:</span>-->
+<!--									<input  type="text"  name='job_status[]' value="" placeholder="社会招聘 等"/>-->
+<!--									-->
+<!--									<span class="add-on" style="margin-left:8px;">工作性质:</span>-->
+<!--									<input  type="text"  name='work_type[]' value="" placeholder="全职；兼职；实习 等"/>-->
+<!--								</div>-->
+<!--								<div class="input-prepend input-append">-->
+<!--									<span class="add-on">岗位职责:</span>-->
+<!--									<div class="item" >-->
+<!--										<input  type="hidden" id="job_work" name='job_work' value="" />-->
+<!--										<div class="job_con" style="margin-left:30px;border:solid 1px #000;width:500px;min-height:300px" contenteditable></div>-->
+<!--									</div>								-->
+<!--								</div>-->
+<!--								<div class="input-prepend input-append">-->
+<!--									<span class="add-on">任职要求:</span>-->
+<!--									<div class="item" >-->
+<!--										<input  type="hidden" id="recruit_con" name='recruit_con' value="" />-->
+<!--										<div class="recruit_text" style="margin-left:30px;border:solid 1px #000;width:500px;min-height:300px" contenteditable></div>-->
+<!--									</div>								-->
+<!--								</div>						-->
+<!--							</div>						-->
+<!--						</div>						-->
+<!--						<div id="job_item" style="margin:10px">-->
+<!--						</div>																	                     	                    															                     	                    																										                     	                    															                     	                    																											                     	                    															                     	                    																										                     	                    															                     	                    																											                     	                    															                     	                    																										                     	                    															                     	                    															-->
+<!--					</div>-->
+<!--				</div>-->
+<!--			</div>				-->
+		</form>
+	</div>
+	<div class="span1">                 
+		<button class="btn btn-primary" id="btn_submit" name="btn_submit" style="width:150px">提交</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>
+	</div>               	
+</div>
+<script type="text/javascript">
+$(document).ready(function(){ 
+	//添加大家说
+	var m=1;
+	$("a#say_add").on('click', function(evt) {
+		evt.preventDefault(); 
+		var html ='<div class="say">';
+				html +='<a href="#" class="close del-id-item">&times;</a>';
+				html +='<div style="border:1px dashed #808080">';
+				html +='<div class="row-fluid" style="margin:10px;">';
+				html +='<div class="input-prepend input-append">';
+				html +='<span class="add-on">展示排序:</span>';
+				html +='<input  type="text"  name=\'say_sort[]\' value=""/>';
+				html +='</div>';			            
+				html +='<div class="input-prepend input-append">';
+				html +='<span class="add-on">上传logo:</span>';
+				html +='<input style="margin-left:20px;" type="text" name="logo_text[]" id="logo_text_'+m+'" value=""><input type="file" id="logo_'+m+'" name="logo_'+m+'" value="" onChange="up_logo_pic('+m+');">';					    										
+				html +='</div>';
+				html +='<div class="input-prepend input-append">';									
+				html +='<span class="add-on">大家说-名称:</span>';
+				html +='<input  type="text"  name=\'say_title[]\' value="" />';
+				html +='</div>';
+				html +='<div class="input-prepend input-append">';	
+				html +='<span class="add-on">大家说-内容:</span>';
+				html +='<div class="item">';
+				html +='<div class="say_con" style="margin-left:30px;border:solid 1px #000;width:500px;height:300px" contenteditable></div>';
+				html +='</div>';								
+				html +='</div>';
+				html +='</div>';							
+				html +='</div>';					
+			html +='</div>';
+			num1 = parseFloat(m);	       	
+			num2 = parseFloat(1);
+			m = num1+num2;				
+		$('#say_item').append(html);
+	});			
+	
+	$('#say_item').on('click', '.say a.del-id-item', function(evt) {
+	    evt.preventDefault();
+	    $(this).parent().remove();
+	}); 
+		
+	//添加职位
+	var n = 1;
+	$('a#job_add').on('click', function(evt) {	
+		evt.preventDefault();
+		var html ='<div class="job">';
+				html +='<a href="#" class="close del-id-item">&times;</a>';
+				html += '<div style="border:1px dashed #808080">';
+				html += '<div class="row-fluid" style="margin:10px;">';
+				html += '<div class="input-prepend input-append">';
+				html += '<span class="add-on">展示排序:</span>';
+				html += '<input type="text"  name=\'job_sort[]\' value=""/>';
+				html += '</div>';			            				            			            
+				html += '<div class="input-prepend input-append">';
+				html += '<span class="add-on">职位名称:</span>';
+				html += '<input type="text"  name=\'job_name[]\' value="" />';				
+				html += '<span class="add-on" style="margin-left:8px;">职位类别:</span>';
+				html += '<input  type="text"  name=\'job_type[]\' value="" />';
+				html += '</div>';
+				html += '<div class="input-prepend input-append">';									
+				html += '<span class="add-on">招聘类型:</span>';
+				html += '<input  type="text"  name=\'job_status[]\' value="" />';				
+				html += '<span class="add-on" style="margin-left:8px;">工作性质:</span>';
+				html += '<input  type="text"  name=\'work_type[]\' value="" />';
+				html += '</div>';
+				html += '<div class="input-prepend input-append">';
+				html += '<span class="add-on">岗位职责:</span>';
+				html += '<div class="item">';				
+				html += '<div class="job_con" style="margin-left:30px;border:solid 1px #000;width:500px;min-height:300px" contenteditable></div>';
+				html += '</div>';							
+				html += '</div>';
+				html += '<div class="input-prepend input-append">';
+				html += '<span class="add-on">任职要求:</span>';
+				html += '<div class="item">';				
+				html += '<div class="recruit_text" style="margin-left:30px;border:solid 1px #000;width:500px;min-height:300px" contenteditable></div>';				
+				html += '</div>';							
+				html += '</div>';												
+				html += '</div>';					
+				html += '</div>';
+				html += '</div>';							
+		html +='</div>';
+		num1 = parseFloat(n);	       	
+		num2 = parseFloat(1);
+		n = num1+num2;
+		$('#job_item').append(html);
+		$(window).scroll(function(){
+			$('.datetimepicker').datetimepicker({
+	            language: 'zh-CN',
+	            pickTime: false
+	        }).attr('readonly', 'readonly');
+		}); 
+	});
+	$('#job_item').on('click', '.job a.del-id-item', function(evt) {
+	    evt.preventDefault();
+	    $(this).parent().remove();
+	});
+
+	//点击提交按钮
+    $("#btn_submit").click(function(){
+        var  title = $("#title").val();
+        if(title.length==0){
+            alert("请输入标题");
+            return false;
+        }
+        var tag = $("#tag").val();
+        if(tag.length==0){
+            alert("请输入标签");
+            return false;
+        }
+        var back_pic = document.getElementsByName("pic_hidden[]");
+        for(var i=0;i<5;i++){
+            if(back_pic[i].length == 0){
+                alert("请完善中部展示图片");
+                return false;
+            }
+        }
+        var back_pic_intro = document.getElementsByName("pic_intro[]");
+        for(var j=0;j<5;j++){
+            if(back_pic_intro[j].length == 0){
+                alert("请完善中部展示图片跳转链接");
+                return false;
+            }
+        }        
+        var pic_con_str;       
+		$(".pic_con").each(function(){
+			var pic_con = $(this).val();
+			if(pic_con.length ==0){
+				alert('请确定图片内容');
+				return false;
+			}else{
+				pic_con_str = pic_con_str +'&'+pic_con;
+			}
+					
+		});
+		document.getElementById("back_html").value = pic_con_str;			
+//        var say_sort = document.getElementsByName("say_sort[]");
+//        var logo_text = document.getElementsByName("logo_text[]");
+//        var say_title = document.getElementsByName("say_title[]");
+//        var say_html;
+//		$(".say_con").each(function(){
+//			var html = $(this).html();
+//			if(html.length ==0){
+//				alert("请完善大家说内容");
+//				return false;
+//			}else{
+//				say_html = say_html +'&'+html;
+//			}			
+//		}); 
+//		document.getElementById("say_html").value = say_html;
+//		   
+//      	var job_sort = document.getElementsByName("job_sort[]");
+//      	var job_name = document.getElementsByName("job_name[]");
+//      	var job_type = document.getElementsByName("job_type[]");
+//      	var job_status = document.getElementsByName("job_status[]"); 
+//      	var work_type = document.getElementsByName("work_type[]");
+//      	 
+//        var job_html;
+//		$(".job_con").each(function(){
+//			var job = $(this).html();
+//			if(job.length ==0){
+//				alert("请完善职位职责");
+//				return false;
+//			}else{
+//				job_html = job_html +'&'+job;
+//			}			
+//		}); 
+//		document.getElementById("job_work").value = job_html;
+//      	 
+//        var recruit_html;
+//		$(".recruit_text").each(function(){
+//			var recruit = $(this).html();
+//			if(recruit.length ==0){
+//				alert("请完善职位需求");
+//				return false;
+//			}else{
+//				recruit_html = recruit_html +'&'+recruit;
+//			}			
+//		}); 
+//		document.getElementById("recruit_con").value = recruit_html;
+      	
+	    addform.action="/market_manage/add_recruit/";
+	    addform.submit();
+      	
+    });
+});
+</script>
+<script type="text/javascript">
+//上多奖品图片
+function up_more_pic(j){
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	$.ajaxFileUpload({
+		 url:'/market_manage/upload_recruit_back_pic/'+j, //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:'pic_'+j,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $('#pic_hidden_'+j).val(data.pic);
+			 }else{
+				 alert("文件上传失败");
+				 return false;
+			 }
+		 },
+	})
+}
+function up_logo_pic(i){
+	
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	$.ajaxFileUpload({
+		 url:'/market_manage/upload_recruit_say_logo/'+i, //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:'logo_'+i,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $('#logo_text_'+i).val(data.pic);
+			 }else{
+				 alert("文件上传失败");
+				 return false;
+			 }
+		 },
+	})
+	
+}
+</script>
+<?php $this->load->view('ckad/footer')?>

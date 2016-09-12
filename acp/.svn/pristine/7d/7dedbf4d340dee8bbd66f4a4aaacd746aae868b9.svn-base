@@ -1,0 +1,29 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Sms extends Deamon_Controller {
+
+	/**补发发送失败的短信*/
+    public function temp($date) {
+        if ($date) {
+            $this->load->library('md_sms');
+            $sql = "SELECT * FROM `md_sms` WHERE `status` = 2 AND dealers=2 AND `send_time` LIKE '2015-12-29%'";
+            $res = $this->db->query($sql)->result_array();
+            $i = 0;
+            foreach ($res as $item) {
+                if ($item['tel']) {
+
+                    $r = md_sms::sms_mandao($item['tel'], $item['content']);
+                    if ($r && $item['id']) {
+                        $this->db->query("update `md_sms` set `status` = 1 WHERE id='{$item['id']}'");
+                        $i++;
+                    }
+                }
+            }
+            echo $i;
+        }
+    }
+
+}

@@ -1,0 +1,328 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Wds_cron extends CI_Controller {
+		
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $this->load->helper('url');
+        $this->load->helper('emoji');
+        $this->load->model('Common');
+        $this->load->library('md_weixin');
+        $this->load->library('md_weixin_api');
+        $this->load->model('Comment_model'); 
+        $this->load->model('Wds_m');
+    }
+
+    /**
+     * 提现防火墙
+     */
+    function wds_firewall(){
+        $sql = "SELECT * FROM `md_weidashang_withdraw` WHERE `if_withdraw`=1 AND `if_refund`=0 AND `if_show`=0";
+        $withdraw_mes = $this->db->query($sql)->result_array();
+        if(!empty($withdraw_mes)){
+            for($i=0;$i<count($withdraw_mes);$i++){
+                $pro_sql = "SELECT SUM(amount) as all_amount FROM `md_product_back` WHERE `wds_id`={$withdraw_mes[$i]['pro_id']} and `if_pay`=1";
+                $pro_mes = $this->db->query($pro_sql)->row_array();
+                $log_sql = "SELECT `use_amount` FROM `md_weidashang_withdraw_log` WHERE pro_id={$withdraw_mes[$i]['pro_id']}";
+                $log_mes = $this->db->query($log_sql)->row_array();
+                if(!empty($pro_mes) && !empty($log_mes)){
+                    if( $pro_mes['all_amount'] >= $log_mes['use_amount']){
+                        if($log_mes['use_amount'] >= $withdraw_mes[$i]['funcder_goal']){
+                            $updata_with = "UPDATE `md_weidashang_withdraw` SET `if_show`=1 WHERE `pro_id`={$withdraw_mes[$i]['pro_id']}";
+                            $this->db->query($updata_with);
+                        }else{
+                            if (!is_dir("/ROOT/log/php/wds")) {
+                                mkdir("/ROOT/log/php/wds" ,0755,true);
+                            }
+                            $error_data = $withdraw_mes[$i]['id'].'-'.$withdraw_mes[$i]['pro_id'].'-'.$withdraw_mes[$i]['funcder_goal'].'-'.$log_mes['use_amount'].'-'.$pro_mes['all_amount'];
+                            error_log(var_export($error_data, true), 3, "/ROOT/log/php/wds/withdraw_fire.log");
+                            continue;   
+//                            $del_with = "DELETE FROM `md_weidashang_withdraw` WHERE id={$withdraw_mes[$i]['id']}";
+//                            $this->db->query($del_with);
+//                            $updata_pro = "UPDATE `md_weidashang_product` SET `if_withdraw`=0 WHERE `pro_id`={$withdraw_mes[$i]['pro_id']}";
+//                            $this->db->query($updata_pro);
+                        }                      
+                    }else{
+                         continue;                 
+                    }
+                    echo "处理完成";
+                                 
+                }else{
+                    continue;
+                }
+
+            }            
+        }else{
+            echo "没有需要处理的提现";
+            return false;
+        }
+
+    }
+    
+    //微打赏处理需要退款的项目
+    public function set_wds_refund_wait() {
+        $time = date("Y-m-d H:i:s");
+        $pro_sql = "SELECT id, goal, all_amount,if_refund FROM md_weidashang_product
+                    WHERE end_time is not null AND unix_timestamp(end_time)!=unix_timestamp('0000-00-00 00:00:00')           
+                            AND start_time is not null AND unix_timestamp(start_time)!=unix_timestamp('0000-00-00 00:00:00')
+                            AND ctime is not null AND unix_timestamp(ctime)!=unix_timestamp('0000-00-00 00:00:00')
+                            AND if_show=1
+                            AND end_time <= '{$time}' AND if_withdraw=0 AND if_refund NOT IN (-2,2) ";
+        $pro_mes = $this->db->query($pro_sql)->result_array();   
+        foreach($pro_mes as $item){
+            if($item['all_amount'] == 0){
+                $updata_sql = "UPDATE `md_weidashang_product` SET `if_refund`=-2 WHERE id={$item['id']}";//无需退款项目，更新为-2
+                $this->db->query($updata_sql);
+            }else{
+                $bak_sql = "SELECT SUM(`amount`) AS total FROM md_product_back WHERE status=400 AND wds_id={$item['id']}";
+                $all_bak = $this->db->query($bak_sql)->row_array(); 
+                if(!empty($all_bak['total'])){
+                    if($all_bak['total'] == $item['all_amount']){
+                        $updata_sql = "UPDATE `md_weidashang_product` SET `if_refund`=2 WHERE id={$item['id']}";//退款全部订单成功
+                        $this->db->query($updata_sql);
+                    }elseif($all_bak['total'] < $item['all_amount']){
+                        $updata_sql = "UPDATE `md_weidashang_product` SET `if_refund`=-1 WHERE id={$item['id']}";//部分退款成功
+                        $this->db->query($updata_sql);
+                    }
+                }
+            }
+   
+        }
+        echo "处理完成";
+    }
+
+    /**
+     * 每隔一段时间
+     * 通过脚本维护完善每一个项目的总支持金额与参与人数
+     * 
+     */
+    public function wds_pro_back_deal(){
+        $sql = "SELECT id as wds_id FROM md_weidashang_product WHERE if_show=1 ";
+        $pro_mess = $this->db->query($sql)->result_array();
+        foreach($pro_mess as $key=>$val){
+            $wds_back_sql = "SELECT SUM(b.amount) AS new_all_amount,COUNT(DISTINCT(b.user_id)) AS new_avtive_nums FROM `md_product_back` b WHERE (b.if_pay=1  OR b.if_pay=3 ) AND b.wds_id={$val['wds_id']}";
+            $wds_back = $this->db->query($wds_back_sql)->row_array();  
+            if(empty($wds_back['new_all_amount'])){
+                $wds_back['new_all_amount'] = 0;
+            }
+            if(empty($wds_back['new_avtive_nums'])){
+                $wds_back['new_avtive_nums'] = 0;
+            }
+            $update_wds_sql = "UPDATE `md_weidashang_product` SET `all_amount`={$wds_back['new_all_amount']},`pay_count`={$wds_back['new_avtive_nums']} WHERE id={$val['wds_id']}";
+            $this->db->query($update_wds_sql);
+        }
+        $topic_sql = "SELECT id as wds_topic_id FROM md_weidashang_topic WHERE if_show=1 ";
+        $topic_mess = $this->db->query($topic_sql)->result_array();
+        foreach($topic_mess as $k=>$v){
+            $pro_mes_sql = "SELECT p.`id` as wds_id FROM `md_weidashang_map` m INNER JOIN `md_weidashang_product` p ON m.product_id=p.id WHERE m.`wds_topic_id`={$topic_mess[$k]['wds_topic_id']} AND p.if_show=1";
+            $pro_mes = $this->db->query($pro_mes_sql)->result_array();
+            $wds_id_str = $pro_mes[0]['wds_id'];
+            for($i=1;$i<count($pro_mes)-1;$i++){
+                $wds_id_str = $wds_id_str.','.$pro_mes[$i]['wds_id'];
+            }        
+            $topic_back_sql = "SELECT SUM(p.all_amount) AS new_all_amount ,SUM(p.pay_count) AS new_active_nums FROM `md_weidashang_product` p WHERE p.id IN ({$wds_id_str})";
+            $topic_back = $this->db->query($topic_back_sql)->row_array(); 
+            $update_topic = "UPDATE `md_weidashang_topic` SET `active_nums`={$topic_back['new_active_nums']},`all_amount`={$topic_back['new_all_amount']} WHERE id={$topic_mess[$k]['wds_topic_id']}";
+            $this->db->query($update_topic);
+        }
+        echo "DEAL OK";
+    }
+    
+    /**
+     * 处理活动以及活动中项目
+     */
+//    public function wds_topic_pro_deal() {
+//        $time = "2015-05-01 00:00:00";
+//        $sql = "SELECT `id`,`user_id`,`user_name`,`tag`,`end_time`,`topic`,`effect_time`,`effect_day`,`logo`,`intro`,`des`,`ctime`,`goal`,`pay_count`,`people_count`,`pro_share_title`,`pro_share_des` ";
+//        $sql .=" FROM `md_easyfund_topic` WHERE `type`=2 AND `if_show`=1 AND `kind`=0 AND `ctime`>'{$time}'";
+//        $topic_mess = $this->db->query($sql)->result_array();      
+//        foreach($topic_mess as $row){
+//            $topic_data = array();
+//            $unit_key = md5 ( $row['topic'] . '_' . $row['tag'] . '_' . $row['intro'] );
+//            $topic_data['user_id'] = $row['user_id'];
+//            $topic_data['user_name'] = $row['user_name'];
+//            $topic_data['topic'] = $row['topic'];
+//            $topic_data['effect_day'] = $row['effect_day'];
+//            $topic_data['tag'] = $row['tag'];
+//            $topic_data['logo'] = $row['logo'];
+//            $topic_data['intro'] = $row['intro'];
+//            $topic_data['des'] = $row['des'];
+//            $topic_data['if_show'] = 1;
+//            $topic_data['ctime'] = $row['ctime'];
+//            $topic_data['effect_time'] = $row['effect_time'];
+//            $topic_data['end_time'] = $row['end_time'];
+//            $topic_data['goal'] = $row['goal'];
+//            $topic_data['type'] = 0;
+//            $topic_data['unit_key'] = $unit_key;
+//            $topic_data['pro_share_title'] = $row['pro_share_title'];
+//            $topic_data['pro_share_des'] = $row['pro_share_des'];  
+//            $topic_data['all_amount'] = $row['pay_count']; 
+//            $topic_data['active_nums'] = $row['people_count'];
+//            $res = $this->db->insert('md_weidashang_topic', $topic_data);    	
+//            $res = $this->db->insert_id();          
+//            $sub_sql = "SELECT `id`,`user_id`, `name`, `start_time`, `end_time`, `short_title`, `logo`, `des`, `ctime`, `goal`, `if_withdraw`, `if_remit`, `if_refund`, `pay_count`,`topic_id`, `effect_day`";
+//            $sub_sql .=" FROM `md_easyfund` WHERE topic_id={$row['id']} AND `type`=2 AND `if_show`=1";
+//            $sub_mes = $this->db->query($sub_sql)->result_array();            
+//            foreach($sub_mes as $rows){
+//                $topic_subpro = array();
+//                $desc = mb_strimwidth($rows['des'], 0, 100, '...');
+//                $pic_str = unserialize($rows['logo']);
+//                $pro_tag = '微打赏,互动活动';
+//                $moxi_id = $this->Comment_model->add_thread($rows['user_id'], $rows['name'], $rows['des'], '', $pic_str, '', $pro_tag, '', TRUE);
+//                $topic_subpro['pro_type'] = 3;
+//                $topic_subpro['user_id'] = $rows['user_id'];
+//                $userinfo = $this->Wds_m->get_user_info($rows['user_id']);
+//                if(!empty($userinfo['mobile'])){
+//                    $topic_subpro['telephone'] = $userinfo['mobile'];
+//                }else{
+//                    $topic_subpro['telephone'] = 0;
+//                }
+//                $topic_subpro['name'] = trim($rows['name']);
+//                $topic_subpro['start_time'] = $rows['start_time'];
+//                $topic_subpro['end_time'] = $rows['end_time'];
+//                $topic_subpro['list_num'] = 0;
+//                $topic_subpro['type_id'] = 0;
+//                $topic_subpro['first_figure'] = $pic_str[0];
+//                $topic_subpro['pro_tag'] = $pro_tag;
+//                $topic_subpro['logo'] = $rows['logo'];
+//                if(!empty($userinfo['province'])){
+//                    $topic_subpro['province'] = $userinfo['province'];
+//                }else{
+//                    $topic_subpro['province'] = 0;
+//                }
+//                if(!empty($userinfo['city'])){
+//                    $topic_subpro['city'] = $userinfo['city'];
+//                }else{
+//                    $topic_subpro['city'] = 0;
+//                }
+//                $topic_subpro['if_show'] = 1;
+//                $topic_subpro['ctime'] = $rows['ctime'];
+//                $topic_subpro['des'] = $desc;
+//                $topic_subpro['content'] = htmlspecialchars($rows['des'], ENT_QUOTES);
+//                $topic_subpro['duration'] = trim($rows['effect_day']);
+//                $topic_subpro['goal'] = trim($rows['goal']);
+//                $topic_subpro['moxi_post_id'] = $moxi_id;
+//                $sub_pro_sql = "SELECT SUM(amount) as total FROM md_easyfund_back WHERE ez_id={$rows['id']} AND `if_pay`=1 AND `status`=103";
+//                $sub_promes = $this->db->query($sub_pro_sql)->row_array();
+//                if(!empty($sub_promes)){
+//                    $topic_subpro['all_amount'] = trim($sub_promes['total']);
+//                }else{
+//                    $topic_subpro['all_amount'] = 0;
+//                }                
+//                $topic_subpro['pay_count'] = trim($rows['pay_count']);
+//                $sub_com_sql = "SELECT COUNT(`id`) as comment_count FROM md_easyfund_comments WHERE pro_id={$rows['id']} AND if_show=1 AND type=0";
+//                $sub_commes = $this->db->query($sub_com_sql)->row_array();
+//                $topic_subpro['comment_count'] = trim($sub_commes['comment_count'] + $rows['pay_count']);
+//                $topic_subpro['if_withdraw'] = $rows['if_withdraw'];
+//                $topic_subpro['if_remit'] = $rows['if_remit'];
+//                $topic_subpro['if_refund'] = $rows['if_refund'];
+//                $new_diandian_sub = $this->Wds_m->inner_new_diandian_sub($topic_subpro);
+//                $map_data = array(
+//                    'wds_topic_id' => $res,
+//                    'product_id' => $new_diandian_sub,
+//                    'ctime' => $rows['ctime'],
+//                    'if_show' => '1'
+//                );
+//                $new_diandian_map = $this->Wds_m->inner_new_diandian_map($map_data);
+//            }
+//                    
+//        }
+//        echo "活动及活动中项目导入完成";
+//        return true;
+//    }
+    
+    /**
+     * 独立项目导入
+     */
+//    public function wds_sub_pro_deal(){
+//        $time = "2015-05-01 00:00:00";
+//        $sql = "SELECT `id`,`user_id`,`user_name`,`tag`,`end_time`,`topic`,`effect_time`,`effect_day`,`logo`,`intro`,`des`,`ctime`,`goal`,`pay_count`,`people_count`,`pro_share_title`,`pro_share_des` ";
+//        $sql .=" FROM `md_easyfund_topic` WHERE `type`=2 AND `if_show`=1 AND `kind`=1 AND `ctime`>'{$time}'";
+//        $pro_mess_1 = $this->db->query($sql)->result_array();       
+//        foreach ($pro_mess_1 as $row) {
+//            $pro_data_1 = array();
+//            $sub_sql = "SELECT `id`,`user_id`, `name`, `start_time`, `end_time`, `short_title`, `logo`, `des`, `ctime`, `goal`, `if_withdraw`, `if_remit`, `if_refund`, `pay_count`,`topic_id`, `effect_day`";
+//            $sub_sql .=" FROM `md_easyfund` WHERE topic_id={$row['id']} AND `type`=2 AND `if_show`=1";
+//            $pro_mess_2 = $this->db->query($sub_sql)->row_array();
+//            if(mb_strlen($pro_mess_2['des'],'utf-8') < 12){
+//                $pro_mess_2['des'] = $pro_mess_2['des']."-微打赏-摩点众筹";
+//            }
+//            $desc = mb_strimwidth($pro_mess_2['des'], 0, 100, '...');
+//            $pic_str = unserialize($pro_mess_2['logo']);
+//            $pro_tag = '微打赏';       
+//            $pro_data_1['pro_type'] = 3;
+//            $pro_data_1['user_id'] = $pro_mess_2['user_id'];
+//            $userinfo = $this->Wds_m->get_user_info($pro_mess_2['user_id']);
+//            if (!empty($userinfo['mobile'])) {
+//                $pro_data_1['telephone'] = $userinfo['mobile'];
+//            } else {
+//                $pro_data_1['telephone'] = 0;
+//            }
+//            $pro_data_1['name'] = $pro_mess_2['name'];
+//            $pro_data_1['start_time'] = $pro_mess_2['start_time'];
+//            $pro_data_1['end_time'] = $pro_mess_2['end_time'];
+//            $pro_data_1['list_num'] = 0;
+//            $pro_data_1['type_id'] = -1;
+//            $pro_data_1['first_figure'] = $pic_str[0];
+//            $pro_data_1['pro_tag'] = $pro_tag;
+//            $pro_data_1['logo'] = $pro_mess_2['logo'];
+//            if (!empty($userinfo['province'])) {
+//                $pro_data_1['province'] = $userinfo['province'];
+//            } else {
+//                $pro_data_1['province'] = 0;
+//            }
+//            if (!empty($userinfo['city'])) {
+//                $pro_data_1['city'] = $userinfo['city'];
+//            } else {
+//                $pro_data_1['city'] = 0;
+//            }
+//            $pro_data_1['if_show'] = 1;
+//            $pro_data_1['ctime'] = $pro_mess_2['ctime'];
+//            $pro_data_1['des'] = $desc;
+//            $pro_data_1['duration'] = $pro_mess_2['effect_day'];
+//            $pro_data_1['goal'] = $pro_mess_2['goal'];
+//            $pro_data_1['pro_type'] = 3;
+//            $pro_data_1['content'] = htmlspecialchars($pro_mess_2['des'], ENT_QUOTES);           
+//            $sub_pro_sql = "SELECT SUM(amount) as total FROM md_easyfund_back WHERE ez_id={$pro_mess_2['id']} AND `if_pay`=1 AND `status`=103";
+//            $sub_promes = $this->db->query($sub_pro_sql)->row_array();
+//            if (!empty($sub_promes)) {
+//                $pro_data_1['all_amount'] = trim($sub_promes['total']);
+//            } else {
+//                $pro_data_1['all_amount'] = 0;
+//            }
+//            $pro_data_1['pay_count'] = $pro_mess_2['pay_count'];
+//            $sub_com_sql = "SELECT COUNT(`id`) as comment_count FROM md_easyfund_comments WHERE pro_id={$pro_mess_2['id']} AND if_show=1 AND type=0";
+//            $sub_commes = $this->db->query($sub_com_sql)->row_array();
+//            $pro_data_1['comment_count'] = trim($sub_commes['comment_count'] + $pro_mess_2['pay_count']);
+//            $pro_data_1['if_withdraw'] = $pro_mess_2['if_withdraw'];
+//            $pro_data_1['if_remit'] = $pro_mess_2['if_remit'];
+//            $pro_data_1['if_refund'] = $pro_mess_2['if_refund'];
+//            try {
+//                $moxi_id = $this->Comment_model->add_thread($pro_mess_2['user_id'], $pro_mess_2['name'], $pro_mess_2['des'], '', $pic_str, '', $pro_tag, '', TRUE);
+//                if (!empty($moxi_id)) {
+//                    $pro_data_1['moxi_post_id'] = $moxi_id;
+//                    $new_diandian_sub = $this->Wds_m->inner_new_diandian_sub($pro_data_1);
+//                } else {
+//                    
+//                    if (!is_dir("/ROOT/log/php/wds")) {
+//                        mkdir("/ROOT/log/php/wds", 0755, true);
+//                    }
+//                    error_log(var_export($pro_mess_2['id'], true), 3, "/ROOT/log/php/wds/wds_sub_pro_deal.log");
+//                    continue;
+//                }
+//            } catch (Exception $ex) {
+//                $errmsg = $ex->getMessage();
+//                if (!is_dir("/ROOT/log/php/wds")) {
+//                    mkdir("/ROOT/log/php/wds", 0755, true);
+//                }
+//                $error_data = $pro_mess_2['id'].'-'.$errmsg;
+//                error_log(var_export($error_data, true), 3, "/ROOT/log/php/wds/wds_sub_pro_deal.log");
+//                continue;
+//            }
+//        }
+//        echo "独立项目导入完成";
+//    }
+}

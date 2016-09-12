@@ -1,0 +1,344 @@
+<?php $this->load->view('ckad/header') ?>
+<link id="bs-css" href="<?= static_url(); ?>css/bootstrap-cerulean.css" rel="stylesheet">
+<link rel="stylesheet" href="<?= static_url(); ?>project_create_20160512/css/account.css">
+<style>
+h2{
+	margin-bottom: 15px;
+}
+input[type=radio]{
+	width: 20px;
+}
+ol, ul, li {
+    list-style: none;
+}
+.sub_radio_field{
+    padding: 10px;
+    background: #ccc;
+}
+.sub_radio span{
+	padding-right: 10px;
+}
+tr{
+	height: 50px;
+}
+th{
+    width: 80px;
+    text-align: left;
+}
+.jiesuan_table ul li,.jiesuan_table ul li.table_lifl{
+	width: 88px;
+	height: auto;
+	padding: 0;
+	text-align: center;
+}
+.jiesuan_table ul{
+	width: 880px;
+}
+.jiesuan_table ul li{
+    border-right: 1px solid #ccc;
+    color: #223318;
+}
+.jiesuan_table ul li.xuhao{
+	width: 79.2px;
+}
+.jiesuan_table ul li.project_name,.jiesuan_table ul li.project_operation{
+	width: 220px;
+}
+.svalidate{
+	color: red;
+	display: none;
+}
+.hidinput{
+	display: none;
+}
+</style>
+<div>
+	<ul class="breadcrumb">
+	    <li>项目结算管理</li>
+	</ul>
+</div>
+<div class="control-group">
+	<label class="radio inline"><input type="radio" name="project_select" value="2" onclick="select_project2()">结算记录</label>
+    <label class="radio inline"><input type="radio" name="project_select" value="1" checked="checked" onclick="select_project1()">待结算</label>
+</div>
+<div class="project_info">
+	<h2>填写项目信息</h2>
+    <form action="" method="post">
+        <table>
+            <tr>
+                <th>选择项目</th>
+                <td>
+                    <select id="project_id" name="pro_id" class="form-control input-sm">
+                        <?php foreach($projects AS $project):?>
+                        <option pro_name="<?= $project['name']; ?>" name="" value="<?= $project['pro_id']; ?>"><?= $project['pro_id']; ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </td>
+                <td class="svalidate">*请选择结算项目</td>
+            </tr>
+            <tr>
+                <th>筹款总金额</th>
+                <td><input id="total_money" type="text" name="total" value=""></td>
+                <td class="svalidate">*请输入筹款总金额</td>
+            </tr>
+            <tr>
+                <th>结算方式</th>
+                <td>
+                    <input type="radio" name="type" value="0"><span class="quankuan">全款</span>
+                    <input type="radio" name="type" value="1"><span class="ftt">532方式</span>
+                    <input type="radio" name="type" value="2"><span class="ff">55方式</span>
+                </td>
+                <td class="svalidate">*请选择结算方式</td>
+                <td class="hidinput"><input type="text" name="total_type" id="total_type"></td>
+            </tr>
+            <tr style="display: none">
+            		<th></th>
+                <td class="sub_radio_field">
+                    <div class="sub_radio">
+
+                    </div>
+                </td>
+                <td class="svalidate">*请选择具体结算比例</td>
+                <td class="hidinput"><input type="text" name="sub_type" id="sub_type"></td>
+            </tr>
+            <tr>
+                <th>需退款金额</th>
+                <td><input type="text" name="refund" value="" id="refund"></td>
+                <td class="svalidate">*请输入退款金额</td>
+            </tr>
+        </table>
+        <span id="preview" class="btn btn-primary">预览</span>
+        <button class="btn btn-primary">生成结算单</button>
+        <button class="btn btn-primary">发送给CP</button>
+    </form>
+</div>
+
+    <div class="account_table" style="display: none;position: relative;">
+    		<a href="#" onclick="return false" class="dialog-close"></a>
+        <ul class="acc_table_tr project_id">
+            <li>项目ID</li>
+            <li>1421</li>
+        </ul>
+        <ul class="acc_table_tr project_name">
+            <li>项目名称</li>
+            <li>国产原创百合向avg游戏《寻▪诺》——众筹预售开启</li>
+        </ul>
+        <h3 class="divi_line"></h3>
+
+        <div class="table_content" style="width: 880px">
+            结算信息<span class="acc_gcolor total_type">(全款)</span>
+            <ul>
+                <li class="table_lifl">筹款总金额<span class="acc_gcolor">a</span></li>
+                <li class="total_money">¥1,000,000</li>
+                <li class="table_lifl">第三方平台费率金额<span class="acc_gcolor">b=a*1%</span></li>
+                <li class="lvtotal_money">¥10,000</li>
+                <li class="table_lifl">结款比例<span class="acc_gcolor">c</span></li>
+                <li class="jiesuan_bili">100%</li>
+                <li class="table_lifl">项目成功后退款金额<span class="acc_gcolor">d</span></li>
+                <li class="refund">¥0</li>
+                <li class="table_lifl table_lihei acc_no_border">申请结算金额<span class="acc_gcolor">e=(a-b)*c-d</span></li>
+                <li>小写：¥5690.41</li>
+                <li class="acc_no_border">大写：伍仟陆佰玖拾元肆角壹分</li>
+            </ul>
+        </div>
+    </div>
+<div class="jiesuan_record">
+	<form action="" method="post">
+	<table>
+	    <tr>
+	        <th>选择项目</th>
+	        <td>
+	            <select id="jiesuan_id" name="pro_id" class="form-control input-sm">
+	                <option>222</option>
+	                <option>333</option>
+	                <option>444</option>
+	                <option>555</option>
+	            </select>
+	        </td>
+	        <td style="width: 180px;text-align: center;">
+	        	<span class="btn btn-primary">查询</span>
+	        	</td>
+	        	<td style="width: 180px;text-align: left;">
+	        	<span class="btn btn-primary">导出excel</span>
+	        	</td>
+	    </tr>
+   </table>
+   <div class="table_content jiesuan_table" style="width: 880px">
+   <ul style="margin: 0;float: left;">
+	    <li class="table_lifl xuhao">序号</li>
+	    <li class="table_lifl project_name">项目名</li>
+	    <li class="table_lifl">结款属性</li>
+	    <li class="table_lifl">结款项</li>
+	    <li class="table_lifl">结款进度</li>
+	    <li class="table_lifl project_operation">操作记录</li>
+	    <li class="table_lifl">操作</li>
+	    <li class="xuhao">1</li>
+	    <li class="project_name">hehehehehehehhe</li>
+	    <li>全款</li>
+	    <li>110</li>
+	    <li>待cp确认</li>
+	    <li class="project_operation">制作清算蛋 2015-01-01 01:01</li>
+	    <li>－－</li>
+	</ul>
+	</div>
+   </form>
+</div>
+
+<script type="text/javascript">
+    $(function(){
+        $('.jiesuan_record').hide();
+
+        $('.form-control').change(function(){
+            alert(312);
+        })
+		$('.dialog-close').click(function(){
+			$(this).parent().hide();
+		});
+        $('#preview').click(function(){
+        		$('.account_table').hide();
+    			//需要传入的变量
+    			//项目id
+    			var project_id = $('#project_id').val();
+    			if(project_id){
+				$('#project_id').parent().siblings('.svalidate').hide();
+    				var total_money = $('#total_money').val();
+    				if(total_money){
+    					$('#total_money').parent().siblings('.svalidate').hide();
+	    				//结算方式 
+    					var total_type = $('input[name="total_type"]').attr('type_name');
+    					if(total_type){
+    						$('#total_type').parent().siblings('.svalidate').hide();
+    						//结款比例 
+			    			var jiesuan_bili;
+			    			if(total_type == '全款'){
+			    				jiesuan_bili = '100%'
+			    			}else{
+			    				jiesuan_bili = $('input[name="sub_type"]').attr('sub_type');
+			    			}
+			    			if(jiesuan_bili){
+			    				$('#sub_type').parent().siblings('.svalidate').hide();
+			    				var refund = $('#refund').val();
+			    				if(refund){
+			    					$('#refund').parent().siblings('.svalidate').hide();
+			    					//插入数据
+			    					var project_name;
+								$('#project_id').find('option').each(function(){
+									var op = $(this);
+									if(op.attr('value') == project_id){
+										project_name = op.attr('pro_name');
+									}
+								});
+								//数字的0.1
+								var lvtotal_money = parseInt(total_money.replace(/,/g,''))*0.1;
+								//字符格式
+								console.log(lvtotal_money);
+								console.log('zhijie'+toThousands(lvtotal_money));
+								var slvtotal_money = lvtotal_money.toString();
+								var abx_num = slvtotal_money.substring(slvtotal_money.indexOf('.'),slvtotal_money.length);
+								console.log(abx_num);
+  								var ab_num = slvtotal_money.substring(0,slvtotal_money.indexOf('.'));
+								var abs_num = toThousands(parseInt(ab_num));
+								var endltotal_money = abs_num.toString()+abx_num;
+								console.log(endltotal_money);
+								$('.refund').html('¥'+toThousands(refund));
+								$('.total_money').html('¥'+toThousands(total_money));
+								$('.lvtotal_money').html('¥'+toThousands(lvtotal_money));
+    					    			$('.project_id li:last-child').html(project_id);
+					    			$('.project_name li:last-child').html(project_name);
+					    			$('.total_type').html('('+total_type+')');
+					    			$('.jiesuan_bili').html(jiesuan_bili);
+					            $('.account_table').show();
+			    				}else{
+			    					$('#refund').parent().siblings('.svalidate').show();
+			    				}
+			    			}else{
+			    				$('#sub_type').parent().siblings('.svalidate').show();
+			    			}
+    					}else{
+    						$('#total_type').parent().siblings('.svalidate').show();
+    					}
+    				}else{
+    					$('#total_money').parent().siblings('.svalidate').show();
+    				}
+    			}else{
+    				$('#project_id').parent().siblings('.svalidate').show();
+    			}
+        });
+        $("input[name='type']").click(function(){
+        		var totaltype  = $(this);
+            var type = $(this).val();
+            switch(type){
+                case '0':
+                    html = '';
+                    $('.sub_radio_field').parent().hide();
+                    totaltype.parent().siblings('.hidinput').find('input').attr('type_name',totaltype.siblings('.quankuan').text());
+                    break;
+                case '1':
+                    html = '<span>本次结算</span>';
+                    html += '<input type="radio" name="sub_radio" data_name = "5"><span class="five">50%</span>';
+                    html += '<input type="radio" name="sub_radio" data_name = "3"><span class="three">30%</span>';
+                    html += '<input type="radio" name="sub_radio" data_name = "2"><span class="two">20%</span>';
+                    $('.sub_radio').empty();
+                    $('.sub_radio').append(html);
+                    $('.sub_radio_field').parent().show();
+                    totaltype.parent().siblings('.hidinput').find('input').attr('type_name',totaltype.siblings('.ftt').text());
+                    break;
+                case '2':
+                    html = '<span>本次结算</span>';
+                    html += '<input type="radio" name="sub_radio" value="" data_name = "5"><span class="five">50%</span>';
+                    html += '<input type="radio" name="sub_radio" value="" data_name = "5"><span class="five">50%</span>';
+                    $('.sub_radio').empty();
+                    $('.sub_radio').append(html);
+                    $('.sub_radio_field').parent().show();
+                    totaltype.parent().siblings('.hidinput').find('input').attr('type_name',totaltype.siblings('.ff').text());
+                    break;
+            }
+        })
+        $('.sub_radio').on('click','input[name="sub_radio"]',function(){
+        		var totaltype  = $(this);
+            var type = $(this).attr('data_name');
+            switch(type){
+                case '5':
+                		totaltype.parent().parent().siblings('.hidinput').find('input').attr('sub_type',totaltype.siblings('.five').text());
+                    break;
+                case '3':
+                		totaltype.parent().parent().siblings('.hidinput').find('input').attr('sub_type',totaltype.siblings('.three').text());
+                    break;
+                case '2':
+                		totaltype.parent().parent().siblings('.hidinput').find('input').attr('sub_type',totaltype.siblings('.two').text());
+                    break;
+            }
+        });
+    })
+function select_project2(){
+	$('.account_table').hide();
+	$('.project_info').hide();
+	$('.jiesuan_record').show();
+}
+function select_project1(){
+	$('.project_info').show();
+	$('.jiesuan_record').hide();
+}
+//千分符的格式化方法
+   	function toThousands(num) {
+		return (num || 0).toString().replace(/(\d)(?=(?:\d{3})+$)/g, '$1,');
+	}
+//js金额转换大写
+var DX = function (num) {
+      if(typeof num != 'number'){
+          alert('xx');
+      }
+      var strOutput = "";
+      var strUnit = '仟佰拾亿仟佰拾万仟佰拾元角分';
+      num += "00";
+      var intPos = num.indexOf('.');
+      if (intPos >= 0)
+        num = num.substring(0, intPos) + num.substr(intPos + 1, 2);
+      strUnit = strUnit.substr(strUnit.length - num.length);
+      for (var i=0; i < num.length; i++)
+        strOutput += '零壹贰叁肆伍陆柒捌玖'.substr(num.substr(i,1),1) + strUnit.substr(i,1);
+        return strOutput.replace(/零角零分$/, '整').replace(/零[仟佰拾]/g, '零').replace(/零{2,}/g, '零').replace(/零([亿|万])/g, '$1').replace(/零+元/, '元').replace(/亿零{0,3}万/, '亿').replace(/^元/, "零元");
+    };
+</script>
+
+<?php $this->load->view('ckad/footer')?>

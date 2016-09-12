@@ -1,0 +1,33 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:wb=“http://open.weibo.com/wb”>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <title>摩点众筹</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="keywords" content="摩点众筹" />
+            <meta name="description" content="摩点众筹" />
+            <link rel="shortcut icon" href="/static/img/favicon.ico" /> <!--64*64-->
+            <link rel="icon" href="/static/img/favicon.ico" />
+            <link type="text/css" rel="stylesheet" href="/static/css/style.css" />
+            <style type="text/css">
+                /* 404 page */
+                .nofound {background:#00c7ff;min-height:896px;min-width:1000px;padding-top:240px;color:#fff;font-size:34px}
+                .link {display:inline-block; vertical-align:middle;font-size:24px;color:#fff;background:#FFC700;width:140px;height:40px;text-align:center;line-height:40px;}
+                .link:hover {background:#FFCA5F}
+                .link:active {background:#DFAD00}
+            </style>
+    </head>
+    <body>
+
+        <div class="nofound">
+            <p style="text-align:center"><img style="vertical-align:text-bottom" src="/static/img/404.png" width="140" height="140" alt="出错了-404" /></p>
+            <p style="font-size:50px;color:#ffc700;text-align:center;padding:30px 0 60px">出错了！</p>
+            <p style="text-align:center">不好意思，摩点开了个小差...</p>
+            <p style="text-align:center;padding:40px 0">您可以</p>
+            <p style="text-align:center"><a href="javascript:void(0)" onclick="history.go(-1)" class="link">返回上一页</a></p>
+            <p style="text-align:center;padding:40px 0">或者</p>
+            <p style="text-align:center"><a href="/" class="link">返回首页</a></p>
+        </div>
+
+    </body>
+</html>

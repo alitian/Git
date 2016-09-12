@@ -1,0 +1,116 @@
+<?php
+    require_once('vendor/autoload.php');
+    set_time_limit(0);
+    date_default_timezone_set('Asia/Shanghai');
+    $start_time=1428940800;
+    $end_time=1453910400;
+    try{	
+       $pdo=new PDO('mysql:host=tw1.db.modianinc.com;dbname=app_modian;port=16888;charset=utf8;','devroot','7Q5oO9J8kz');
+    }catch(Exception $e){
+       echo $e->getMessage();
+    }
+    $client = Elasticsearch\ClientBuilder::create()->build();
+    $arr=array();
+    $data=array();
+    for($i=$start_time;$i<$end_time;$i+=86400){
+        $param2 = [
+            "search_type" => "count", 
+            "index" => "*",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "filter" => [
+                            "range" => [
+                                "@timestamp" => [
+                                    "gte" => $i*1000,
+                                    "lt" => ($i+86400)*1000
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "aggs" => [
+                    "uv" => [
+                        "cardinality" => [
+                            "field" => "mdsa",
+                            "precision_threshold" => 40000
+                        ]
+                    ]
+                ]
+            ]
+        ];
+        $result2 = $client->search($param2);
+        $arr['pv']= $result2['hits']['total'];
+        $arr['uv']= $result2['aggregations']['uv']['value'];
+        if($arr['pv']==0 || $arr['uv']==0){
+            $arr['p/u']=0;
+        }else{
+            $arr['p/u']="".round($arr['pv']/$arr['uv'],2);
+        }
+        unset($param2);unset($result2);
+        $param3 = [
+            "search_type" => "count", 
+            "index" => "*",
+            "body" => [
+                "query" => [
+                    "filtered" => [
+                        "query" => [
+                            "bool" => [
+                                "must_not" => [
+                                    "term" => [
+                                        "mdsb" => 0
+                                    ]
+                                ]
+                            ]
+                        ],
+                        "filter" => [
+                            "range" => [
+                                "@timestamp" => [
+                                    "gte" => $i*1000,
+                                    "lt" => ($i+86400)*1000
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                "aggs" => [
+                    "uv" => [
+                        "cardinality" => [
+                            "field" => "mdsb",
+                            "precision_threshold" => 40000
+                        ]
+                    ]
+                ]
+            ]
+        ];
+        $result3=$client->search($param3);
+        $arr['login_user']=$result3['aggregations']['uv']['value'];
+        unset($param3);unset($result3);
+        $reslut1=$pdo->query("select count(*) as new_user from md_users where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' and `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00'");
+        $reslut=$reslut1->fetch();
+        $arr['new_user']=$reslut['new_user'];
+        $reslut2=$pdo->query("select count(*) as form,sum(amount) as money from md_product_back where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' and `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' and `if_pay` = 1");
+        $reslut=$reslut2->fetch();
+        $arr['form']=$reslut['form'];
+        $arr['money']=$reslut['money'];
+        if(empty($arr['money'])){
+            $arr['money']=0;
+        }
+        $arr['ios_new']=0;
+        $arr['ios_old']=0;
+        $arr['andriod_new']=0;
+        $arr['andriod_old']=0;
+        $str=date('Y-m-d',$i);
+        $sql="insert into `md_web_data`(`ctime`,`pv`,`uv`,`p/u`,`login_user`,`new_user`,`form`,`money`) values('{$str}',{$arr['pv']},{$arr['uv']},{$arr['p/u']},{$arr['login_user']},{$arr['new_user']},{$arr['form']},{$arr['money']})";
+        $pdo->query($sql);
+        $str=str_replace("-","",$str);
+        $num=intval($str);
+        $data[$num]=$arr;
+    }
+    $strr=serialize($data);
+    $redis=new Redis();
+    $redis->connect('127.0.0.1','6379');
+    $out=$redis->set("web_data",$strr);
+    if($out==1){
+        echo "数据存入成功！！！！";
+    }

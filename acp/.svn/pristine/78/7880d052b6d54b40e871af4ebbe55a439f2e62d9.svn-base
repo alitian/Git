@@ -1,0 +1,31 @@
+<div id="module-coo-partner" class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">合作伙伴</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="5">
+  </div>
+  <p></p>
+  <div class="module-detail">
+  <table class="table table-bordered table-hover table-condensed">
+    <thead>
+      <tr>
+        <th><a href="#add-coo-partner-modal" role="button" data-toggle="modal">新增</a></th>
+      </tr>
+      <tr>
+        <th>排序权重</th>
+        <th>网址链接</th>
+        <th>图片</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($SSM_5['coo_partner_list'] as $row): ?>
+      <tr data-cpid='<?=$row['coo_partner_id']?>' data-row='<?=json_encode($row)?>'>
+        <td><a href="#"><?=$row['weight']?></a></td>
+        <td><?=$row['site']?></td>
+        <td><?=$row['pic']?></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+</div>

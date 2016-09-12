@@ -1,0 +1,50 @@
+            <div class="control-group">	
+				项目ID:<input type="text" id="pro_id" name="pro_id" value="">
+				项目名称:<input type="text" id="pro_name" name="pro_name" value="" readonly>
+				标签名称:<input type="text" id="single_pro_tag" name="single_pro_tag" value="" placeholder="多个标签以英文逗号分隔">
+			</div>
+			
+			<div class="control-group">	
+				回报内容:
+				<table id="rewards_tab">
+					<!--  <thead>
+						<tr>
+							<th  width="150" align="center">子回报排序</th>
+							<th  width="150" align="center">回报ID</th>
+							<th  width="300" align="center">回报内容</th>
+							<th  width="30" align="center">操作</th>
+			            </tr>
+					</thead>
+					 --> 
+				</table>
+				
+			</div>
+			
+			<input type="hidden" id="hidden_num" name="hidden_num" value="">
+			
+			<div class="control-group">
+				<input class="btn btn-primary" type="button" id="rewards_add_btn" name="rewards_add_btn" value="子回报添加"/>
+				<input class="btn btn-primary" type="button" id="rewards_confirm_btn" name="rewards_confirm_btn" value="确认"/>
+				<input class="btn btn-primary" type="button" id="rewards_cancel_btn" name="rewards_cancel_btn" value="取消"/>
+			</div>
+             
+			
+			<div class="control-group">	
+				邮件标题:<input type="text" id="single_email_title" name="single_email_title" value="">
+			</div>
+			<div class="control-group">
+				项目简介:<textarea  id="single_email_des" name="single_email_des" rows="3" cols="120"></textarea>
+			</div>
+			<div class="control-group">
+				邮件内容:<textarea  id="single_email_content" name="single_email_content" rows="3" cols="120">《XXX》正式登陆摩点网众筹，优先体验优质项目，帮助他人实现梦想！抢先一步，摩登一点，就来摩点网！ 赶快加入吧！</textarea>
+				<span>提示:《XXX》为替换标签，不可删除、更改</span>
+			</div>
+			
+			<div class="control-group">
+				<input class="btn btn-primary" type="button" id="single_save_btn" name="single_save_btn" value="保存"/>
+				<input class="btn btn-primary" type="button" id="single_review_btn" name="single_review_btn" value="预览"/>
+				<input class="btn btn-primary" type="button" id="single_send_btn" name="single_send_btn" value="确认发送"/>
+				<input class="btn btn-primary" type="button" id="single_cancel_btn" name="single_cancel_btn" value="取消"/>
+				<input class="btn btn-primary" type="button" id="single_return_btn" name="single_return_btn" value="返回"/>
+			</div>
+			

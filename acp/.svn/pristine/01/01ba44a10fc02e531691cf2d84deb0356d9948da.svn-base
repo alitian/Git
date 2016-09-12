@@ -1,0 +1,496 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<div>
+			<h1>	
+				帖子推荐
+			</h1>
+		</div>
+		<hr>
+		<div class="alert alert-warning" role="alert">每次编辑tag和内容后，手动刷新查看效果</div>
+		<div>
+			<div>
+				<form name="filter" action="<?php echo $site_url . 'bbs_post/postlist'; ?>" method="post" class="form-inline">
+					<span>
+						<select name="tag_id" id="tag_filter" class="form-control input-sm">
+							<option value="0">所有标签</option>		
+							<?php
+								foreach($toptag_list as $toptag)
+								{
+									echo "<option value=".$toptag['tag_id'].">".$toptag['tag_name']."</option>";
+								}
+							?>
+						</select>
+					</span>
+					<span>
+						<select name="type" id="type_filter" class="form-control input-sm">
+							<option value="all">全部帖子</option>		
+							<option value="digest">精华帖子</option>		
+							<option value="stick">置顶帖子</option>		
+						</select>
+					</span>
+					<span>
+						<select name="time" id="time_sort" class="form-control input-sm">
+							<option value="0">按时间</option>		
+							<option value="1">按时间倒序</option>		
+							<option value="2">按时间正序</option>		
+						</select>
+					</span>
+					<p> </p>
+					<span>
+						<input type="text" name="nickname" id="nickname" placeholder="请输入用户昵称">
+					</span>
+					<span>
+						<input type="text" name="post_id" id="post_id" placeholder="请输入帖子ID">
+					</span>
+					<input type="hidden" value="1" name="submit">
+					<span>
+						<input type="submit" value="查询" class="btn btn-primary btn-sm">
+					</span>
+				</form>
+			</div>
+			<div>
+				<table class="table table-bordered">
+					<tr>
+						<th width="5%">序号</th>
+						<th width="15%">发帖人</th>
+						<th width="30%">帖子标题</th>
+						<th width="15%">发帖时间</th>
+						<th>标签</th>
+						<th width="15%">操作</th>
+					</tr>
+			<?php
+				foreach($post_list as $post)
+				{
+					echo "
+					<tr>
+						<td name='{$post['sequence']}'>{$post['sequence']}</td>
+						<td>{$post['author']}</td>";
+			?>
+
+						<td><a style='cursor:pointer;' class='view_post' url='<?php echo "{$site_url}bbs_view/post/{$post['post_id']}"; ?>'><?php echo "{$post['subject']}"; ?><?php if($post['pic_url']) echo "<span style='color:red;'>（图）<span>"; ?></a></td>
+			<?php
+					echo "
+						<td>{$post['time']}</td>
+						<td>{$post['tags']}</td>
+						<td>
+							<p class='text-center'><a url='{$site_url}bbs_post/stick_post/{$post['post_id']}/stick' class='stick' style='cursor:pointer'>置顶</a></p>
+					";
+			?>
+			<?php
+					if($post['isstick']) echo "<p class='text-center'><a url='{$site_url}bbs_post/stick_post/{$post['post_id']}/nostick' class='stick' style='cursor:pointer'>取消置顶</a></p>";
+					echo "
+							<p class='text-center'><a url='{$site_url}bbs_post/digest_post' post_id='{$post['post_id']}' type='{$post['digest_type']}' class='digest' style='cursor:pointer;'>{$post['digest_text']}</a></p>
+						";
+					if($post['isrecommend']){
+						echo "<p class='text-center'>已推荐</p>";
+					}else{
+						echo "<p class='text-center'><a url='{$site_url}bbs_post/recommend_post' class='recommend' post_id='{$post['post_id']}' style='cursor:pointer;'>加推荐</a></p>";
+					}
+							echo "
+							<p class='text-center'><a style='cursor:pointer;' url='{$site_url}bbs_post/edit_post/{$post['post_id']}' hash='{$post['sequence']}' class='edit_post'>编辑标题和内容</a></p>
+							<p class='text-center'><a style='cursor:pointer' url='{$site_url}bbs_post/edit_tags/{$post['post_id']}' hash='{$post['sequence']}' class='edit_tags'>编辑标签</a></p>
+						</td>
+					</tr>
+					";
+				}
+			?>
+				</table>
+			</div>
+		</div>
+		<hr>
+		<div class="text-center">
+			<?php echo $pagination; ?>
+		</div>
+	</div>
+
+	<!-- 显示帖子内容模态框 -->
+	<div id="view_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+	<!-- 帖子置顶操作 -->
+	<div id="stick_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+	<!-- 编辑帖子内容模态框 -->
+	<div id="edit_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+
+	<!-- 编辑帖子标签模态框 -->
+	<div id="edit_tags" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+			</div>
+		</div>
+	</div>
+<script>
+	
+	<!-- 通过js来控制select被选中 -->
+	$("#tag_filter").val("<?php echo $tag_id; ?>");
+	$("#time_sort").val("<?php echo $time; ?>");
+	$("#type_filter").val("<?php echo $type; ?>");
+	$("#post_id").val("<?php echo $post_id; ?>");
+
+	// 这里的判断条件也改为null
+	<?php 
+	if($nickname == 'null'){
+		echo '$("#nickname").val("")';
+	}else{
+		echo "$('#nickname').val('$nickname')";
+	}
+	?>
+
+    // var redirect = '<?php echo $site_url; ?>'+'bbs_post/postlist';
+
+    // 展示帖子内容
+    $("#view_post").on("hidden.bs.modal",function(){
+    	$(this).find('.modal-content').empty();
+    });
+
+	// 加载模态框
+	$('.view_post').click(function(){
+		var url = $(this).attr('url');
+		$('#view_post').modal();
+		$('#view_post .modal-content').load(url);
+	});
+
+	// 编辑帖子内容
+	$("#edit_post").on("hidden.bs.modal", function() {
+	    $(this).find('.modal-content').empty();
+	});
+
+	// 加载模态框
+	$('.edit_post').click(function(){
+		var url = $(this).attr('url');
+		// var hash = $(this).attr('hash');
+		// $('#edit_post').attr('hash', hash);
+		$('#edit_post').modal();
+		$('#edit_post .modal-content').load(url);
+	});
+
+	// 添加字数提醒
+	$('#edit_post').on('keyup', '#subject', function(){
+		var subject= $.trim($(this).val());
+		var length = parseInt(subject.length);
+		var rest  = 100 - length;
+		if(rest < 0){
+			$('#sub_rest').text('剩余字数0')
+			var str = subject.substring(0, 100);
+			$(this).val(str);
+		}else{
+			$("#sub_rest").text('剩余字数' + rest);
+		}
+	})	
+
+	// 添加字数提醒
+	$('#edit_post').on('keyup', '#post_content', function(){
+		var content = $.trim($(this).val());
+		var length = parseInt(content.length);
+		var rest  = 10000 - length;
+		if(rest < 0){
+			$('#con_rest').text('剩余字数0')
+			var str = content.substring(0, 10000);
+			$(this).val(str);
+		}else{
+			$("#con_rest").text('剩余字数' + rest);
+		}
+	});
+
+	// 删除附件操作
+	$("#edit_post").on('click', '.del_attachment', function(){
+		var obj = $(this);
+		obj.prev().hide();
+		obj.hide();
+		var attachment_id = obj.attr('attachment_id');
+		var attachment_path = obj.attr('attachment_path');
+		var ids = $(':hidden[name=attachment_ids]').val();
+		var paths = $(':hidden[name=attachment_paths]').val();
+		ids += attachment_id + ',';
+		paths += attachment_path + ',';
+		$(':hidden[name=attachment_ids]').val(ids);
+		$(':hidden[name=attachment_paths]').val(paths);
+	});
+
+	// 添加字数验证
+	$('#edit_post').on('click', '#edit_post_submit', function(){
+		var subject = $.trim($('#subject').val());
+		var content = $.trim($('#post_content').val());
+		if(!subject){
+			alert('标题不能为空');
+			return false;
+		}
+		if(subject.length > 100){
+			alert('标题不能超过100字');
+			return false;
+		}
+		if(content.length > 10000){
+			alert('内容不能超过10000字');
+			return false;
+		}
+		var url = $('#post_edit_form').attr('action');
+		var attachment_ids = $.trim($('#attachment_ids').val());
+		var attachment_paths = $.trim($('#attachment_paths').val());
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				subject : subject,
+				content : content,
+				attachment_ids : attachment_ids,
+				attachment_paths : attachment_paths,
+				edit_submit : 1 			// 用于判断表单是否提交
+			},
+			async : false,
+			success : function(return_data){
+				alert(return_data.content); 		// 我们不对ajax返回的值再进行操作了，太复杂，只提醒用户
+
+				/* 
+					出现了一个很严重的bug，最终定位到这里！！当分批次删除帖子的附件的时候，当我们提交修改，采用的是ajax提交，但是编辑的模态框扔存在！！而上一次删除的时候，hidden隐藏域中记录的 attachment_ids 和 attachment_paths 还记录了上次的东西，而上次删除的图片已经删除掉了，所以一直报 "删除第一张图片失败"，我们得在每次提交成功后，清空hidden隐藏域中这2个值
+				 */
+				if(parseInt(return_data.status) == 1 || parseInt(return_data.status) == -22){
+					$('#attachment_ids').val('');
+					$('#attachment_paths').val('');
+				}
+				if(parseInt(return_data.status) == -22){
+					$('#edit_post :hidden').show();
+				}
+			}
+		});
+		return false; 	// 不进行表单提交
+	});
+
+
+	// 编辑帖子标签
+	$("#edit_tags").on("hidden.bs.modal", function() {
+	    $(this).find('.modal-content').empty();
+	});
+
+	// 加载模态框
+	$('.edit_tags').click(function(){
+		var url = $(this).attr('url');
+		// var hash = $(this).attr('hash');
+		// $('#edit_tags').attr('hash', hash);
+		$('#edit_tags').modal();
+		$('#edit_tags .modal-content').load(url);
+
+	});
+
+	// 给编辑标签里的 #add_tag 元素，添加点击，发起新增事件
+	$("#edit_tags").on('click', '#add_tag', function(){
+		var obj = $(this);
+		var url = obj.attr('url');
+		var post_id = $(':hidden[name=post_id]').val();
+		var new_tag = $.trim($('[name=new_tag]').val());
+		if(!new_tag){
+			alert('请输入标签名');
+			return false;
+		}
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				post_id : post_id,
+				new_tag : new_tag
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -7:
+					case -6:
+					case -5:
+					case -4:
+					case -3:
+					case -2:
+					case -1:
+						alert(return_data.content);
+						break;
+
+					// 因为成功后，返回的帖子的标签ID，所以不定的，走默认
+					default:
+						alert(return_data.content);
+						$('#tag_list').append('<h4><span class="label label-primary" title="删除该标签">'+new_tag+'  </span><a class="del_tag" url="'+'<?php echo $site_url."bbs_post/del_post_tag"; ?>'+'" data="'+return_data.status+'"><span aria-hidden="true" >&times;</span></a></h4>');
+						break;
+				}
+			}
+		});
+	});
+
+	// 给编辑标签里的 .del_tag 元素，添加点击，发起删除事件
+	$("#edit_tags").on('click', '.del_tag', function(){
+		var obj = $(this);
+		var url = obj.attr('url');
+		var post_id = $(':hidden[name=post_id]').val();
+		var tag_id = obj.attr('data');
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				post_id : post_id,
+				tag_id : tag_id
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -6:
+					case -5:
+					case -4:
+					case -3:
+					case -2:
+					case -1:
+						alert(return_data.content);
+						break;
+					case 1:
+						alert(return_data.content);
+						obj.parent('h4').remove();
+						break;
+				}
+			}
+		});
+	});
+
+	<!-- 置顶的控制 -->
+	$(".stick").click(function(){
+		var url = $(this).attr('url');
+		// var hash = $(this).attr('hash');
+		$('#stick_post').modal();
+		$('#stick_post .modal-content').load(url);
+		
+	});
+
+	$("#stick_post").on("hidden.bs.modal", function() {
+	    $(this).find('.modal-content').empty();
+		// $(this).children('input:checked').prop('checked', false); 		// 之前的选中状态取消
+		// $('#stick_time>options').first().prop('selected', true); 		// 让第一个默认被选中
+	});
+
+	// 添加全选和全不选
+	$('#stick_post').on('click', '#check_all', function(){
+		if($(this).hasClass('active')){
+			$(".stick_tag").prop('checked', false);
+			$(this).next('label').text('全选');
+			$(this).removeClass('active');
+		}else{
+			$(".stick_tag").prop('checked', true);
+			$(this).next('label').text('全不选');
+			$(this).addClass('active');
+		}
+	})
+
+	$('#stick_post').on('click', '#stick_post_submit', function(){
+		url = $('#stick_form').attr('action');
+
+		// 所有的标签都添加了 'class=stick_tag'
+		var checked_arr = $('.stick_tag:checked');
+		var num = checked_arr.length;
+		var type = $('#stick_type').val();
+		var stick_time = $("#stick_time").val();
+		if(num == 0){
+			if(type == 'stick'){
+				alert('请选择要置顶的标签');
+			}else{
+				alert('请选择要取消置顶的标签');
+			}
+			return false;
+		}
+
+		/**
+			获取多选框的值，不能像表单一样，直接能拿到。我们得通过js来组装成 string，传送给php来分割
+		 */
+		var tag_id_str = '';
+		for(var i=0;i<num;i++){
+			tag_id_str += checked_arr[i].value + ',';	
+		}
+		var sub_length = tag_id_str.length - 1;
+        tag_id_str = tag_id_str.substring(0, sub_length);
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				type : type,
+				stick_time : stick_time,
+				tag_id_str : tag_id_str,
+				stick_submit : 1 		// 用于判断是否提交
+			},
+			async : false,
+			success : function(return_data){
+				alert(return_data.content); 		// 不用改变其他状态，只是提醒
+			}
+		});
+		return false;		// 阻止表单提交
+	});
+
+	<!-- 精华的控制 -->
+	$(".digest").click(function(){
+		var obj = $(this);
+		var url = obj.attr('url');
+		var post_id = obj.attr('post_id');
+		var type = obj.attr('type');
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				post_id : post_id,
+				type : type	
+			},
+			async : false,
+			success : function(return_data){
+				var status = return_data.status;
+				var content = return_data.content;
+				alert(content);
+				if(status == 1){
+					obj.attr('type', 'nodigest');
+					obj.text('取消精华');
+				}else if(status == 2){
+					obj.attr('type', 'digest');
+					obj.text('加精华');
+				}
+			}
+		});
+	});
+
+	<!-- 帖子推荐  jaafar-->
+	$(".recommend").click(function(){
+		var obj     = $(this);
+		var url     = obj.attr('url');
+		var post_id = obj.attr('post_id');
+		var object  = obj.parents('td').siblings().eq(2).find('.view_post').text();
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				post_id : post_id,
+				object	: object,
+			},
+			async : false,
+			success : function(return_data){
+				if(return_data.status == 1){
+					obj.parent().text('已推荐');
+				}
+				alert(return_data.content); 		
+			}
+		});
+	});
+</script>
+<?php $this->load->view('ckad/footer'); ?>

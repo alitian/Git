@@ -1,0 +1,1663 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Easyfund extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->db->read_main = true;
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->helper('excel');
+        $this->load->model('User_m');
+        $this->load->library('md_payment_batch_draw');
+        $this->load->library('md_payment_weixin');
+        $this->load->library('md_easyfund');
+        $this->load->library('md_refund');
+        $this->load->model('Easyfund_m');
+        $this->load->model('Diandian_m');
+        $this->load->library('md_common');
+        }
+
+    // 删除文案
+    public function delete_doc_item()
+    {
+        $docid = intval($this->input->post('docid', true));
+        if (!empty($docid)) {
+            $data = array(
+                'if_show' => 0
+            );
+            $this->db->where('id', $docid);
+            if ($this->db->update('md_easyfund_document', $data))
+                echo json_encode(array('status' => 0, 'msg' => 'OK'));
+            else
+                echo json_encode(array('status' => 1, 'msg' => 'DELETED ERROR'));
+        } else {
+            echo json_encode(array('status' => 1, 'msg' => 'NO ITEM TO DELETE'));
+        }
+    }
+
+    public function easy_fund() {
+        $topic = $this->input->get('topic', true);
+        $if_show = $this->input->get('if_show', true);
+        if (empty($topic)) {
+            if (empty($if_show)) {
+                $sql = "SELECT md_easyfund_topic.*,md_admin.name FROM md_easyfund_topic 
+                      INNER JOIN md_admin ON md_easyfund_topic.user_id=md_admin.id ORDER BY order_num DESC";
+            } else if ($if_show == 1) {
+                $sql = "SELECT md_easyfund_topic.*,md_admin.name FROM md_easyfund_topic 
+                      INNER JOIN md_admin ON md_easyfund_topic.user_id=md_admin.id
+                      WHERE `md_easyfund_topic`.`if_show`=1 ORDER BY order_num DESC";
+            } else if ($if_show == 2) {
+                $sql = "SELECT md_easyfund_topic.*,md_admin.name FROM md_easyfund_topic 
+                      INNER JOIN md_admin ON md_easyfund_topic.user_id=md_admin.id
+                      WHERE `md_easyfund_topic`.`if_show`=0 ORDER BY order_num DESC";
+            }
+        } else {
+            if (empty($if_show)) {
+                $sql = "SELECT md_easyfund_topic.*,md_admin.name FROM md_easyfund_topic 
+                      INNER JOIN md_admin ON md_easyfund_topic.user_id=md_admin.id                   
+                      WHERE `md_easyfund_topic`.`topic`='{$topic}' ORDER BY order_num DESC";
+            } else if ($if_show == 1) {
+                $sql = "SELECT md_easyfund_topic.*,md_admin.name FROM md_easyfund_topic 
+                      INNER JOIN md_admin ON md_easyfund_topic.user_id=md_admin.id
+                      WHERE `md_easyfund_topic`.`topic`='{$topic}' AND`md_easyfund_topic`.`if_show`=1 ORDER BY order_num DESC";
+            } else if ($if_show == 2) {
+                $sql = "SELECT md_easyfund_topic.*,md_admin.name FROM md_easyfund_topic 
+                      INNER JOIN md_admin ON md_easyfund_topic.user_id=md_admin.id               
+                      WHERE `md_easyfund_topic`.`topic`='{$topic}' AND`md_easyfund_topic`.`if_show`=0 ORDER BY order_num DESC";
+            }
+        }
+        $query = $this->db->query($sql);
+        $res = $query->result_array();
+        foreach ($res as &$row) {
+            $sql = "SELECT COUNT(ef.id) AS total_num
+        FROM md_easyfund ef WHERE ef.name='{$row['topic']}'";
+            $query = $this->db->query($sql);
+            $num = $query->result_array();
+            $row['total_num'] = $num[0]['total_num'];
+            $sql = "SELECT COUNT(bak.id) AS total_spt
+        FROM md_easyfund_back bak WHERE bak.topic='{$row['topic']}'";
+            $query = $this->db->query($sql);
+            $num = $query->result_array();
+            $row['total_spt'] = $num[0]['total_spt'];
+        }
+        $statelist = array(
+            '2' => '下线',
+            '1' => '上线'
+        );
+        if (isset($_GET['conduct'])) {
+            $id = $_GET['conduct'];
+            $sql = "SELECT if_show FROM md_easyfund_topic WHERE `md_easyfund_topic`.`id`='{$id}'";
+            $query = $this->db->query($sql);
+            $result = $query->result_array();
+            if ($result[0]['if_show'] == 0) {
+                $sql = "UPDATE md_easyfund_topic SET if_show='1' WHERE id={$id}";
+                $this->db->query($sql);
+                redirect('easyfund/easy_fund');
+            } else {
+                $sql = "UPDATE md_easyfund_topic SET if_show='0' WHERE id={$id}";
+                $this->db->query($sql);
+                redirect('easyfund/easy_fund');
+            }
+        }
+        $data['statelist'] = $statelist;
+        $data['res'] = $res;
+        $this->load->view('easyfund/easyfund', $data);
+    }
+    public function add_form($topic_id=0)
+    {
+        $data = array();
+        if (intval($topic_id) != 0) {
+            $this->db->where('id', intval($topic_id));
+            $data['topic'] = $this->db->get('md_easyfund_topic')->row_array();
+
+            $this->db->where('topic_id', intval($topic_id));
+            $this->db->where('if_show', 1);
+            $res = $this->db->get('md_easyfund_document')->result_array();
+            foreach ($res as $doc) {
+                switch (intval($doc['type'])) {
+                case 1:
+                    $data['topic_create_doc'][] = $doc;
+                    break;
+                case 2:
+                    $data['topic_back_doc'][] = $doc;
+                    break;
+                case 3:
+                    $data['topic_share_doc'][] = $doc;
+                    break;
+                default:
+                    # code...
+                    break;
+                }
+            }
+        }
+        $this->load->view('easyfund/easyfund_form', $data);
+    }
+    public function add_easyfund()
+    {
+        $topic_id   = trim($this->input->post('topic_id'));
+        $topic      = trim($this->input->post('topic'));
+        $effect_day = trim($this->input->post('effect_day'));
+        $goal       = trim($this->input->post('goal'));
+        $if_show    = trim($this->input->post('if_show'));
+        $logopath   = trim($this->input->post('logopath'));
+        $type       = trim($this->input->post('type'));
+
+        if (empty($topic)) {
+            echo json_encode(array('status' => 1, 'msg' => '场景名不能为空'));
+            return ;
+        }
+        if ((intval($effect_day) < 1) || ($effect_day != sprintf('%d', intval($effect_day)))) {
+            echo json_encode(array('status' => 1, 'msg' => '非法的有效天数'));
+            return ;
+        }
+        if (intval($goal) < 1) {
+            echo json_encode(array('status' => 1, 'msg' => '筹资金额必须大于1元'));
+            return ;
+        }
+
+        if (!empty($topic_id)) {
+            # 场景修改
+            // $data = array(
+            //     'effect_day' => $effect_day
+            // );
+            // $this->db->where('id', $topic_id);
+            // $this->db->update('md_easyfund_topic', $data);
+
+                # 原有文案删除
+                $this->db->delete('md_easyfund_document', array('topic_id' => $topic_id, 'if_show' => 1));
+            } else {
+                $data = array(
+                    'topic' => $topic,
+                    'effect_day' => $effect_day,
+                    'goal' => $goal,
+                    'type' => $type,
+                    'if_show' => $if_show,
+                    'user_id' => $_SESSION['admin_id'],
+                    'logo' => $logopath
+                );
+                $topic_id = $this->Common->add('md_easyfund_topic',$data);
+            }
+
+        // 发起文案
+        $data = array();
+        if ($create_doc = $this->input->post('create_doc', null))
+            foreach ($create_doc as $doc) {
+                if (!empty($doc))
+                    $data[] = array(
+                        'topic_id' => intval($topic_id),
+                        'type' => 1,
+                        'content' => $doc,
+                    );
+            }
+        // 支持文案
+        if ($back_doc = $this->input->post('back_doc', null))
+            foreach ($back_doc as $doc) {
+                if (!empty($doc))
+                    $data[] = array(
+                        'topic_id' => intval($topic_id),
+                        'type' => 2,
+                        'content' => $doc,
+                    );
+            }
+        // 分享文案
+        if ($share_doc = $this->input->post('share_doc', null))
+            foreach ($share_doc as $doc) {
+                $data[] = array(
+                    'topic_id' => intval($topic_id),
+                    'type' => 3,
+                    'content' => $doc,
+                );
+            }
+        // 插入数据库
+        if (!empty($data))
+            $this->db->insert_batch('md_easyfund_document', $data);
+
+        echo json_encode(array('status' => 0, 'msg' => '创建成功', 'url' => '/easyfund/easy_fund'));
+    }
+
+    public function easy_fund_sort() {
+        if ($_POST) {
+            foreach ($_POST as $k => $v) {
+                if (stripos($k, 'order_num_') !== FALSE) {
+                    $id = intval(str_replace('order_num_', '', $k));
+                    $sql = "UPDATE md_easyfund_topic SET order_num='{$v}' WHERE id={$id}";
+                    $this->db->query($sql);
+                }
+            }
+        }
+        redirect('easyfund/easy_fund');
+    }
+
+    public function ajax_upload_file() {
+        if (!empty($_FILES['logo']['tmp_name'])) {
+            $t = time();
+            $t1 = date("Ymd", time());
+            $fileElementName = 'logo';
+            if (!is_dir(ROOTPATH . "uploads/easyfund/{$t1}")) {
+                mkdir(ROOTPATH . "uploads/easyfund/{$t1}");
+            }
+            if (isset($_FILES[$fileElementName]) && $_FILES[$fileElementName]['name'] != '') {
+                $exten = $this->Common->get_extension($_FILES[$fileElementName]['name']);
+                $from = "uploads/easyfund/" . $t1 . "/easyfund_{$t}{$exten}";
+                $ok = copy($_FILES[$fileElementName]['tmp_name'], ROOTPATH . $from);
+                if ($ok == 1) {
+                    $msg = '上传成功';
+                } else {
+                    $msg = '上传失败';
+                }
+                $path = cdn_url($from);
+                $res = array('msg' => $msg,
+                    'path' => $path,
+                    'from' => $from
+                );
+            }
+        } else {
+            $msg = '没有上传的图片';
+            $res = array('msg' => $msg);
+        }
+        echo json_encode($res);
+    }
+
+//        public function ajax_ali_pay(){
+//            $if_batch = $this->input->post('if_batch',true);
+//            switch(intval($if_batch)){
+//                case 1:   
+//                    $serial = $this->input->post('serial',true);
+//                    $rec_name = $this->input->post('receiver',true);
+//                    $bank_type = $this->input->post('bank_type',true);
+//                    $area = $this->input->post('area',true);
+//                    $city = $this->input->post('city',true);
+//                    $recv_mobile = $this->input->post('recv_mobile',true);
+//                    $rec_bankacc = $this->input->post('account_no',true);
+//                    $subbank_name = $this->input->post('subbank_name',true);
+//                    $pay_amt = $this->input->post('pay_amt',true);
+//                    $password = $this->input->post('password',true);
+//                    $acc_type = $this->input->post("acc_type",true);
+//                    $sql = " SELECT ef.funder_desc AS `desc`
+//                    FROM md_easyfund ef WHERE ef.id='{$serial}'";
+//                    $query = $this->db->query($sql);
+//                    $res = $query->row_array();
+//                    $singledata = array( 'serial' => $serial,
+//                        'rec_bankacc' => $rec_bankacc,
+//                        'bank_type' => $bank_type,
+//                        'rec_name' => $rec_name,
+//                        'pay_amt' => $pay_amt,
+//                        'acc_type' => $acc_type,                      
+//                        'area' => $area,
+//                        'city' => $city,
+//                        'subbank_name' => $subbank_name,
+//                        'desc' => $res['desc'],
+//                        'recv_mobile' => $recv_mobile                    
+//                    );
+//                    $content = serialize($singledata);                 
+//                    $num = array( 'pay_product_num' => 1 ,
+//                        'pay_all_amount' => $singledata['pay_amt'],
+//                    );    
+//                    $data = array(array($singledata),$num);//准备调用打款接口(单笔)--支付宝
+//                    $res = $this->check_submit_status(0);
+//                    if($res == false){
+//                        echo json_encode(array('msg' => '操作过于频繁请一分钟后再试！','pay_type' => 1));
+//                        exit();
+//                    }
+//                    ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));  //此处需要修改                
+//                    ob_end_clean();
+//                    $msg = $this->md_easyfund->write_package_log($package,$data);
+//                    if(!empty($msg)){
+//                        $data = array('msg' => $msg,'pay_type'=>1);
+//                    }else{
+//                            if(intval($this->input->post('if_change',true)) == 1){
+//                                $ctime = date("Y-m-d H:i:s", time());
+//                                $change = array( 'ez_id' => $serial,
+//                                    'content' => $content,
+//                                    'ctime' => $ctime,
+//                                    'user_id' => $_SESSION['admin_id']
+//                                );
+//                                $this->db->insert('md_easyfund_remit_changes',$change);
+//                            }
+//                        $data = array('msg' => '操作完成','pay_type'=>1);
+//                    }                  
+//                    break;
+//                case 2:
+//                    $password = $this->input->post('all_password',true);
+//                    $where = $this->_get_batchpay_where();
+//                    $data = $this->batch_get_pay($where);
+//                    error_log(date("Y-m-d H:i:s")."\t".var_export($data,true)."\r\n\r\n",3,"D:easyfund_var.log");
+//                    $res = $this->check_submit_status(1);
+//                    if($res == false){
+//                        echo json_encode(array('msg' => '操作过于频繁请一分钟后再试！','pay_type' => 2));
+//                        exit();
+//                    }
+//                    ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));//此处需要修改调用支付宝接口 
+//                    ob_end_clean();                  
+//                    $msg = $this->md_easyfund->write_package_log($package,$data);
+//                    if(!empty($msg)){
+//                        $data = array('msg' => $msg,'pay_type'=>2);
+//                    }else{
+//                        $data = array('msg' => '操作完成','pay_type'=>2);
+//                    }  
+//                    break;
+//            }  
+//            echo json_encode($data);
+//        }
+
+
+    public function ajax_pay() {
+        $editor_type = $this->input->post('editor_type', true);
+        switch (intval($editor_type)) {
+            case 1:
+                $serial = $this->input->post('serial', true);
+                $rec_name = $this->input->post('receiver', true);
+                $bank_type = $this->input->post('bank_type', true);
+                $area = $this->input->post('area', true);
+                $city = $this->input->post('city', true);
+                $recv_mobile = $this->input->post('recv_mobile', true);
+                $rec_bankacc = $this->input->post('account_no', true);
+                $subbank_name = $this->input->post('subbank_name', true);
+                $pay_amt = $this->input->post('pay_amt', true);
+                $password = $this->input->post('password', true);
+                $acc_type = $this->input->post("acc_type", true);
+                $sql = " SELECT ef.funder_desc AS `desc`
+                    FROM md_easyfund ef WHERE ef.id='{$serial}'";
+                $query = $this->db->query($sql);
+                $res = $query->row_array();
+                $singledata = array('serial' => $serial,
+                    'rec_bankacc' => $rec_bankacc,
+                    'bank_type' => $bank_type,
+                    'rec_name' => $rec_name,
+                    'pay_amt' => $pay_amt,
+                    'acc_type' => $acc_type,
+                    'area' => $area,
+                    'city' => $city,
+                    'subbank_name' => $subbank_name,
+                    'desc' => $res['desc'],
+                    'recv_mobile' => $recv_mobile
+                );
+                $content = serialize($singledata);
+                $num = array('pay_product_num' => 1,
+                    'pay_all_amount' => $singledata['pay_amt'],
+                );
+                $data = array(array($singledata), $num); //准备调用打款接口(单笔)
+                $res = $this->check_submit_status(0);
+                if ($res == false) {
+                    echo json_encode(array('msg' => '操作过于频繁请一分钟后再试！', 'pay_type' => 1));
+                    exit();
+                }
+                ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+                ob_end_clean();
+                $msg = $this->md_easyfund->write_package_log($package, $data);
+                if (!empty($msg)) {
+                    $data = array('msg' => $msg, 'pay_type' => 1);
+                } else {
+                    if (intval($this->input->post('if_change', true)) == 1) {
+                        $ctime = date("Y-m-d H:i:s", time());
+                        $change = array('ez_id' => $serial,
+                            'content' => $content,
+                            'ctime' => $ctime,
+                            'user_id' => $_SESSION['admin_id']
+                        );
+                        $this->db->insert('md_easyfund_remit_changes', $change);
+                    }
+                    $data = array('msg' => '操作完成', 'pay_type' => 1);
+                }
+                break;
+            case 2:
+                $password = $this->input->post('all_password', true);
+                $where = $this->_get_batchpay_where();
+                $data = $this->batch_get_pay($where);
+                error_log(date("Y-m-d H:i:s") . "\t" . var_export($data, true) . "\r\n\r\n", 3, "/tmp/easyfund_var.log");
+                $res = $this->check_submit_status(1);
+                if ($res == false) {
+                    echo json_encode(array('msg' => '操作过于频繁请一分钟后再试！', 'pay_type' => 2));
+                    exit();
+                }
+                ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+                ob_end_clean();
+                $msg = $this->md_easyfund->write_package_log($package, $data);
+//                    $sql = "SELECT COUNT(ef.id) AS all_num FROM md_easyfund ef WHERE 1 {$where}";
+//                    $query =  $this->db->query($sql);
+//                    $res = $query->row_array();
+//                    $per_num = 50;
+//                    $all = $res['all_num'];
+//                    $num = intval($all / $per_num);
+//                    $left = ($all % $per_num);                  
+//                    if($num > 0){
+//                        for($i = 1 ; $i <= $num ; $i++){
+//                            $limit = "LIMIT " . ($i-1) * $per_num . " ,{$per_num}";
+//                            $data = $this->batch_get_pay($where, $limit);//调用打款接口    
+//                            ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+//                            ob_end_clean();
+//                            $msg = $this->md_easyfund->write_package_log($package,$data);
+//                        }
+//                        if($left != 0){
+//                            $limit = "LIMIT " . ($i-1) * $per_num . " ,{$per_num}";
+//                            $data = $this->batch_get_pay($where,$limit);//调用打款接口
+//                            ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+//                            ob_end_clean();
+//                            $msg = $this->md_easyfund->write_package_log($package,$data);
+//                        }
+//                    }else if($num == 0){
+//                        $limit = "LIMIT 0,"."{$left}";
+//                        $data = $this->batch_get_pay($where, $limit);//调用打款接口
+//                        ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+//                        ob_end_clean();
+//                        $msg = $this->md_easyfund->write_package_log($package,$data);
+//                    }      
+                if (!empty($msg)) {
+                    $data = array('msg' => $msg, 'pay_type' => 2);
+                } else {
+                    $data = array('msg' => '操作完成', 'pay_type' => 2);
+                }
+                break;
+        }
+        echo json_encode($data);
+    }
+
+    public function _get_batchpay_where() {
+        $time = time() - 600;
+        $time = date("Y-m-d H:i:s", $time);
+        return $where = " AND (ef.if_withdraw=1 AND ef.if_remit=0 AND ef.apply_withdraw_time<\"{$time}\" AND ef.funder_account_no!='' AND ef.funder_realname!='' AND ef.funder_bank_type!='' AND ef.funder_bank_city!='' AND ef.funder_bank_province!='' AND ef.funder_subbank_name!='' AND ef.funder_acc_type!='') ORDER BY ef.id LIMIT 10 "; //先测试仅打10个
+    }
+
+    public function batch_get_pay($where) {//$limit
+        $sql = "SELECT ef.id AS serial,
+                ef.funder_account_no AS rec_bankacc,
+                ef.funder_bank_type AS bank_type,
+                ef.funder_realname AS rec_name,
+                ef.funder_acc_type AS acc_type,
+                ef.funder_bank_province AS area,
+                ef.funder_bank_city AS city,
+                ef.funder_subbank_name AS subbank_name,
+                ef.funder_desc AS `desc`,
+                ef.funder_recv_mobile AS recv_mobile
+    FROM md_easyfund ef WHERE 1 {$where} "; //{$limit}
+        error_log(date("Y-m-d H:i:s") . "\t" . var_export($sql, true) . "\r\n\r\n", 3, "/tmp/easyfund_sql.log");
+        $query = $this->db->query($sql);
+        $rows = $query->result_array($query);
+        $pay_user_num = 0;
+        $pay_all_amount = 0.0;
+        foreach ($rows as $key => &$row) {
+            $sql = "SELECT SUM(bak.amount) AS total
+            FROM md_easyfund_back bak WHERE (bak.ez_id='{$row['serial']}' AND bak.if_pay=1 AND bak.status=103 AND bak.if_withdraw=0)";
+            $query = $this->db->query($sql);
+            $res = $query->row_array();
+            $row['pay_amt'] = round($res['total'] - ( $res['total'] * 0.02 + 1 ), 2); //收取手续费后的最终打款金额
+            if ($row['pay_amt'] <= 0 || $row['pay_amt'] == "") {
+                unset($rows[$key]);
+            }
+            $pay_all_amount += $row['pay_amt'];
+        }
+        $pay_product_num = count($rows);
+        $pay_user_num = $pay_product_num;
+        $data = array('pay_product_num' => $pay_product_num,
+            'pay_user_num' => $pay_user_num,
+            'pay_all_amount' => $pay_all_amount,
+        );
+        return array($rows, $data);
+    }
+
+    public function ajax_get_pay() {
+        $where = $this->_get_batchpay_where();
+        $res = $this->batch_get_pay($where);
+        echo json_encode($res[1]);
+    }
+
+    public function syn_status() {
+        $syn_password = $this->input->post('syn_pwd', true); //准备调用查询接口
+        $package_ids = $this->md_easyfund->get_wait_remit_package();
+        $error = '';
+        foreach ($package_ids as $row) {
+            $res = $this->md_payment_batch_draw->set_pwd($syn_password)->query($row['package_id']);
+            if (isset($res['error']) && !empty($res['error'])) {
+                $data = array('status' => '-1', 'msg' => "包id:" . $row['package_id'] . ":" . $res['error']);
+                $error .= "包id:" . $row['package_id'] . ":" . $res['error'];
+//                echo json_encode($data);
+//                exit;
+            }
+            $this->md_easyfund->write_syn_info($res, $row['package_id']);
+        }
+        $data = array('status' => '0', 'msg' => '操作完成'.$error);
+        echo json_encode($data);
+    }
+
+    public function _get_order_where($arr) {
+        $where = "";
+        if (isset($arr['oid']) && $arr['oid']) {
+            $where .= " AND bak.id='{$arr['oid']}'";
+        }
+        if (isset($arr['topic']) && $arr['topic']) {
+            $where .= " AND bak.topic='{$arr['topic']}'";
+        }
+        if (isset($arr['st_id']) && $arr['st_id']) {
+            $where .= " AND ef.user_id='{$arr['st_id']}'";
+        }
+        if (isset($arr['od_status']) && $arr['od_status'] != "") {
+            if ($arr['od_status'] == 0) {
+                $where .= " AND bak.if_pay='{$arr['od_status']}'";
+            } else if ($arr['od_status'] == 1) {
+                $where .= " AND ( bak.if_pay='{$arr['od_status']}' AND bak.status=103 )";
+            }
+        }
+        if (isset($arr['sp_mobile']) && $arr['sp_mobile']) {
+            $where .= " AND bak.backer_mobile='{$arr['sp_mobile']}'";
+        }
+        if (isset($arr['st_mobile']) && $arr['st_mobile']) {
+            $where .= " AND ef.user_mobile='{$arr['st_mobile']}'";
+        }
+        if (isset($arr['pro_id']) && $arr['pro_id']) {
+            $where .= " AND ef.id='{$arr['pro_id']}'";
+        }
+        if (isset($arr['pro_status'])) {
+            $now_time = date("Y-m-d H:i:s", time());
+            switch ($arr['pro_status']) {
+                case 0:
+                    $where .= " AND (ef.end_time > '{$now_time}' AND ef.if_withdraw=0)";
+                    break;
+                case 1:
+                    $where .= " AND (ef.end_time < '{$now_time}' AND ef.if_withdraw=1 OR ef.end_time >='{$now_time}' AND ef.if_withdraw=1)";
+                    break;
+                case 2:
+                    $where .= " AND (ef.end_time < '{$now_time}' AND ef.if_withdraw=2 OR ef.end_time >='{$now_time}' AND ef.if_withdraw=2)";
+                    break;
+                case 3:
+                    $where .= " AND (ef.end_time < '{$now_time}' AND ef.if_withdraw=3)";
+                    break;
+            }
+        }
+        if(isset($arr['pay_start_time']) && $arr['pay_start_time']){
+            $where .= " AND pay.return_time > '{$arr['pay_start_time']}'";
+        }
+        if(isset($arr['pay_end_time']) && $arr['pay_end_time']){
+            $where .= " AND pay.return_time < '{$arr['pay_end_time']}'";
+        }
+        if(isset($arr['trade_no']) && $arr['trade_no']){
+            $where .= " AND bak.trade_no = '{$arr['trade_no']}'";
+        }
+        return $where;
+    }
+
+    public function _get_start_where($arr) {
+        $where = "";
+        if(isset($arr['topic_id']) && $arr['topic_id']){
+            $where .= " AND ef.id='{$arr['topic_id']}'";
+        }
+        if (isset($arr['topic']) && $arr['topic']) {
+            $where .= " AND ef.name='{$arr['topic']}'";
+        }
+        if (isset($arr['st_id']) && $arr['st_id']) {
+            $where .= " AND ef.user_id='{$arr['st_id']}'";
+        }
+        if (isset($arr['st_mobile']) && $arr['st_mobile']) {
+            $where .= " AND ef.user_mobile='{$arr['st_mobile']}'";
+        }
+        if (isset($arr['receive_way']) && $arr['receive_way'] != -1) {
+            if ($arr['receive_way'] == 0) {
+                $where .= " AND ef.pay_platform='weixin'";
+            } else if ($arr['receive_way'] == 1) {
+                $where .= " AND ef.pay_platform='alipay'";
+            }
+        }
+        if (isset($arr['pro_status'])) {
+            $now_time = date("Y-m-d H:i:s", time());
+            switch ($arr['pro_status']) {
+                case 0:
+                    $where .= " AND (ef.end_time > '{$now_time}' AND ef.if_withdraw=0)";
+                    break;
+                case 1:
+                    $where .= " AND (ef.end_time < '{$now_time}' AND ef.if_withdraw=1) OR (ef.end_time >='{$now_time}' AND ef.if_withdraw=1)";
+                    break;
+                case 2:
+                    $where .= " AND (ef.end_time < '{$now_time}' AND ef.if_withdraw=2) OR (ef.end_time >='{$now_time}' AND ef.if_withdraw=2)";
+                    break;
+                case 3:
+                    $where .= " AND (ef.end_time < '{$now_time}' AND ef.if_withdraw=0)";
+                    break;
+            }
+        }
+        return $where;
+    }
+
+    public function _get_refund_where($arr) {
+        $time = strtotime('-30 days');
+        $time = date("Y-m-d H:i:s", $time);
+        $where = " AND (ef.end_time < '{$time}' AND ef.if_withdraw=0 AND (ef.if_refund=1 OR ef.if_refund=2 OR ef.if_refund=-1) )";
+        if (isset($arr['refund_status'])) {
+            switch ($arr['refund_status']) {
+                case 1:
+                    $where = " AND (ef.end_time < '{$time}' AND ef.if_withdraw=0 AND ef.if_refund=1)";
+                    break;
+                case 2:
+                    $where = " AND ef.end_time < '{$time}' AND ef.if_withdraw=0 AND ef.if_refund='{$arr['refund_status']}'";
+                    break;
+                case -1:
+                    $where = " AND ef.end_time < '{$time}' AND ef.if_withdraw=0 AND ef.if_refund='{$arr['refund_status']}'";
+                    break;
+            }
+        }
+        if (isset($arr['topic']) && $arr['topic']) {
+            $where .= " AND ef.name='{$arr['topic']}'";
+        }
+        if (isset($arr['pro_id']) && $arr['pro_id']) {
+            $where .= " AND ef.id='{$arr['pro_id']}'";
+        }
+        if (isset($arr['st_id']) && $arr['st_id']) {
+            $where .= " AND ef.user_id='{$arr['st_id']}'";
+        }
+        return $where;
+    }
+
+    public function _get_start_data($where = "", $order, $limit = "") {
+        $sql = "SELECT ef.id as id,
+        ef.name as topic,
+        ef.user_id as st_id,
+        ef.goal as goal,
+        ef.openid as openid,
+        ef.start_time as start_time,
+        ef.end_time as end_time,
+        ef.if_withdraw as if_withdraw,
+        ef.if_remit as if_remit,
+        ef.if_refund as if_refund,
+        ef.content as content,
+        ef.type as type,
+        ef.under_word as under_word,
+        ef.package_id as package_id,
+        ef.funder_recv_mobile as recv_mobile,
+        ef.funder_account_no as account_no,
+        ef.funder_realname as receiver,
+        ef.funder_acc_type as acc_type,
+        ef.funder_subbank_name as subbank_name,
+        ef.pay_platform as receive_way,
+        ef.funder_bank_type as bank_type,
+        ef.funder_bank_province as bank_province,
+        ef.pay_count as pay_count,
+        ef.funder_bank_city as bank_city
+FROM md_easyfund ef WHERE 1 {$where} {$order} ";
+
+        if ($limit == -1) {
+            return $this->db->query($sql)->num_rows();
+        }
+
+        $sql .= " {$limit} ";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        foreach ($rows as &$row) {
+            switch (intval($row['if_refund'])) {
+            case 0:
+                $row['if_refund'] = '不需要退款';
+                break;
+            case 1:
+                $row['if_refund'] = '需要退款';
+                break;
+            case -1:
+                $row['if_refund'] = '部分退款';
+                break;
+            default:
+                # code...
+                break;
+            }
+            $row['pro_start_time'] = $row['start_time'];
+            $row['pro_end_time'] = $row['end_time'];
+            $row['st_mobile'] = $row['recv_mobile'];
+            $bank_list = get_openning_bank_list();
+            $row['bank_name'] = $bank_list[$row['bank_type']]; //获取银行名
+            $province_list = get_opening_province_list(); //获取省市数组
+            $city_list = get_opening_city_list();
+            $row['bank_address'] = $province_list[$row['bank_province']] . $city_list[$row['bank_city']];
+            $this->db->where('openid', $row['openid']);
+            $this->db->select('userinfo');
+            $this->db->order_by('ctime', 'DESC');
+            $query = $this->db->get('md_easyfund_users');
+            $res = $query->row_array();
+            $temp = unserialize($res['userinfo']);
+            $row['st_name'] = $temp['nickname'];
+//                $res = $this->User_m->get_user_info($row['st_id']);
+//                $row['st_name'] = $res['nickname'];
+            if ($row['type'] == 0) {
+                $row['type'] = '普通';
+            } else if ($row['type'] == 1) {
+                $row['type'] = '表白';
+                $row['content'] = "我对" . $row['under_word'] . "说:" . $row['content'];
+            }elseif($row['type'] == 2){
+            	$row['type'] = '筹点点';
+            	$row['content'] = $row['des'];
+            }
+            $sql = "SELECT SUM(bak.amount) AS total,
+                    COUNT(bak.id) AS num_people
+            FROM md_easyfund_back bak WHERE (bak.ez_id='{$row['id']}' AND bak.if_pay=1 AND bak.status=103)"; //计算人数和众筹总金额
+            $query = $this->db->query($sql);
+            $res = $query->row_array();
+            if ($res['total'] == "") {
+                $row['total'] = 0;
+            } else {
+                $row['total'] = $res['total'];
+            };
+            $row['num_people'] = "<a href=/easyfund/orders?pro_id=" . $row['id'] . ">" . $row['pay_count'] . "</a>";
+            $status = md_common::get_easyfund_status($row['start_time'], $row['end_time'], $row['if_withdraw']);
+            $single = array('id' => $row['id'],
+                'receiver' => $row['receiver'],
+                'subbank_name' => $row['subbank_name'],
+                'bank_type' => $row['bank_type'],
+                'bank_province' => $row['bank_province'],
+                'bank_city' => $row['bank_city'],
+                'account_no' => $row['account_no'],
+                'recv_mobile' => $row['recv_mobile'],
+                'acc_type' => $row['acc_type'],
+                'total' => round(($row['total'] - ( $row['total'] * 0.02 + 1)), 2) //收取手续费用后的打款金额
+            );
+            switch ($status) {
+                case 100:
+                    $row['pro_status'] = "<font color='red'>众筹中</font>";
+                    if ($row['if_remit'] == 0) {
+                        $row['pay_status'] = '未打款';
+                    }
+                    break;
+                case 200:
+                    $row['pro_status'] = "<font color=\"orange\">提现中</font>";
+                    if ($row['if_remit'] == 0) {
+                        $row['conduct'] = "<a href='#' class='pay-editor' data-pay='" . json_encode($single) . "'>打款</a>"; //<a href='#' class='ali-pay-editor' data-pay='".json_encode($single)."'>打款2</a>
+                        $row['pay_status'] = '未打款';
+                    }
+                    if ($row['if_remit'] == 1) {
+                        $row['pay_status'] = '打款中';
+                    }
+                    if ($row['if_remit'] == -1) {
+                        $row['pay_status'] = '打款失败';
+                        $row['conduct'] = "<a href='#' class='pay-editor' data-pay='" . json_encode($single) . "'>打款</a>"; //<a href='#' class='ali-pay-editor' data-pay='".json_encode($single)."'>打款2</a>
+                        $sql = "SELECT rlog.callback AS callback FROM md_easyfund_remit_info rlog 
+            WHERE rlog.funder_serial={$row['id']} AND rlog.package_id='{$row['package_id']}' ORDER BY rlog.ctime DESC";
+                        $res = $this->db->query($sql)->row_array();
+                        $row['remit_log'] = $res['callback'];
+                    }
+                    break;
+                case 201:
+                    $row['pro_status'] = "<font color=\"green\">已提现</font>";
+                    if ($row['if_remit'] == 2) {
+                        $row['pay_status'] = '已打款';
+                    }
+                    break;
+                case 300:
+                    $row['pro_status'] = '已结束';
+                    break;
+                default :
+            }
+            $sql = "SELECT rchange.user_id AS ruser_id
+                FROM md_easyfund_remit_changes rchange WHERE rchange.ez_id={$row['id']}";
+            $res = $this->db->query($sql)->result_array();
+            if (!empty($res)) {
+                $value = $row['id'];
+                $row['change_detail'] = "<a href='#' class='see-detail' data-see=" . json_encode($value) . ">查看明细</a>";
+            }
+        }
+        return $rows;
+    }
+
+    public function _get_order_data($where, $order, $limit = "") {//$order = "ORDER BY oid",$limit = ""
+        $sql = "SELECT bak.id as oid,
+        bak.ez_id as pro_id, 
+        bak.topic as topic,
+        bak.user_id as sp_id,
+        ef.user_id as st_id,
+        bak.amount as amount,
+        bak.if_refund as if_refund,
+        bak.paytime as paytime,
+        ef.start_time as start_time,
+        ef.end_time as end_time,
+        ef.user_mobile as st_mobile,
+        bak.openid as openid,
+        bak.remark as sp_remark,
+        bak.if_pay as if_pay,
+        bak.status as status,
+        pay.pay_platform as pay_way,
+        pay.return_time as paytime,
+        pay.out_trade_no as wx_trade_no,
+        bak.backer_mobile as sp_mobile
+FROM md_easyfund_back bak
+INNER JOIN md_easyfund ef ON bak.ez_id=ef.id
+LEFT JOIN md_easyfund_pay pay ON bak.trade_no=pay.out_trade_no
+WHERE 1 $where {$order} ";
+
+        if ($limit == -1) {
+            return $this->db->query($sql)->num_rows();
+        }
+
+        $sql .= " {$limit} ";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        foreach ($rows as &$row) {
+            if ($row['if_pay'] == 0) {
+                $row['od_status'] = '未支付';
+            } else if ($row['if_pay'] == 1 && $row['status'] == 103) {
+                $row['od_status'] = '已支付';
+            }
+            $res = $this->User_m->get_user_info($row['st_id']);
+            $row['st_name'] = $res['nickname'];
+            $res = $this->User_m->get_user_info($row['sp_id']);
+            $row['sp_name'] = $res['nickname'];
+            if ($row['sp_name'] == "") {
+                $res = $this->Easyfund_m->get_userinfo($row['openid'], 1);
+                $userinfo = unserialize($res['userinfo']);
+                $row['sp_name'] = $userinfo['nickname'];
+            }
+            unset($res);
+            $sql = "SELECT topic.if_show as if_show FROM md_easyfund_topic topic WHERE topic.topic='{$row['topic']}'";
+            $query = $this->db->query($sql);
+            $if_show = $query->result_array();
+            if ($if_show[0]['if_show'] == 1) {
+                $row['ef_status'] = "上线";
+            } else if ($if_show[0]['if_show'] == 0) {
+                $row['ef_status'] = "下线";
+            }
+            if ($row['if_refund'] == 1) {
+                $data = array('oid' => $row['oid'], 'pro_id' => $row['pro_id']);
+                $row['refund'] = "<a href='#' class='change-refund-data' data-refund=" . json_encode($data) . ">设置为已退款</a>";
+            } else if ($row['if_refund'] == 2) {
+                $row['refund'] = '退款成功';
+            } else {
+                $row['refund'] = '不需要退款';
+            }
+        }
+        return $rows;
+    }
+
+    public function _get_refund_data($where = "", $order, $limit = "") {
+        $sql = "SELECT ef.id AS ez_id,
+        ef.name AS topic,
+        ef.type AS type,
+        ef.if_refund AS status,
+        ef.start_time AS pro_start_time,
+        ef.end_time AS pro_end_time,
+        ef.user_id AS st_id,
+        ef.openid AS st_wxid,
+        ef.funder_recv_mobile AS st_mobile,
+        ef.goal AS goal
+FROM md_easyfund ef
+WHERE 1 $where {$order} ";
+
+        if ($limit == -1) {
+            return $this->db->query($sql)->num_rows();
+        }
+
+        $sql .= " {$limit} ";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        foreach ($rows as $key => &$row) {
+            $res = $this->User_m->get_user_info($row['st_id']);
+            $row['st_name'] = $res['nickname'];
+            $this->db->where('openid', $row['st_wxid']);
+            $this->db->select('userinfo');
+            $query = $this->db->get('md_easyfund_users');
+            $res = $query->row_array();
+            $temp = unserialize($res['userinfo']);
+            $row['st_wxname'] = $temp['nickname'];
+            if ($row['status'] == 1) {
+                $row['refund_status'] = '<font color="red">未退款</font>';
+            } else if ($row['status'] == -1) {
+                $row['refund_status'] = '<font color="orange">部分退款</font>';
+            } else if ($row['status'] == 2) {
+                $row['refund_status'] = '退款成功';
+            }
+            if ($row['type'] == 0) {
+                $row['type'] = '普通';
+            } else if ($row['type'] == 1) {
+                $row['type'] = '表白';
+            }elseif($row['type'] == 2){
+            	$row['type'] = '筹点点';
+            }
+            $sql = "SELECT SUM(bak.amount) AS total,
+                     COUNT(bak.id) AS order_num
+            FROM md_easyfund_back bak WHERE (bak.ez_id='{$row['ez_id']}' AND bak.if_pay=1 AND bak.status=103)"; //计算人数和众筹总金额
+            $query = $this->db->query($sql);
+            $res = $query->row_array();
+            $row['order_num'] = $res['order_num'];
+            if ($res['total'] == "") {
+                $row['total'] = 0;
+            } else {
+                $row['total'] = $res['total'];
+            }
+            $sql = "SELECT COUNT(bak.id) AS refund_orders
+            FROM md_easyfund_back bak WHERE (bak.ez_id='{$row['ez_id']}' AND bak.if_pay=1 AND bak.status=103 AND bak.if_refund!=0)";
+            $res = $this->db->query($sql)->row_array();
+            $row['refund_orders'] = "<a href=/easyfund/orders?pro_id=" . $row['ez_id'] . "><font color='red'>" . $res['refund_orders'] . "</font></a>";
+        }
+        return $rows;
+    }
+
+    public function orders() {
+        if (isset($_GET) && $_GET['name']) {
+            $name = $this->input->get('name', true);
+        }
+        if (isset($_GET) && $_GET['pro_id']) {
+            $pro_id = $this->input->get('pro_id', true);
+        }
+        $data = array('name' => $name,
+            'pro_id' => $pro_id
+        );
+        $this->load->view('easyfund/easyfund_order', $data);
+    }
+
+    public function start() {
+        if (isset($_GET) && $_GET['name']) {
+            $name = $this->input->get('name', true);
+        }
+        $data = array('name' => $name);
+        $this->load->view('easyfund/easyfund_start', $data);
+    }
+
+    public function refund() {
+        $this->load->view('easyfund/easyfund_refund');
+    }
+
+    public function ajax_start() {
+        $cur_page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 10;
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $where = $this->_get_start_where($_POST);
+        $order_by = "ORDER BY {$sort} {$order}";
+        $count = $this->_get_start_data($where, $order_by, -1);
+        $limit = "LIMIT " . ($cur_page - 1) * $rows . ",{$rows}";
+        $rows = $this->_get_start_data($where, $order_by, $limit);
+        $result = array('total' => $count, 'rows' => $rows);
+        echo json_encode($result);
+    }
+
+    public function ajax_orders() {
+        $cur_page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 10;
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $where = $this->_get_order_where($_POST);
+        $order_by = "ORDER BY {$sort} {$order}";
+        $count = $this->_get_order_data($where, $order_by, -1);
+        $limit = "LIMIT " . ($cur_page - 1) * $rows . " ,{$rows}";
+        $rows = $this->_get_order_data($where, $order_by, $limit);
+        $result = array('total' => $count, 'rows' => $rows);
+        echo json_encode($result);
+    }
+
+    public function ajax_refund() {
+        $cur_page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 10;
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $where = $this->_get_refund_where($_POST);
+        $order_by = "ORDER BY {$sort} {$order}";
+        $count = $this->_get_refund_data($where, $order_by, -1);
+        $limit = "LIMIT " . ($cur_page - 1) * $rows . " ,{$rows}";
+        $rows = $this->_get_refund_data($where, $order_by, $limit);
+        $result = array('total' => $count, 'rows' => $rows);
+        echo json_encode($result);
+    }
+
+    public function ajax_get_change_detail() {
+        $id = isset($_GET['id']) ? intval($this->input->get('id', true)) : "";
+        $sql = "SELECT rchange.ez_id AS serial,
+                rchange.content AS content,
+                rchange.ctime AS ctime,
+                rchange.user_id AS user_id
+            FROM md_easyfund_remit_changes rchange WHERE rchange.ez_id={$id}";
+        $res = $this->db->query($sql)->result_array();
+        $str = '';
+        foreach ($res as &$row) {
+            $row['content'] = unserialize($row['content']);
+            $msg = '收款帐号:' . $row['content']['rec_bankacc'] . ',银行编码:' . $row['content']['bank_type'] . ',收款人姓名:' . $row['content']['rec_name'] . ',帐号类型:' . $row['content']['acc_type'] . ',省编码:' . $row['content']['area'] . ',城市编码:' . $row['content']['city'] . ',支行名称:' . $row['content']['subbank_name'] . ',收款手机号:' . $row['content']['recv_mobile'];
+            $str .= '<tr class="each-detail"><td>' . $row['serial'] . '</td>' . '<td>' . $row['ctime'] . '</td>' . '<td>' . $row['user_id'] . '</td>' . '<td>' . $msg . '</td></tr>';
+        }
+        echo $str;
+    }
+
+    public function ajax_batch_refund() {
+        $sql = "SELECT ef.id FROM md_easyfund ef WHERE ef.if_refund=1";
+        $rows = $this->db->query($sql)->result_array();
+        foreach ($rows as $row) {
+            $sql = "SELECT bak.trade_no AS trade_no,
+                    bak.amount AS amount
+            FROM md_easyfund_back bak WHERE bak.if_pay=1 AND bak.status=103 AND bak.if_refund=1 AND bak.ez_id={$row['id']}";
+            $res = $this->db->query($sql)->result_array();
+            foreach ($res as $data) {
+                if ($this->md_payment_weixin->refund($data['trade_no'], $data['amount']) == TRUE) {
+                    $sql = "UPDATE md_easyfund_back SET if_refund=2 WHERE trade_no='{$data['trade_no']}'";
+                    $this->db->query($sql);
+                }
+            }
+        }
+        $this->syn_refund_status();
+        echo json_encode(array('msg' => '操作完成，请同步状态！'));
+    }
+
+    public function syn_refund_status() {
+        $sql = "SELECT ef.id AS id FROM md_easyfund ef WHERE ef.if_refund=1";
+        $rows = $this->db->query($sql)->result_array();
+        foreach ($rows as $row) {
+            $sql = "SELECT COUNT(bak.id) AS all_num FROM md_easyfund_back bak WHERE bak.ez_id={$row['id']} AND bak.if_pay=1 AND bak.status=103";
+            $res1 = $this->db->query($sql)->row_array();
+            $all_num = $res1['all_num'];
+            $sql = "SELECT COUNT(bak.id) AS num FROM md_easyfund_back bak WHERE bak.ez_id={$row['id']} AND bak.if_pay=1 AND bak.status=103 AND bak.if_refund=2";
+            $res2 = $this->db->query($sql)->row_array();
+            $num = $res2['num'];
+            if ($all_num > 0) {
+                if ($all_num == $num) {
+                    $sql = "UPDATE md_easyfund SET if_refund=2 WHERE id={$row['id']}";
+                    $this->db->query($sql);
+                } else if ($num > 0) {
+                    $sql = "UPDATE md_easyfund SET if_refund=-1 WHERE id={$row['id']}";
+                    $this->db->query($sql);
+                }
+            }
+        }
+        return true;
+        //echo json_encode(array('msg' => '同步完成请查看!'));
+    }
+
+    public function change_refund_status() {
+        $oid = isset($_GET['oid']) ? intval($this->input->get('oid', true)) : "";
+        $pro_id = isset($_GET['pro_id']) ? intval($this->input->get('pro_id', true)) : "";
+        $sql = "UPDATE md_easyfund_back SET if_refund=2 WHERE id={$oid}";
+        $this->db->query($sql);
+        $sql = "SELECT COUNT(bak.id) AS all_num FROM md_easyfund_back bak WHERE bak.ez_id={$pro_id} AND bak.if_pay=1 AND bak.status=103";
+        $res1 = $this->db->query($sql)->row_array();
+        $all_num = $res1['all_num'];
+        $sql = "SELECT COUNT(bak.id) AS num FROM md_easyfund_back bak WHERE bak.ez_id={$pro_id} AND bak.if_pay=1 AND bak.status=103 AND bak.if_refund=2";
+        $res2 = $this->db->query($sql)->row_array();
+        $num = $res2['num'];
+        if ($all_num > 0) {
+            if ($all_num == $num) {
+                $sql = "UPDATE md_easyfund SET if_refund=2 WHERE id={$pro_id}";
+                $this->db->query($sql);
+            } else if ($num > 0) {
+                $sql = "UPDATE md_easyfund SET if_refund=-1 WHERE id={$pro_id}";
+                $this->db->query($sql);
+            }
+        }
+        echo json_encode(array('msg' => '操作完成'));
+    }
+
+    public function export_orders() {
+        $arr_title = array("oid" => "订单号",
+            "pro_id" => "项目ID",
+            "wx_trade_no" => "微信流水号",
+            "topic" => "场景名称",
+            "ef_status" => "众筹状态",
+            "st_name" => "发起人用户名",
+            "st_mobile" => "发起人手机号",
+            "sp_name" => "支持者昵称",
+            "sp_mobile" => "支持者手机号",
+            "sp_remark" => "支持者留言",
+            "amount" => "支持金额",
+            "pay_way" => "支付渠道",
+            "paytime" => "支付时间",
+            "od_status" => "订单状态",
+        );
+        $where = $this->_get_order_where($_POST);
+        $rows = $this->_get_order_data($where, $order_by, $limit);
+        $path_file = date("Y-m-d H:i:s", time()) . '.xls';
+        export_to_excel($arr_title, $rows, $path_file, 0);
+    }
+
+    public function export_start() {
+        $arr_title = array("id" => "项目编号",
+            "topic" => "场景名称",
+            "type" => "场景分类",
+            "content" => "文案",
+            "pro_start_time" => "项目开始时间",
+            "pro_end_time" => "项目结束时间",
+            "st_name" => "发起人用户名",
+            "st_mobile" => "发起人手机号",
+            "goal" => "目标金额",
+            "total" => "实际筹资金额",
+            "receive_way" => "收款方式",
+            "num_people" => "支持人数",
+            "pro_status" => "项目状态",
+            "bank_name" => "收款银行",
+            "account_no" => "收款帐号",
+            "receiver" => "收款人",
+            "pay_status" => "打款状态",
+            "remit_log" => "备注"
+        );
+        $where = $this->_get_start_where($_POST);
+        $rows = $this->_get_start_data($where, $order_by, $limit);
+        foreach ($rows as &$row) {
+            $row['num_people'] = strip_tags($row['num_people']);
+            $row['pro_status'] = strip_tags($row['pro_status']);
+        }
+        $path_file = date("Y-m-d H:i:s", time()) . '.xls';
+        export_to_excel($arr_title, $rows, $path_file, 0);
+    }
+
+    public function export_refund() {
+        $arr_title = array('ez_id' => '项目编号',
+            'topic' => '场景名称',
+            'type' => '场景分类',
+            'pro_start_time' => '项目开始时间',
+            'pro_end_time' => '项目结束时间',
+            'st_name' => '发起用户名',
+            'st_wxname' => '发起人微信昵称',
+            'st_mobile' => '发起人手机号',
+            'goal' => '目标金额',
+            'total' => '实际众筹金额',
+            'order_num' => '总订单数'
+        );
+        $where = $this->_get_refund_where($_POST);
+        $rows = $this->_get_refund_data($where, $order_by, $limit);
+        $path_file = date("Y-m-d H:i:s", time()) . '.xls';
+        export_to_excel($arr_title, $rows, $path_file, 0);
+    }
+
+    function export_to_excel($arr_title, $rows, $path_file, $place = 0) {
+//        if (empty($arr_title) || empty($rows) || empty($path_file)) {
+//            err_exit('arguments illegal', __FILE__, __FUNCTION__, __LINE__);
+//        }
+        //导入PHPExcel
+        $CI = & get_instance();
+        $CI->load->library('PHPExcel');
+
+        // $cacheMethod = PHPExcel_CachedObjectStorageFactory:: cache_to_phpTemp;
+        // $cacheSettings = array(
+        //     'memoryCacheSize' => '256MB'
+        // );
+        // PHPExcel_Settings::setCacheStorageMethod($cacheMethod, $cacheSettings);
+
+        $objPHPExcel = new PHPExcel();
+        $objPHPExcel->getProperties()->setTitle('export')->setDescription('none');
+        $objPHPExcel->setActiveSheetIndex(0);
+
+        $row_no = 1;
+        $col = 0;
+        foreach ($arr_title as $k => $title) {
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row_no, $title);
+            $col++;
+        }
+        $row_no++;
+        foreach ($rows as $row) {
+            $col = 0;
+            foreach ($arr_title as $k => $title) {
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row_no, ' ' . $row[$k]); //在写入Excels单元格的内容之前加一个空格，防止长数字被转化成科学计数法
+                $col++;
+            }
+            $row_no++;
+        }
+
+        $objPHPExcel->setActiveSheetIndex(0);
+        $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+        ob_end_clean();
+
+        if ($place == 1) {
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                $path_file = iconv('utf-8', 'gbk', $path_file);  // 解决windows服务器环境下文件名乱码
+            }
+            $objWriter->save($path_file);
+        } else {
+            // Sending headers to force the user to download the file
+            header('Content-Type: applicationnd.ms-excel');
+            header('Content-Disposition: attachment;filename="' . $path_file);
+            header('Cache-Control: max-age=0');
+
+            $objWriter->save('php://output');
+        }
+    }
+
+    function ajax_getCityList() {
+        $id = isset($_GET['id']) ? intval($this->input->get('id', true)) : '';
+        if (empty($id)) {
+            echo json_encode(array('status' => '-1', 'data' => ''));
+            exit;
+        }
+        $openning = get_opening_config();
+        $city_k = $openning[$id];
+        if (empty($city_k)) {
+            echo json_encode(array('status' => '-2', 'data' => ''));
+            exit;
+        }
+        $city = get_opening_city_list();
+        $str = '';
+        foreach ($city_k as $k => $v) {
+            $str .= '<option value="' . $v . '">' . $city[$v] . '</option>';
+        }
+        echo json_encode(array('status' => '0', 'data' => $str));
+        exit;
+    }
+
+    /**
+     * 
+     * @param type $if_batch 0单笔 1批量
+     * @return boolean
+     */
+    function check_submit_status($if_batch) {
+        $time = time();
+        switch (intval($if_batch) == 0) {
+            case 0:
+                $check_submit_file = "check_singlesubmit.log";
+                break;
+            case 1:
+                $check_submit_file = "check_batchsubmit.log";
+                break;
+            default :
+        }
+        $limit_time = 30;  //限制时间
+        if (file_exists($check_submit_file)) {
+            $str = file_get_contents($check_submit_file);
+            if ($str > ($time - $limit_time)) {
+                return false;
+            } else {
+                file_put_contents($check_submit_file, $time);
+                return true;
+            }
+        } else {
+            file_put_contents($check_submit_file, $time);
+            return true;
+        }
+    }
+
+	/**
+	 * 摩点点项目活动后台
+	 * Enter description here ...
+	 */
+	public function choudiandian_pro(){
+		$data = array();
+		$pro_name_arr = $this->Easyfund_m->get_diandian_pro_name();
+		$data['pro_name_arr'] = $pro_name_arr;
+		$this->load->view('modiandian/diandian_pro', $data);
+		 
+	}
+
+	/**
+	 * 筹点点后台search查询的ajax最终组合方法
+	 * Enter description here ...
+	 */
+	public function ajax_diandian_pro(){
+		$res = array();
+		$result = array();
+		$res = $this->diandian_pro_search(1);
+		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+	}
+
+	/**
+	 * 筹点点后台查询详细方法
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function diandian_pro_search($mode=1){
+
+		$search_arr["pro_id"] = isset($_POST['pro_id']) ? $_POST['pro_id'] : '';
+		$search_arr["pro_name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+		$search_arr["sort"] = isset($_POST['bysort']) ? $_POST['bysort'] : 'id';
+		$search_arr["order"] = isset($_POST['byorder']) ? $_POST['byorder'] : 'asc';
+		$search_arr["type"] = isset($_POST['create_type']) ? $_POST['create_type'] : '';
+		 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Easyfund_m->pro_mes_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["id"] = $val["id"];
+				if($val["type"] == '2'){
+					$res["pro_type"] = "微打赏";
+				}elseif($val["type"] == '3'){
+					$res["pro_type"] = "抢红包";
+				}
+				$res["pro_name"] = $val["topic"];
+				$res["start_time"] = $val["ctime"];
+				$res["create_user"] = $val["user_name"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$res["start_time"] =$val["effect_time"];
+				$res["end_time"] =$val["end_time"];
+				$res["op_user"] =$val["user_name"];
+				if($val["if_show"] == '1'){
+					if($val["type"] == '3'){
+						$res["work"] = '<a href="/project/redwallet/'.$val["id"].'/'.$val["topic"].'" id="edit" class="edit">编辑查看</a>';
+					}else{
+						if($val["kind"] == '0'){
+							$res["work"] = '<a href="/easyfund/edit_pro/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/easyfund/down_pro/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>下线吗？\')) return true;else return false;">下线</a> | <a href="/easyfund/show_pro_sub/'.$val["id"].'" id="show_sub_pro" class="show_sub_pro">查看参与项目</a>';													
+						}else{
+							$res["work"] = '<a href="/easyfund/down_pro/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>下线吗？\')) return true;else return false;">下线</a> ';													
+						}
+					}
+				}elseif($val["if_show"] == '0'){
+					if($val["type"] == '3'){
+						$res["work"] = '<a href="/project/redwallet/'.$val["id"].'/'.$val["topic"].'" id="edit" class="edit">编辑查看</a>';
+					}else{
+						if($val["kind"] == '0'){
+							$res["work"] = '<a href="/easyfund/edit_pro/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/easyfund/go_pro/'.$val["id"].'" id="go_pro" class="go_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>上线吗？\')) return true;else return false;">上线</a> | <a href="/easyfund/show_pro_sub/'.$val["id"].'" id="show_sub_pro" class="show_sub_pro">查看参与项目</a>';													
+						}else{	
+							$res["work"] = '<a href="/easyfund/go_pro/'.$val["id"].'" id="go_pro" class="go_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>上线吗？\')) return true;else return false;">上线</a>';													
+						}
+					}
+				}
+				if($val["if_recommend"] == '1'){
+					$res["recommend"] = '<a href="/easyfund/abandon_recommend_pro/'.$val["id"].'" id="abandon_recommend_pro" class="abandon_recommend_pro" onclick="if(confirm(\'确实要放弃推荐<' .$val["topic"].'>吗？\')) return true;else return false;">放弃推荐</a>';
+				}elseif($val["if_recommend"] == '0'){
+					$res["recommend"] ='<a href="/easyfund/recommend_pro/'.$val["id"].'" id="recommend_pro" class="recommend_pro" onclick="if(confirm(\'确实要推荐<' .$val["topic"].'>吗？\')) return true;else return false;">推荐轮播</a>';
+				}
+				$res["logo"] = $val["logo"];
+				$res["tag"] = $val["tag"];
+				$res["intro"] = $val["intro"];
+				$res["money"] = $val["goal"];
+				if($val["type"] == '3'){
+					$redeallwt_mess = $this->Easyfund_m->get_redwallet_mess($val["topic"]);	
+					$user_nums = $this->Easyfund_m->get_sub_nums($redeallwt_mess[0]['id']);
+				}else{
+					$user_nums = $this->Easyfund_m->get_sub_users_nums($val["id"]);
+				}
+				
+				$res["inner_user_num"] = $user_nums['user_num'];
+				$topic_all_money = $this->Easyfund_m->get_topic_money($val["id"]);
+				$res["topic_all_money"] = isset($topic_all_money) ? intval($topic_all_money) : '0';
+				 
+				$list_info[] = $res;
+			}
+		}
+		//根据支持人数/钱数重新排序
+		foreach($list_info as $key=>$value){
+			if($search_arr["sort"] == 'inner_user_num'){
+				$inner[$key] = $value['inner_user_num'];
+			}elseif($search_arr["sort"] == 'topic_all_money'){
+				$inner[$key] = $value['topic_all_money'];
+			}
+		}
+		if($search_arr["order"] == 'asc'){
+			array_multisort($inner, SORT_ASC,$list_info);
+		}elseif($search_arr["order"] == 'desc'){
+			array_multisort($inner, SORT_DESC,$list_info);
+		}
+		 
+		$diadian_list_info = array();
+		$diadian_list_info["search"]= $list_info;
+		return $diadian_list_info;
+	}
+
+	/**
+	 * 筹点点后台创建活动
+	 * Enter description here ...
+	 */
+	public function create_diandian_pro(){
+		$pro_name = isset($_POST["new_pro_name"])?$_POST["new_pro_name"]:"";
+		$pro_money = isset($_POST["new_pro_money"])?$_POST["new_pro_money"]:"";
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";
+		$tag = isset($_POST["new_pro_tag"])?$_POST["new_pro_tag"]:"";
+		$start_time = isset($_POST["prostart_time"])?$_POST["prostart_time"]:"";
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";
+		$effect_day = isset($_POST["new_pro_time"])?$_POST["new_pro_time"]:"";
+		// 		$pro_share_title = isset($_POST["pro_share_title"])?$_POST["pro_share_title"]:"";
+		// 		$pro_share_des= isset($_POST["pro_share_des"])?$_POST["pro_share_des"]:"";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $pro_name . '_' . $tag . '_' . $intro );
+		$type = 2;
+		$if_show = 0;
+		$data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'topic' => $pro_name,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'if_show' => $if_show,
+ 			'unit_key' => $unit_key,
+ 			'type' => $type,		 			
+ 			'ctime' => $ctime,
+ 			'start_time' =>$start_time,
+ 			'end_time' => $end_time,
+ 			'goal' => $pro_money,
+ 			'pro_share_title' => '',
+ 			'pro_share_des' => ''	
+ 			);
+ 			$if_pro = $this->Easyfund_m->if_pro($unit_key);
+ 			if(!empty($if_pro)){
+ 				echo "<script>alert('该活动已经创建过!')</script>";
+ 				return false;
+ 			}else{
+ 				$inner_new_pro = $this->Easyfund_m->inner_new_pro($data);
+ 				echo "<script>alert('创建成功')</script>";
+ 				return true;
+ 			}
+	}
+
+	/**
+	 * 筹点点后台进入活动编辑更新页面
+	 * Enter description here ...
+	 * @param unknown_type $id
+	 */
+	public function edit_pro($id){
+		$data = array();
+		$pro_mess = $this->Easyfund_m->get_edit_pro_mess($id);
+		$data['pro_mess'] = $pro_mess;
+		$this->load->view('modiandian/diandian_edit_pro', $data);
+
+	}
+
+	/**
+	 * 筹点点活动更新
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function update_diandian_pro($pro_id){
+		$pro_name = isset($_POST["new_pro_name"])?$_POST["new_pro_name"]:"";
+		$pro_money = isset($_POST["new_pro_money"])?$_POST["new_pro_money"]:"";
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";
+		$tag = isset($_POST["new_pro_tag"])?$_POST["new_pro_tag"]:"";
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";
+		$effect_day = isset($_POST["new_pro_time"])?$_POST["new_pro_time"]:"";
+		$start_time = isset($_POST["start_time"])?$_POST["start_time"]:"";
+		// 		$pro_share_title = isset($_POST["pro_share_title"])?$_POST["pro_share_title"]:"";
+		// 		$pro_share_des= isset($_POST["pro_share_des"])?$_POST["pro_share_des"]:"";
+		$user_id = $_SESSION['admin_id'];
+		//$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $pro_name . '_' . $tag . '_' . $intro );
+		$type = 2;
+		$data = array(
+ 			'topic' => $pro_name,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'unit_key' => $unit_key,
+ 			'type' => $type,		 			
+ 			'ctime' => $ctime,
+ 			'end_time' => $end_time,
+ 			'goal' => $pro_money,
+ 			'pro_share_title' => '',
+ 			'pro_share_des' => ''	
+ 		
+ 			);
+ 			$update_new_pro = $this->Easyfund_m->update_pro_mess($pro_id,$data);
+ 			return true;
+	}
+
+	/**
+	 * 筹点点后台-下线活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function down_pro($pro_id){
+		$topic_mess =  $this->Easyfund_m->get_topic_info($pro_id);
+		if($topic_mess['kind']==1){
+			$down_diandian_pro = $this->Easyfund_m->down_diandian_pro($pro_id);
+			$down_diandian = $this->Easyfund_m->down_diandian($pro_id);
+		}elseif($topic_mess['kind']==0){
+			$down_diandian_pro = $this->Easyfund_m->down_diandian_pro($pro_id);
+		}
+		
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-上线活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function go_pro($pro_id){
+		$topic_mess =  $this->Easyfund_m->get_topic_info($pro_id);
+		if($topic_mess['kind']==1){
+			$go_diandian_pro = $this->Easyfund_m->go_diandian_pro($pro_id);
+			$go_diandian = $this->Easyfund_m->go_diandian($pro_id);
+		}elseif($topic_mess['kind']==0){
+			$go_diandian_pro = $this->Easyfund_m->go_diandian_pro($pro_id);
+			
+		}
+		
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台查看活动中的项目列表
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function show_pro_sub($pro_id){
+		$data = array();
+		$topic_pro_config = $this->Easyfund_m->get_diandian_pro_config($pro_id);
+		$sub_pro_arr = $this->Easyfund_m->get_diandian_pro_sub($pro_id);
+		$data['topic_pro_config'] = $topic_pro_config;
+		for($i=0;$i < count($sub_pro_arr);$i++){
+			$pro_cuser = $this->User_m->get_user_info ( $sub_pro_arr[$i]['user_id'] );
+			$sub_pro_arr[$i]['sub_pro_cuser'] = $pro_cuser['nickname'];
+			$sub_pro_arr[$i]['sub_back_nums'] = $this->Easyfund_m->get_backer_total($sub_pro_arr[$i]['id']);
+			$sub_pics_arr = $this->Diandian_m->get_sub_pics($pro_id,$sub_pro_arr[$i]['unit_key']);//获取子项目logo信息
+			$logo_arr = unserialize($sub_pics_arr[0]['sub_logo']);
+			$sub_pro_arr[$i]['logo'] = $logo_arr[0];
+			$sub_pro_arr[$i]['des'] = mb_strimwidth($sub_pro_arr[$i]['des'],0,130,'...');
+			$sub_back_moneys = $this->Easyfund_m->get_easyfund_back_total($sub_pro_arr[$i]['id']);
+			$sub_pro_arr[$i]['sub_back_moneys'] = isset($sub_back_moneys)?$sub_back_moneys:"0";
+		}
+		$data['topic_id'] = $pro_id;
+		//根据支持人数/钱数重新排序
+		if(!empty($topic_pro_config) || $topic_pro_config != ''){
+			foreach($sub_pro_arr as $key=>$value){
+				if($topic_pro_config[0]['sort'] == 'inner_user_num'){
+					$inner[$key] = $value['sub_back_nums'];
+				}elseif($topic_pro_config[0]['sort'] == 'topic_all_money'){
+					$inner[$key] = $value['sub_back_moneys'];
+				}
+			}
+			if($topic_pro_config[0]['order'] == 'asc'){
+				array_multisort($inner, SORT_ASC,$sub_pro_arr);
+			}elseif($topic_pro_config[0]['order'] == 'desc'){
+				array_multisort($inner, SORT_DESC,$sub_pro_arr);
+			}
+			$money_arr = explode(",",$topic_pro_config[0]['money']);
+			$data['money_arr'] = $money_arr;
+			$data['sub_list'] = $sub_pro_arr;
+		}else{
+			$money_arr = explode(",","1,10,50,80,100,200");
+			$data['money_arr'] = $money_arr;
+			$data['sub_list'] = $sub_pro_arr;
+		}
+
+		$this->load->view('modiandian/diandian_sub_list', $data);
+	}
+
+	/**
+	 * 筹点点后台-设置活动中的部分属性
+	 * Enter description here ...
+	 */
+	public function edit_topic_configuration(){
+		$topic_id = isset($_POST["topic_id"])?$_POST["topic_id"]:"";
+		$sort = isset($_POST["bysort"])?$_POST["bysort"]:"asc";
+		$order = isset($_POST["byorder"])?$_POST["byorder"]:"id";
+		$money = isset($_POST["money_str"])?$_POST["money_str"]:"1,10,50,80,100,200";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$data = array(
+        	"topic_id" => $topic_id,
+        	"sort" => $sort,
+        	"order" => $order,
+        	"money" => $money,
+        	"cuser" => $op_man,
+		);
+		$if_topic = $this->Easyfund_m->if_topic($data);
+		if(!empty($if_topic)){
+			$updata_topic_config = $this->Easyfund_m->up_topic_config($data);
+			echo "<script>alert('该活动配置已经更新!')</script>";
+			redirect("easyfund/choudiandian_pro");
+		}else{
+			$add_topic_config = $this->Easyfund_m->add_topic_config($data);
+			echo "<script>alert('该活动配置设置成功!')</script>";
+			redirect("easyfund/choudiandian_pro");
+		}
+	}
+	/**
+	 * 筹点点后台-下线项目
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 * @param unknown_type $sub_id
+	 */
+	public function down_pro_sub($pro_id,$sub_id){
+
+		$down_diandian_pro = $this->Easyfund_m->down_diandian_sub($pro_id,$sub_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-上线项目
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 * @param unknown_type $sub_id
+	 */
+	public function updata_pro_sub($pro_id,$sub_id){
+
+		$up_diandian_pro = $this->Easyfund_m->updata_diandian_sub($pro_id,$sub_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-放弃选择推荐活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function abandon_recommend_pro($pro_id){
+		$abandon_pro = $this->Easyfund_m->abandon_recommend_pro($pro_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-选择推荐活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function recommend_pro($pro_id){
+
+		$recommend_pro = $this->Easyfund_m->recommend_pro($pro_id);
+		redirect("/easyfund/choudiandian_pro");
+		return true;
+	}
+}

@@ -1,0 +1,281 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+	.table th{
+		text-align:center;
+	}
+</style>
+	<div class="container">
+		<div>
+			<h1>
+				禁言用户
+			</h1>
+		</div>
+		<hr>
+		<p class="alert alert-info"><?php if($total_number){ echo '已有禁言用户' . $total_number . '个';}else{echo '暂无禁言用户';} ?></p>
+		<form class="form-inline" action="<?php echo $site_url . 'bbs_user/index'; ?>" method="post">
+			<div class="form-group">
+				<select name="type" class="form-control">
+					<option value="1">用户昵称</option>
+					<option value="2" <?php if($type == 2) echo 'selected'; ?>>手机号</option>
+				</select>
+				<input type="text" class="form-control" name="search" placeholder="用户昵称/手机号" value="<?php echo $search; ?>">
+				<input type="hidden" name="submit" value="1">
+				<button class="btn btn-default" type="submit">查询</button>
+			</div>
+		</form>
+	<?php 
+		if($banned_user_list){
+	?>
+			<div>
+				<table class="table table-bordered">
+					<tr>
+						<th>序号</th>
+						<th>用户ID</th>
+						<th>昵称</th>
+						<th>注册时间</th>
+						<th>最后登陆时间</th>
+						<th>操作</th>
+						<th>操作</th>
+					</tr>
+			<?php
+				foreach($banned_user_list as $banned_user){
+					echo "
+					<tr>
+						<td>{$banned_user['sequence']}</td>
+						<td>{$banned_user['user_info']['id']}</td>
+						<td>{$banned_user['user_info']['nickname']}</td>
+						<td>{$banned_user['user_info']['ctime']}</td>
+						<td>{$banned_user['user_info']['last_login']}</td>";
+					if($banned_user['isbanned']){
+						echo "<td><a href='javascript:;' class='enable' manager_tuid_enable='{$banned_user['uid']}'>取消禁言</a></td>";
+					}else{
+						echo "<td><a href='javascript:;' class='disable' manager_tuid_disable='{$banned_user['uid']}'>禁言</a></td>";
+					}
+					echo "<td><a href='javascript:;' class='manager_record' manager_tuid='{$banned_user['uid']}'>查看操作记录</a></td>
+					</tr> ";
+				}
+			?>
+				</table>
+			</div>
+	<?php
+		}
+	?>
+		<?php echo $pagination; ?>
+	</div>
+<?php 
+	if($banned_user_list){
+?>
+	<div id="enable_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							解除禁言
+						</h4>
+					</div>
+					<div class="modal-body">
+						你确定要解除禁言吗?
+					</div>
+					<!--
+					不要解除禁言理由
+					<div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="reason">解除理由</label>
+						    <div class="col-sm-8">
+						    	<textarea row="5" class="form-control" id="reason" placeholder="请输入解除理由" name="reason">
+						    	</textarea>
+						    </div>
+						</div>
+					</div>
+					-->
+			    	<input type="hidden" name="manager_tuid" value="">
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="button" class="btn btn-primary" id="enable_btn">保存</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+	<div id="disable_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							禁言
+						</h4>
+					</div>
+					<div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="time">禁言时间</label>
+						    <div class="col-sm-8">
+						    	<select name="time" class="form-control" id="time">
+						    		<?php 
+						    			foreach($banned_time_list as $key => $val):
+						    				echo "<option value='$val'>$key</option>";
+						    			endforeach;
+						    		?>
+						    	</select>
+						    </div>
+						</div>
+						<p></p>
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="reason">禁言理由</label>
+						    <div class="col-sm-8">
+						    	<select name="reason">
+						    		<?php
+						    			foreach($banned_reason_list as $banned_reason):
+						    				echo "<option value='{$banned_reason}'>$banned_reason</option>";
+					    				endforeach;
+						    		?>
+						    	</select>
+						    </div>
+						</div>
+				    	<input type="hidden" name="manager_tuid" value="">
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="button" class="btn btn-primary" id="disable_btn">保存</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+	<div id="manager_record_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<form class="form-horizontal">	
+				<div class="modal-content">
+					<div class="modal-header">
+						<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+						<h4 class="modal-title">
+							管理记录查看
+						</h4>
+					</div>
+					<div class="modal-body" id="modal-body">
+					</div>
+					<div class="modal-footer">
+						<button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+<script>
+	var url_disable = '<?php echo $site_url; ?>'+'bbs_user/disable';
+	var url_enable = '<?php echo $site_url; ?>'+'bbs_user/enable';
+	var url_manager_record = '<?php echo $site_url; ?>' + 'bbs_user/manager_record';
+
+	$("#enable_modal").on("hidden.bs.modal", function() {
+	    // $(this).find('[name=reason]').val('');
+	});
+
+	$(document).on('click', '.enable', function(){
+		var manager_tuid = $(this).attr('manager_tuid_enable');
+		$('#enable_modal').modal();
+		$('#enable_modal').find("[name=manager_tuid]").val(manager_tuid);
+	});
+
+	$("#enable_btn").click(function(){
+		// var reason = $('#enable_modal').find('[name=reason]').val();
+		var reason = '';
+		var manager_tuid = $('#enable_modal').find('[name=manager_tuid]').val();
+		$.ajax({
+			url : url_enable,
+			type : 'post',
+			data : {
+				reason : reason,
+				manager_tuid : manager_tuid
+			},
+			async : false,
+			success : function(return_data){
+				if(return_data == 1){
+					alert('解禁成功');
+					$('#enable_modal').modal('hide');
+					$('[manager_tuid_enable='+manager_tuid+']').text('禁言');
+					$('[manager_tuid_enable='+manager_tuid+']').attr('class', 'disable');
+
+					// 发现必须先使用attr()，再使用removeAttr()，将attr()放到后面，发现元素添加不上去!很奇怪!
+					$('[manager_tuid_enable='+manager_tuid+']').attr('manager_tuid_disable',manager_tuid);
+					$('[manager_tuid_enable='+manager_tuid+']').removeAttr('manager_tuid_enable');
+				}else{
+					alert('解禁失败！');
+					$('#enable_modal').modal('hide');
+				}
+			}
+		});
+	});
+
+	$("#disable_modal").on("hidden.bs.modal", function() {
+	    $(this).find('[name=time]').children().first().prop('selected', true);
+	    $(this).find('[name=reason]').children().first().prop('selected', true);
+	});
+
+	$(document).on('click', '.disable', function(){
+		var manager_tuid = $(this).attr('manager_tuid_disable');
+		$('#disable_modal').modal();
+		$('#disable_modal').find("[name=manager_tuid]").val(manager_tuid);
+	});
+
+	$("#disable_btn").click(function(){
+		var reason = $('#disable_modal').find('[name=reason]').val();
+		var time = $('#disable_modal').find('[name=time]').val();
+		var manager_tuid = $('#disable_modal').find('[name=manager_tuid]').val();
+		$.ajax({
+			url : url_disable,
+			type : 'post',
+			data : {
+				time : time,
+				reason : reason,
+				manager_tuid : manager_tuid
+			},
+			async : false,
+			success : function(return_data){
+				if(return_data == 1){
+					alert('禁言成功');
+					$('#disable_modal').modal('hide');
+					$('[manager_tuid_disable='+manager_tuid+']').text('取消禁言');
+					$('[manager_tuid_disable='+manager_tuid+']').attr('class', 'enable');
+					$('[manager_tuid_disable='+manager_tuid+']').attr('manager_tuid_enable',manager_tuid);
+					$('[manager_tuid_disable='+manager_tuid+']').removeAttr('manager_tuid_disable');
+				}else{
+					alert('禁言失败！');
+					$('#disable_modal').modal('hide');
+				}
+			}
+		});
+	});
+
+	$("#manager_record_modal").on("hidden.bs.modal", function() {
+	    $('#modal-body').text('');
+	});
+
+	$(document).on('click', '.manager_record', function(){
+		var manager_tuid = $(this).attr('manager_tuid');
+		$.ajax({
+			url : url_manager_record,
+			type : 'post',
+			data : {
+				manager_tuid : manager_tuid
+			},
+			async : false,
+			success : function(return_data){
+				if(return_data){
+					$('#manager_record_modal').modal();
+					$('#modal-body').html(return_data);
+				}else{
+					alert('获取失败');
+					$('#enable_modal').modal('hide');
+				}
+			}
+		});
+		$('#manager_record_modal').find("[name=manager_tuid]").val(manager_tuid);
+	});
+</script>
+<?php 
+	}
+?>
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,77 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Weixin_msg extends CI_Controller {
+
+    public function weixin_tpl_send() {
+        set_time_limit(1800);
+        ignore_user_abort();
+        $now_date = date('Y-m-d H:i:s');
+        $before_date = date('Y-m-d H:i:s', strtotime('-1 Hour', strtotime($now_date)));
+        $this->load->library('rmq');
+        $spread_sql = "SELECT s.id,s.send_status,s.send_type,s.send_start_time,s.send_wx_tpl,s.content,s.if_show,us.status_select FROM md_weixin_spread s
+                 INNER JOIN md_weixin_user_status us ON us.id=s.user_status_id where s.if_show=1 AND s.send_status=1 AND s.ctime >= '$before_date' ";
+        $spread_mess = $this->db->query($spread_sql)->result_array();
+        //print_r($spread_mess);exit;
+        if (!empty($spread_mess)) {
+            $this->load->library('notify_push/notify_api');
+            foreach ($spread_mess as $key => $val) {
+                $spread_arr = explode('^', $val['content']);
+                $wx_spread = array();
+                $wx_spread['wx_tpl_id'] = $val['send_wx_tpl'];
+                if ($val['send_wx_tpl'] == 10) {//项目发起推送
+                    $wx_spread['Firstdata'] = $spread_arr[0];
+                    $wx_spread['pro_name'] = $spread_arr[1];
+                    $wx_spread['pro_goal'] = $spread_arr[2];
+                    $wx_spread['pro_end_time'] = $spread_arr[3];
+                    $wx_spread['pro_des'] = $spread_arr[4];
+                    $wx_spread['Remark'] = $spread_arr[5];
+                    $wx_spread['url'] = $spread_arr[6];
+                } elseif ($val['send_wx_tpl'] == 13) {//用户未绑定账号通知
+                    $wx_spread['Firstdata'] = $spread_arr[0];
+                    $wx_spread['Remark'] = $spread_arr[1];
+                    $wx_spread['url'] = $spread_arr[2];
+                }            
+                switch ($val['send_type']) {
+                    ##定时推送
+                    case '1':
+                        $time = strtotime($now_date) - strtotime($val['send_start_time']);
+                        if ($time >= -60 || $time <= 60) {//上下一分钟误差                           
+                            $user_sql = $val['status_select'];
+                            $users_mes = $this->db->query($user_sql)->result_array();                           
+                            foreach ($users_mes as $users) {
+                                if($val['send_wx_tpl'] == 13){
+                                    $wx_spread['fans_unionid'] = $users['unionid'];
+                                }
+                                $wx_spread_base = serialize($wx_spread);
+                                notify_api::notify_test(4, $users['user_id'], $wx_spread_base);
+                            }
+                        } else {
+                            continue;
+                        }
+                        break;
+                    ##实时推送
+                    case '2':
+                        $user_sql = $val['status_select'];
+                        $users_mes = $this->db->query($user_sql)->result_array();
+                        foreach ($users_mes as $users) {
+                            if ($val['send_wx_tpl'] == 13) {
+                                $wx_spread['fans_unionid'] = $users['unionid'];
+                            }
+                            $wx_spread_base = serialize($wx_spread);
+                            notify_api::notify_test(4, $users['user_id'], $wx_spread_base);
+                        }
+                        break;
+                }
+                $update_sql = "UPDATE `md_weixin_spread` SET `send_status`=2 WHERE id='{$val['id']}'";
+                $this->db->query($update_sql);
+            }
+        } else {
+            echo "当前没有需要推广的微信任务";
+            return true;
+        }
+    }
+
+}

@@ -1,0 +1,43 @@
+<?php
+
+class init extends MD_Controller {
+
+    /**
+     * 初始化高級管理員組的全部權限，以免誤操作導致權限丟失
+     */
+    public function admin_group() {
+        $this->load->model('Common');
+        $sql = "SELECT * FROM md_admin_power_item";
+        $all_power = array();
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $item) {
+            $all_power[] = $item['id'];
+        }
+        $all_power = implode(',', $all_power);
+        $this->Common->update("md_admin_group", array('id' => 1), array('group_item_ids' => $all_power));
+        echo 'ok';
+    }
+
+    public function captcha_code($title = 'captcha') {
+        $this->load->library('md_edm');
+        $this->load->library('captcha_code');
+        $this->captcha_code->name = $title;
+        $this->captcha_code->fontsize = 12;
+        $this->captcha_code->show();
+    }
+
+    public function export_user_by_pro_id($pro_id) {
+        $sql = "SELECT address_name,address_mobile FROM md_product_back WHERE pro_id='{$pro_id}' AND amount>0.01 GROUP BY address_mobile";
+        $result = $this->db->query($sql)->result_array();
+        $table = '<table border="1">';
+        $table .= "<tr><td>总数：</td><td>" . count($result) . "</td></tr>";
+        $table .= "<tr><td>用户名</td><td>手机号</td></tr>";
+
+        foreach ($result as $item) {
+            $table .= "<tr><td>{$item['address_name']}</td><td>{$item['address_mobile']}</td></tr>";
+        }
+        $table .= '</table>';
+        echo $table;
+    }
+
+}

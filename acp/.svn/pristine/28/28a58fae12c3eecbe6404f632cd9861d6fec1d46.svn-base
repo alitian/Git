@@ -1,0 +1,530 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_main extends Acp_Controller 
+	{
+
+		public $site_url;
+		public $base_url;
+		public $uid;
+		public $post_perpage = 20;
+		public $list_image_max_height = 450;
+		public $list_image_max_width = 600;
+		public $detail_image_max_height = 173;
+		public $detail_image_max_width = 173;
+		public $compress_marker = '_compress';
+		public $list_marker = '_list';
+		public $thumb_marker = '_thumb';
+		public $find_product;
+		public $preview_url;
+
+		public function __construct()
+		{
+			parent::__construct();	
+			$this->load->helper('bbs_common');
+			$this->load->helper('url');
+			$this->load->model('bbs_main_model');
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+			$this->find_product 	  = _gc('domain_zhongchou', 'domain');
+			$this->preview_url        = _gc('domain_moxi','domain');
+
+		}
+
+		public function get_total_recommend_post_rows()
+		{
+			$where = array(
+						'isshow' => 1,
+						'isverified' => 1,
+						'isrecommend' => 1
+					);
+			$this->moxi_db->from('bbs_post');
+			$this->moxi_db->where($where);
+			$total_rows = $this->moxi_db->count_all_results();
+			return $total_rows;
+		}
+		/**
+		 * 根据类型来查找纪录
+		 * @author jaafar
+		 * @param  [int] $type [推荐类型]
+		 * @return [array]      
+		 */
+		public function get_total_recommend_rows($type){
+			$where = array(
+						'type' => $type,
+						'status' => 0, //去除伪删除状态的值
+						// 'isrecommend' => 1
+					);
+			$this->moxi_db->from('bbs_recommend');
+			$this->moxi_db->where($where);
+			$total_rows = $this->moxi_db->get()->num_rows();
+			return $total_rows;
+		}
+		public function get_recommend_post_list($type,$nextpage, $perpage = 20)
+		{
+			$where = array(
+						'status'     => 0,  //过滤掉伪删除的
+						'type'		 => $type, //根据类型来展示
+						// 'weight != ' => 0,  
+					);
+			$offset = ($nextpage - 1) * $perpage;
+			$this->moxi_db->from('bbs_recommend');
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by('weight ASC');
+			$this->moxi_db->order_by('ctime DESC');
+			$this->moxi_db->limit($perpage, $offset);
+			$recommend_post_list = $this->moxi_db->get()->result_array();
+
+			return $recommend_post_list;
+		}
+
+		/**
+		 *首页推荐页面【主要有文字链,项目,推图,帖子等】
+		 *
+		 */
+		public function post_recommend($type,$curpage = 1)
+		{
+			$type=$type ? (int)$type : 1;  //默认显示项目页
+			$curpage = $curpage ? (int) $curpage : 1;
+			$recommend_post_list = $this->get_recommend_post_list($type,$curpage, $this->post_perpage);
+			foreach($recommend_post_list as &$post_info){
+				if($post_info['pro_img']){
+					$post_info['pro_src'] = add_suffix(cdn_url($post_info['pro_img']), $this->compress_marker);
+				}
+				$post_info['pro_time'] = date('Y-m-d H:i:s', $post_info['pro_time']);
+			}
+			// exit('ok');
+			$total_rows = $this->get_total_recommend_rows($type);
+			// var_dump($total_rows);
+			// 当前页的链接，但是缺失 '分页页数'
+			$cur_url = "/bbs_main/post_recommend/$type";
+			$config = array(
+							'uri_segment' => 4, // 在url的第二段上选取分页页数
+							'base_url' => $cur_url,
+							'total_rows' => $total_rows,
+							'per_page' => $this->post_perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<ul class="pagination">',
+							'full_tag_close' => '</ul>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$this->load->vars('type',$type);
+			$this->load->vars('curpage', $curpage);
+			$this->load->vars('preview_url', $this->preview_url);
+			$this->load->vars('recommend_post_list', $recommend_post_list);
+			$this->load->vars('pagination', $pagination);	
+			$this->load->view('bbs_main/post_recommend');
+		}
+
+		// 关于跳转到哪个分页再考虑
+		public function add_post_recommend($type,$post_id,$curpage = 1)
+		{
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs_post_model');
+			$this->load->model('edm_product_m');
+			$type    = $type ? (int)$type :'';
+			$curpage = $curpage ? (int) $curpage: '';
+			$post_id = $post_id ? (int)$post_id :'';
+
+
+			if($type==1){
+				if($post_id < 0)
+					md_common::display_javascript('参数异常!', '/bbs_main/post_recommend'.$type. '/'.$curpage);
+				$post_info = $this->bbs_post_m->get_post_record($post_id);
+				if(empty($post_info))
+					md_common::display_javascript('帖子不存在!', '/bbs_main/post_recommend/'.$type. '/'.$curpage);
+				$record = $this->bbs_post_model->get_post_recommend_record($post_id,$type);
+				// echo $this->moxi_db->last_query();
+				// var_dump($record);exit;
+				if($record)
+					md_common::display_javascript('帖子已存在!', '/bbs_main/post_recommend/'.$type. '/'.$curpage);
+				$post_info = $this->bbs_post_model->get_post_info($post_id);
+				$pre_title = $post_info['subject'];
+				$pre_cover = $post_info['pic_url']?$post_info['pic_url']:'';
+				// $path = str_replace('http://','/ROOT/www/',add_suffix(cdn_url($pre_cover),$this->compress_marker);
+				// echo $path;
+				// attachment_process($path, $this->compress_marker, $this->list_marker, $this->thumb_marker,'220x138', '220x138');
+
+			}else if($type==2){
+				if($post_id < 0)
+					md_common::display_javascript('参数异常!', '/bbs_main/post_recommend'.$type. '/'.$curpage);
+
+				$item_info = $this->edm_product_m->get_info_by_product($post_id);
+				
+				if(!$item_info){
+					md_common::display_javascript('项目不存在!', '/bbs_main/post_recommend/'.$type. '/'.$curpage);
+				}else{
+					$pre_title = $item_info['name'];
+					$pre_cover = $item_info['logo']?$item_info['logo']:'';
+				}
+
+				$record = $this->bbs_post_model->get_post_recommend_record($post_id,$type);
+				if($record)
+					md_common::display_javascript('项目已存在!', '/bbs_main/post_recommend/'.$type.'/'. $curpage);
+				$links = $this->find_product.'/item/'.$post_id;
+			}
+			
+
+			// 表单传递 'new'，表示新增记录
+			if($this->input->post('new')){
+				$weight      = (string)trim($this->input->post('weight'));	
+				$weight      = $weight ? (int) $weight : 0; 	
+				$title       = (string)trim($this->input->post('title'));
+				$links       = $this->input->post('links');
+				$links       = $links ? $links : '';
+				$pre_title   = $pre_title ? $pre_title : '';
+				// $pro_content = (string)trim($this->input->post('pro_content'));	
+				// $pro_content = $pro_content ? $pro_content : '';
+				$cover       = (string)trim($this->input->post('cover'));
+				if($type==2||$type==1){
+					$cover       = $cover ? $cover : $pre_cover;
+					$title       = $title ? $title : $pre_title;
+				}else if($type==3){
+					$cover       = $cover ? $cover : '3';
+					$title       = $title ? $title : '';
+				}else{
+					$cover       = $cover ? $cover : '';
+					$title       = $title ? $title : '';
+				}
+				$update_data = array(
+									// 'isrecommend' => 1, 		// 此种方式添加推荐，会自动将该字段致为1
+									'weight'         => $weight,
+									'title'          => $title,
+									'object_id' 	 => $post_id,
+									'type'           => $type,
+									'cover'          => $cover,
+									'ctime'          => date("Y-m-d H:i:s",time()),
+									'links'			 => $links,
+									'pre_title'		 => $pre_title,
+
+								);
+
+				// $this->moxi_db->where('post_id', $post_id);
+				$update_bool = $this->moxi_db->insert('bbs_recommend', $update_data);
+				if($update_bool){
+					md_common::display_javascript('', "/bbs_main/post_recommend/".$type);
+				}else{
+					md_common::display_javascript('添加失败!', "/bbs_main/add_post_recommend/{$post_id}");
+				}
+			}else{
+				if($type==1||$type==2){
+					$this->load->vars('pre_title',$pre_title);
+					$this->load->vars('pre_cover',$pre_cover);
+					$this->load->vars('object_id',$post_id);
+				}
+				if($type==2)
+					$this->load->vars('links',$links);
+				$this->load->vars('type',$type);
+				$this->load->vars('post_id', $post_id);
+				$this->load->view('bbs_main/add_post_recommend');
+			}
+		}
+
+		/**
+		 * 	新增推荐帖子的 'pro_title', 'pro_content', 'pro_img' 的编辑页面！-------- 没有添加，只有修改
+		 */
+		public function edit_post_recommend($id, $curpage = 1,$type)
+		{
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs/bbs_misc_m');
+
+			$id      = (int) $id;
+			$curpage = (int) $curpage; 	//需要返回具体的分页处
+			$type    =  $type ? (int)$type : '';   //类型
+			if($id < 0)
+				md_common::display_javascript('参数异常!', '/bbs_main/post_recommend/'. $curpage);
+			// 表单传递 'edit'，表示修改记录
+			if($this->input->post('edit')){
+				$weight = (string)trim($this->input->post('weight'));	
+				$weight = $weight ? (int) $weight : 0; 	
+				$pro_title = (string)trim($this->input->post('title'));	
+				$pro_title = $pro_title ? $pro_title : '';
+				$links = $this->input->post('links');	
+				$links = $links ? $links : '';
+				$pro_img = (string)trim($this->input->post('cover'));	
+				$pro_img = $pro_img ? $pro_img : '';
+				$update_data = array(
+									'weight'         => $weight,
+									'title'          => $pro_title,
+									// 'pro_content' => $pro_content,
+									// 'type'           => $type,
+									'links'			 => $links,
+									'cover'          => $pro_img,
+								);
+				$this->moxi_db->where('id', $id);
+				$update_bool = $this->moxi_db->update('bbs_recommend', $update_data);
+				if($update_bool){
+					md_common::display_javascript('', "/bbs_main/post_recommend/".$type.'/'.$curpage);
+				}else{
+					md_common::display_javascript('修改失败!', "/bbs_main/edit_promotion/{$type}/{$curpage}");
+				}
+			}else{
+				$post_info = $this->bbs_post_m->get_recommend_by_id($id);
+				
+				if($post_info['title']){
+					$post_info['title'] = htmlspecialchars_decode($post_info['title']);
+
+					if(strpos($post_info['content'], 'aid="')){
+						$publish_by_m = FALSE;
+
+					// 未匹配到图片，但是又发现是图片贴，说明是手机端发布的
+					}elseif($post_info['pic_url']){
+						$publish_by_m = TRUE;
+					}else{
+						// 剩下情况只能说明，没有发表图片，只是内容，无法区分是手机端或PC端 - 不过想要的目的已达到
+					}
+				}else{
+					$publish_by_m = TRUE; 		// 内容为空，必然为手机发布的图片贴
+				}
+
+				// 只有确定是手机发布的，才展示附件
+				if($publish_by_m){
+					$post_info['attachment_list'] = $this->bbs_misc_m->get_attachment($post_id);
+					if($post_info['attachment_list']){
+						foreach($post_info['attachment_list'] as &$attachment){
+							$attachment['origin_url'] = cdn_url($attachment['path']);				
+							$point_pos = strrpos($attachment['origin_url'], '.');
+							$attachment['thumb_url'] = substr($attachment['origin_url'], 0, $point_pos) . $this->thumb_marker . substr($attachment['origin_url'], $point_pos);
+							$attachment['origin_url'] = substr($attachment['origin_url'], 0, $point_pos) . $this->compress_marker. substr($attachment['origin_url'], $point_pos);				
+						}
+					}
+				}
+				$compress_url = add_suffix(cdn_url($post_info['pro_img']), $this->compress_marker);
+				$post_info['pro_src'] = $compress_url;
+				$post_info['publish_by_m'] = $publish_by_m;
+				$this->load->vars('type',$type);
+				$this->load->vars('curpage', $curpage);
+				$this->load->vars('post_info', $post_info);
+				$this->load->view('bbs_main/edit_post_recommend');
+			}
+		}
+
+		/**
+		 *	删除推荐
+		 */
+		public function del_post_recommend($id,$post_id,$type)
+		{
+			$id      = (int) $id;
+			$post_id = (int)$post_id;
+			$type    = $type ? (int)$type : 1;
+			$update_data = array(
+								'status' => 1
+							);
+			$update_bool = $this->moxi_db->update('bbs_recommend', $update_data,array('id'=>$id));
+
+			// if($type==1)
+			// 	$this->moxi_db->update('bbs_post',array('isrecommend'=>0),array('post_id'=>$post_id));
+
+			if( ! $update_bool)
+				md_common::display_javascript('删除失败!');
+			else
+				md_common::display_javascript('删除成功!');
+		}
+
+		/* 
+			多次上传图片，不对之前的图片进行删除操作
+		 */
+		public function upload($type)
+		{
+			$this->load->library('md_imagick');
+			$type = intval($type);
+			// 图片上传input框name名
+			$input_file_name = 'upfile';
+			$attachment_path_prefix = 'bbs_promotion/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+			$db_path_prefix = 'uploads/' . $attachment_path_prefix;
+			$full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+
+			if(!file_exists($full_upload_path)){
+				mkdir($full_upload_path, 0777, TRUE);
+			}
+			$config = array(
+							'upload_path' => $full_upload_path,
+							'allowed_types' => 'gif|jpg|png|jpeg',
+							'encrypt_name' => TRUE,
+							'max_size' => '10000',
+							'max_width' => '102400',
+							'max_height' => '76800'
+						);
+			$this->load->library('upload', $config);
+			if( ! $this->upload->do_upload($input_file_name)){
+				$errmsg = $this->upload->display_errors();
+				echo "<script>alert('{$errmsg}')</script>";
+			}else{
+				$attachment_data = $this->upload->data();
+				//在首页表中插入路径 jaafar
+
+				// 得到原图的系统路径
+				$attachment_system_path = $attachment_data['full_path'];
+				/*
+					针对 IOS 的拍照图片的颠倒问题，解决
+				 */
+				rotate_image_if_necessary($attachment_system_path);
+
+				// 图片的系列处理，压缩图(compress)，列表页缩略图(list)，详情页缩略图(thumb) - 统一封装在 bbs_common_helper.php
+				// $list_size = $this->list_image_max_width . 'x' . $this->list_image_max_height;
+				// $detail_size = $this->detail_image_max_width . 'x' . $this->detail_image_max_height;
+				
+				
+				list($w,$h)=getimagesize($attachment_system_path);
+
+				switch ($type) {
+						case '1':
+							if($w<210&&$h<135){
+								echo "<script>alert('图片尺寸太小')</script>";
+								return false;
+							}
+							$list_size = '220x138';
+							$detail_size = '220x138';
+							break;
+						case '2':
+							if($w<300||$h<300){
+								echo "<script>alert('图片尺寸太小')</script>";
+								return false;
+							}
+							$list_size = '305x307';
+							$detail_size = '305x307';
+							break;
+						case '4':
+							if($w<613||$h<305){
+								echo "<script>alert('图片尺寸太小')</script>";
+								return false;
+							}
+							$list_size = '614x306';
+							$detail_size = '614x306';
+							break;
+						case '5':
+							if($w<700||$h<432){
+								echo "<script>alert('图片尺寸太小')</script>";
+								return false;
+							}
+							$list_size = '700x432';
+							$detail_size = '700x432';
+							break;
+						default:
+							break;
+					}
+				attachment_process($attachment_system_path, $this->compress_marker, $this->list_marker, $this->thumb_marker, $list_size, $detail_size);
+
+				// 存储在bbs_attachment数据表的路径
+				$db_path = $db_path_prefix . $attachment_data['file_name']; 		// 数据库存储的路径是以 'upload' 开头
+
+				// 原图的URL访问地址
+				$attachment_url = bbs_img_url($db_path);
+
+				// 压缩图的URL访问路径 - 用于PC端
+				$compress_url = add_suffix($attachment_url, $this->list_marker);
+
+
+                //显示到页面那个预览图片的位置
+                $js = <<<EOT
+                		<script>
+                			top.document.getElementById('img_preview').setAttribute('src','$compress_url')
+                			top.document.getElementById('img_preview').style.display='inline-block';
+                			top.document.getElementById('default_text').style.display='none';
+                			top.document.getElementById('pro_img').value='$db_path';
+                			top.document.getElementById('check_upload').value=1;
+
+                		</script>;
+EOT;
+				echo $js;
+			}
+		}
+
+
+
+		/**
+		 * 	回复推荐页面
+		 */
+		public function item_recommend()
+		{
+
+			$recommend_reply_list = $this->bbs_main_model->get_recommend_reply_list();
+			$vars = array(
+						'recommend_reply_list' => $recommend_reply_list
+					);
+			$this->load->view('bbs_main/reply_recommend', $vars);
+		}
+
+		/*
+		 * 	更改帖子的推荐状态和推荐权重 -------------- 改为一次性提交
+		 * 	
+		public function change_weight()
+		{
+			$post_id = $this->input->post('post_id', true);		
+			$sortid = $this->input->post('sortid', true);		
+			$bool = $this->bbs_main_model->change_recommend_weight($post_id, $sortid);
+			echo ($bool ? 1 : 0);
+		}
+		 */
+		public function change_weight($type)
+		{
+			$type = $type ? (int) $type : 1;
+			$post_id_array = (string) $this->input->post('post_id_array', true);
+			$post_sortid_array = (string) $this->input->post('post_sortid_array', true);
+			$post_id_array = json_decode($post_id_array);
+			$post_sortid_array = json_decode($post_sortid_array);
+			$errmsg = '修改成功';
+
+			// 拼接更新数据
+			foreach($post_id_array as $key => $post_id){
+				$bool = $this->bbs_main_model->change_recommend_weight($post_id, $post_sortid_array[$key], $this->uid);
+				if(!$bool){
+					$errmsg = '更新第 ' . ($key+1) . ' 条帖子推荐排序失败！';
+					break;
+				}
+				if($bool == -1){
+					$errmsg = '记录第 ' . ($key+1) . ' 条帖子的管理操作记录失败！';
+					break;
+				}
+			}
+			md_common::display_javascript($errmsg, site_url('bbs_main/post_recommend/'.$type));
+		}
+
+		/**
+		 *
+		 * 	更改回复的推荐权重
+		 * 	
+		 */
+		public function change_reply_recommend_weight()
+		{
+			$recommend_id_array = (string) $this->input->post('recommend_id_array', true);
+			$recommend_sortid_array = (string) $this->input->post('recommend_sortid_array', true);
+			$recommend_id_array = json_decode($recommend_id_array);
+			$recommend_sortid_array = json_decode($recommend_sortid_array);
+			$errmsg = '修改成功';
+
+			// 拼接更新数据
+			foreach($recommend_id_array as $key => $recommend_id){
+				$bool = $this->bbs_main_model->change_reply_recommend_weight($recommend_id, $recommend_sortid_array[$key], $this->uid);
+				if(!$bool){
+					$errmsg = '更新第 ' . ($key+1) . ' 条回复推荐排序失败！';
+					break;
+				}
+				if($bool == -1){
+					echo '记录第 ' . ($key+1) . ' 条回复的管理操作记录失败！';
+					exit;
+				}
+			}
+			md_common::display_javascript('', site_url('bbs_main/reply_recommend'));
+			exit;
+		}
+	}

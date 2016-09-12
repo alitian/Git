@@ -1,0 +1,46 @@
+<?php $this->load->view('ckad/header') ?>
+<script language="javascript">
+    $(function () {
+        $("select").change(function () {
+            window.location.href = "/homepage/subject?active_id=" + $(this).val();
+        })
+    });
+</script>
+<h3>首页活动聚焦</h3>
+<form method="post">
+    <table class="table">
+        <tr>
+            <th>选择活动</th>
+            <td>
+                <select name="active_id">
+                    <option value="0">无活动推荐</option>
+                    <?php foreach ($subjects as $active): ?>
+                        <option value="<?= $active['id'] ?>"<?php if ($cfg['subject_id'] == $active['id']): ?> selected<?php endif; ?>>【<?= $active['id'] ?>】.<?= $active['name'] ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </td>
+        </tr>
+        <?php if ($cfg['subject_id'] > 0): ?>
+            <tr>
+                <th>活动链接</th>
+                <td>
+                    <input type="text" name="link_url" value="<?= $cfg['link_url'] ?>" />
+                </td>
+            </tr>
+            <tr>
+                <th>首页展示项目</th>
+                <td>
+                    <?php foreach ($projects as $project): ?>
+                        <label for="pro_<?= $project['id']; ?>"><input name="pro_ids[]" type="checkbox" id="pro_<?= $project['id']; ?>" value="<?= $project['id']; ?>" <?php if (in_array($project['id'], $cfg['pro_ids'])): ?> checked<?php endif; ?> /><?= $project['name']; ?></label>
+                        <?php endforeach; ?>
+                </td>
+            </tr>
+        <?php endif; ?>
+        <tr>
+            <td colspan="2">
+                <input type="submit" value="保存" />
+            </td>
+        </tr>
+    </table>
+</form>
+<?php $this->load->view('ckad/footer'); ?>

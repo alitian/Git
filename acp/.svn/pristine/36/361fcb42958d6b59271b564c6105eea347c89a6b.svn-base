@@ -1,0 +1,12 @@
+<ul class="nav nav-tabs">
+    <?php if (in_array($type, array('check_account', 'normal', 'abnormal'))):?>
+    <li <?php if ($type == 'check_account'):?> class="active"<?php endif;?>><a href="/wds_reconcil/check_account">对账报表</a></li>
+    <!-- <li <?php if ($type == 'normal'):?> class="active"<?php endif;?>><a href="/pay_ad/index/normal">全部订单</a></li> -->
+    <li <?php if ($type == 'abnormal'):?> class="active"<?php endif;?>><a href="/wds_reconcil/index/abnormal">异常订单</a></li>
+    <?php elseif (in_array($type, array('refund', 'refunded'))):?>
+    <li <?php if ($type == 'refund'):?> class="active"<?php endif;?>><a href="/wds_reconcil/refund">确认退款</a></li>
+    <li <?php if ($type == 'refunded'):?> class="active"<?php endif;?>><a href="/wds_reconcil/refund/refunded">已退款</a></li>
+    <?php elseif (in_array($type, array('tools'))):?>
+    <li <?php if ($type == 'tools'):?> class="active"<?php endif;?>><a href="/wds_reconcil/tools">拉取账单</a></li>
+    <?php endif;?>
+</ul>

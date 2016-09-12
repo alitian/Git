@@ -1,0 +1,96 @@
+<?php
+    require_once('vendor/autoload.php');
+    $client = Elasticsearch\ClientBuilder::create()->build();
+    $arr=array();
+ 
+    $param2 = [
+	"search_type" => "count", 
+	"index" => "*",
+	"body" => [
+	    "query" => [
+			"filtered"=>[ 
+				"filter"=>[
+					"range"=>[
+						"@timestamp"=>[
+						"gte" => strtotime(date("Y-m-d")-86400)*1000,
+						"lt" => (strtotime(date("Y-m-d")))*1000
+						]
+					]
+				]
+			]
+	    ],
+	    "aggs"=>[
+		"uv"=>[
+		    "cardinality"=>[
+			"field"=>"mdsa",
+			"precision_threshold"=>40000
+		   ]
+		]
+	    ]
+	]
+    ];
+    $result2 = $client->search($param2);
+    $arr['pv']= $result2['hits']['total'];
+    $arr['uv']= $result2['aggregations']['uv']['value'];
+    unset($param2);
+    unset($result2);
+    $arr['p/u']=round($arr['pv']/$arr['uv'],2);
+    
+    $param3 = [
+        "search_type" => "count", 
+        "index" => "*",
+	"body" => [
+	    "query" => [
+		"filtered" => [
+		    "query" => [
+			"bool" => [
+			    "must_not" => [
+				"term" => [
+				    "mdsb" => 0
+				]
+			    ]
+		        ]
+		    ],
+		    "filter" => [
+			"range" => [
+			    "@timestamp" => [
+				"gte" => strtotime(date("Y-m-d")-86400)*1000,
+				"lt" => (strtotime(date("Y-m-d")))*1000
+			    ]
+			]
+		    ]
+		]
+	    ],
+	    "aggs" => [
+		"uv" => [
+		    "cardinality" => [
+			"field" => "mdsb",
+			"precision_threshold" => 40000
+		    ]
+		]
+	    ]
+	]
+    ];
+    $result3=$client->search($param3);
+    $arr['login_user']=$result3['aggregations']['uv']['value'];
+    unset($param3);
+    unset($result3);
+    try{	
+       $pdo=new PDO('mysql:host=tw1.db.modianinc.com;dbname=app_modian;port=16888;charset=utf8;','devroot','7Q5oO9J8kz');
+    }catch(Exception $e){
+       echo $e->getMessage();
+    }
+    $reslut1=$pdo->query("select count(*) as new_user from md_users where `ctime` >= '".date("Y-m-d",time())." 00:00:00' and `ctime` < '".date("Y-m-d",time()+86400)." 00:00:00'");
+    $reslut=$reslut1->fetch();
+    $arr['new_user']=$reslut['new_user'];
+
+    $reslut2=$pdo->query("select count(*) as form,sum(amount) as money from md_product_back where `ctime` >= '".date("Y-m-d",time())." 00:00:00' and `ctime` < '".date("Y-m-d",time()+86400)." 00:00:00' and `if_pay` = 1");
+    $reslut=$reslut2->fetch();
+    $arr['form']=$reslut['form'];
+    $arr['money']=$reslut['money'];
+    if(empty($arr['money'])){
+	$arr['money']=0;
+    }
+    $str=date('Y-m-d',time()-86400);
+    $sql="insert into `md_web_data`(`ctime`,`pv`,`uv`,`p/u`,`login_user`,`new_user`,`form`,`money`) values('{$str}',{$arr['pv']},{$arr['uv']},{$arr['p/u']},{$arr['login_user']},{$arr['new_user']},{$arr['form']},{$arr['money']})";
+    $pdo->query($sql);

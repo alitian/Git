@@ -1,0 +1,41 @@
+              <table id="project_tab" class="control-group">
+					<thead>
+						<tr>
+							<th  width="150" align="center">排序</th>
+							<th  width="150" align="center">项目编号</th>
+							<th  width="300" align="center">项目名称</th>
+							<th  width="300" align="center">标签名称</th>
+							<th  width="100" align="center">操作</th>
+			            </tr>
+			            
+			            <tr>
+							<th align="center"><input type="text" id="project_asc_1" name="project_asc[]" value=""></th>
+							<th align="center"><input type="text" id="project_id_1"  name="project_id[]" value="" onChange="get_product(1);"></th>
+							<th align="center"><input type="text" id="project_name_1" name="project_name[]" value="" readonly></th>
+							<th align="center"><input type="text" id="pro_tag_1" name="pro_tag[]" value="" placeholder="多个标签以英文逗号分隔"></th>
+							<th align="center"><input type="button" value="删除" onclick="deltr(this)"></th>
+			            </tr>
+				</thead>
+			</table>
+			
+			<div class="control-group">	
+				<input class="btn btn-primary" type="button" name="add_project" id="add_project" value="添加"/>
+				<input class="btn btn-primary" type="button" name="confirm_add" id="confirm_add" value="确认"/>
+			</div>
+			
+			<div class="control-group">	
+				邮件标题:<input type="text" id="email_title"  name="email_title" value="来摩点 找新奇  —— 摩点众筹每周精华">
+			</div>
+			<div class="control-group">
+				邮件内容:<textarea  id="email_content" name="email_content" rows="3" cols="60">摩点网是国内首家游戏动漫众筹平台，旨在为有诚意的作品和认真的玩家说话，我们为您推荐XXX个精品众筹项目，帮助他人实现梦想，注重参与共同创造，快来抢先体验吧！</textarea>
+			</div>
+			
+			<div class="control-group">
+				<input class="btn btn-primary" type="button" name="save_btn" id="save_btn" value="保存"/>
+				<input class="btn btn-primary" type="button" name="preview_btn" id="preview_btn" value="预览"/>
+				<input class="btn btn-primary" type="button" name="send_btn" id="send_btn" value="确认发送"/>
+				<input class="btn btn-primary" type="button" name="cancel_btn" id="cancel_btn" value="取消"/>
+				<input class="btn btn-primary" type="button" name="return_btn" id="return_btn" value="返回"/>
+			</div>
+					
+

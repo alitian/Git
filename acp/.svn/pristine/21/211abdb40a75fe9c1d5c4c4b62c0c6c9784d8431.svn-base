@@ -1,0 +1,106 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('special_subj/ssubj_editor_nav'); ?>
+
+<style>
+    .hidden-input {
+        display: none;
+    }
+
+    form.ssubj-info-basic {
+        margin-top: 32px;
+        padding: 11px;
+    }
+    form.ssubj-info-basic .subpro-list {
+        margin-top: 11px;
+    }
+    form.ssubj-info-basic .subpro-list .subpro-item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+        border-radius: 3px 3px 18px;
+    }
+    form.ssubj-info-basic .subpro-list .subpro-item input.input-mini {
+        margin: 0;
+    }
+</style>
+
+<?php if(isset($page_d['error']) && !empty($page_d['error'])): ?>
+<div class="alert alert-error">
+  <button type="button" class="close" data-dismiss="alert">&times;</button>
+  <?=$page_d['error']?>
+</div>
+<?php endif; ?>
+
+<form class="ssubj-info-basic form-horizontal" action="" method="post">
+    <div class="control-group">
+        <label class="control-label">专题ID</label>
+        <div class="controls">
+            <input type="text" name="ssubj_id" value='<?=$page_d['ssinfo']['id']?>' readonly>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">专题名称</label>
+        <div class="controls">
+            <input type="text" name="ssubj_name" value='<?=$page_d['ssinfo']['name']?>'>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">专题描述</label>
+        <div class="controls">
+            <textarea name="ssubj_des" rows="5"><?=$page_d['ssinfo']['des']?></textarea>
+        </div>
+    </div>
+
+    <hr>
+    <div class="control-group">
+        <label class="control-label">主项目ID</label>
+        <div class="controls">
+            <input type="text" name="ssubj_main_pro_id" value='<?=$page_d['ssinfo']['main_pro_id']?>'>
+        </div>
+    </div>
+    <div class="control-group subpro-cnt">
+        <label class="control-label">子项目ID</label>
+        <div class="controls">
+            <a class="add" href="#" role="button">添加</a>
+            <div class="subpro-list row-fluid">
+                <?php foreach ($page_d['ssinfo']['sub_pro_id'] as $pid): ?>
+                <?php if (!empty($pid)): ?>
+                <div class="subpro-item">
+                    <a href="#" class="close">&times;</a>
+                    <input class="input-mini" type="text" name="ssubj_sub_pro_id[]" value="<?=intval($pid)?>" readonly>
+                </div>
+                <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+    <div class="control-group">
+        <div class="controls">
+            <button type="submit" class="btn">好 <i class="icon-arrow-right"></i></button>
+        </div>
+    </div>
+</form>
+
+
+<script>
+    $(function() {
+        // 专题子项目
+        $('form.ssubj-info-basic .subpro-cnt .controls a.add').on('click', function(evt) {
+            evt.preventDefault();
+            var html = '<div class="subpro-item">\
+                            <a href="#" class="close">&times;</a>\
+                            <input class="input-mini" type="text" name="ssubj_sub_pro_id[]">\
+                        </div>';
+            $('form.ssubj-info-basic .subpro-cnt .controls .subpro-list').append(html);
+        });
+        $('form.ssubj-info-basic .subpro-cnt .controls .subpro-list').on('click', '.subpro-item a.close', function(evt) {
+            evt.preventDefault();
+            $(this).parent().remove();
+        });
+
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

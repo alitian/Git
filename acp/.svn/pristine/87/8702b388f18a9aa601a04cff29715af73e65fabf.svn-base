@@ -1,0 +1,48 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Bbs_att extends CI_Controller
+{
+	public function __construct()
+	{
+		parent::__construct();
+	}
+
+	public function image_process()
+	{
+		$this->load->helper('bbs_common_helper');
+		$this->load->library('md_imagick');
+		$where = array(
+					'if_show' => 1
+				);
+		$this->db->select('logo');
+		$this->db->from('md_product');
+		$this->db->where($where);
+		$logo_list = $this->db->get()->result_array();
+
+		$path = 'uploads/bbs_attachments/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $img_prefix_path = ROOTPATH. $path;
+        if ( !file_exists($img_prefix_path) ) {
+            if( !@mkdir($img_prefix_path, 0777, TRUE)) {
+                echo '创建上传目录失败';
+                exit;
+            }
+        }
+		foreach($logo_list as $logo){
+			$logo_sys_path = ROOTPATH . $logo['logo'];
+			$image_name = basename($logo['logo']);
+	        $copy_path = $img_prefix_path . $image_name;
+	        if( !@copy($logo_sys_path, $copy_path) ){
+	            echo ++$i . '复制项目图' . $logo_sys_path . '失败<br>';
+	            // exit;
+	        }else{
+				attachment_process($copy_path);
+				echo ++$i . ' 处理图片' . $logo_sys_path . ' 成功<br>';
+	        }
+		}
+	}
+
+	public function test(){
+		echo '99';	
+		exit;
+	}
+}

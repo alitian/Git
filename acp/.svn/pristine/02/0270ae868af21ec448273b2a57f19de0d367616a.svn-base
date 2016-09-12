@@ -1,0 +1,122 @@
+<?php	
+	class Bbs_view_model extends CI_Model{
+
+		const MD_BBS_POST_TABLE = 'bbs_post';
+		const MD_BBS_POST_CONTENT_TABLE = 'bbs_post_content';
+
+		// 回复表，使用了分表，这里表示前缀
+		const MD_BBS_REPLY_TABLE_PREFIX = 'bbs_reply_';
+		const MD_BBS_REPLY_CONTENT_TABLE_PREFIX = 'bbs_reply_content_';
+
+		// 附件表，使用了分表，这里表示前缀
+		const MD_BBS_ATTACHMENT_TABLE_PREFIX = 'bbs_attachment_';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+		}
+
+		/**
+		 *
+		 * 	获取帖子详情
+		 *
+		 * 	@param 			int 		$post_id
+		 * 	@return 		array 		$post_info
+		 *
+		 */
+		public function get_post_info($post_id)
+		{
+			$table_post = self::MD_BBS_POST_TABLE . ' p';
+			$table_post_content = self::MD_BBS_POST_CONTENT_TABLE . ' pc';
+			$table_post_attachment = self::MD_BBS_ATTACHMENT_TABLE_PREFIX . ($post_id % 10);
+
+			$select = 'p.post_id, p.subject, pc.content';
+			$where = array(
+						'p.post_id' => $post_id,
+					);
+			$join_condition_p_pc = 'p.post_id = pc.post_id';
+
+			/* 获取帖子的数据 */
+			$this->moxi_db->select($select);
+			$this->moxi_db->from($table_post);
+			$this->moxi_db->join($table_post_content, $join_condition_p_pc, 'LEFT');
+			$this->moxi_db->where($where);
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+			$post_info['subject'] = htmlspecialchars_decode($post_info['subject']);
+			$post_info['content'] = htmlspecialchars_decode($post_info['content']);
+
+			// 将<br> 替换为 '\n'
+			$post_info['content'] = str_replace('<br>', "\n", $post_info['content']);
+
+			// 附件表查询
+			$where = array(
+							'post_id' => $post_id,
+							'reply_id' => 0
+						);
+			$this->moxi_db->from($table_post_attachment);
+			$this->moxi_db->where($where);
+			$attachment_query = $this->moxi_db->get();
+			$attachment_list = $attachment_query->result_array();
+			$post_info['attachment_list'] = $attachment_list;
+			return $post_info;
+		}
+
+		/**
+		 *
+		 * 	获取回复详情
+		 *
+		 * 	@param 			int 		$post_id
+		 * 	@param 			int 		$reply_id
+		 * 	@return 		array 		$reply_list
+		 *
+		 */
+		public function get_reply_info($post_id, $reply_id)
+		{
+
+			// 获取回复内容
+			$table_reply = self::MD_BBS_REPLY_TABLE_PREFIX . ($post_id % 10) . ' r';
+			$table_reply_content = self::MD_BBS_REPLY_CONTENT_TABLE_PREFIX . ($post_id % 10) . ' rc';
+			$table_reply_attachment = self::MD_BBS_ATTACHMENT_TABLE_PREFIX . ($post_id % 10);
+
+			// 可获取帖子标题
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where('post_id', $post_id);
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+
+			$select = 'r.*, rc.content';
+			$where = array(
+						'r.reply_id' => $reply_id
+					);
+			$join_condition_r_rc = 'r.reply_id = rc.reply_id';
+
+			/* 获取帖子的数据 */
+			$this->moxi_db->select($select);
+			$this->moxi_db->from($table_reply);
+			$this->moxi_db->join($table_reply_content, $join_condition_r_rc, 'LEFT');
+			$this->moxi_db->where($where);
+			$reply_query = $this->moxi_db->get();
+			$reply_info = $reply_query->row_array();
+			$reply_info['subject'] = htmlspecialchars_decode($reply_info['subject']);
+			$reply_info['content'] = htmlspecialchars_decode($reply_info['content']);
+
+			// 将<br>替换为 '\n'
+			$reply_info['content'] = str_replace('<br>', "\n", $reply_info['content']);
+
+			// 附件表查询
+			$where = array(
+						'post_id' => $post_id,
+						'reply_id' => $reply_id
+					);
+			$this->moxi_db->from($table_reply_attachment);
+			$this->moxi_db->where($where);
+			$attachment_query = $this->moxi_db->get();
+			$attachment_list = $attachment_query->result_array();
+			$reply_info['attachment_list'] = $attachment_list;
+			$reply_info['post_subject'] = $post_info['subject'];
+			return $reply_info;
+		}
+
+	}

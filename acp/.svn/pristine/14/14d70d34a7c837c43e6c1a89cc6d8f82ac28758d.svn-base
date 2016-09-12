@@ -1,0 +1,48 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<ul class="nav nav-tabs">
+		  	<li role="presentation"<?php if($type == 'banned') echo ' class="active"'; ?>><a href="<?php echo $site_url . 'bbs_censor/censor/banned'; ?>">禁止敏感词</a></li>
+		  	<li role="presentation"<?php if($type == 'mod') echo ' class="active"'; ?>><a href="<?php echo $site_url . 'bbs_censor/censor/mod'; ?>">审核敏感词</a></li>
+		  	<li role="presentation"<?php if($type == 'replace') echo ' class="active"'; ?>><a href="<?php echo $site_url . 'bbs_censor/censor/replace'; ?>">替换敏感词</a></li>
+		</ul>
+		<div>
+			<?php
+				switch($type){
+					case 'banned':
+						echo '<h2>禁止敏感词管理</h2>';
+						echo '<div class="alert alert-warning" role="alert">每行一个敏感词。例如：色情</div>';
+						break;
+					case 'mod':
+						echo '<h2>审核敏感词管理</h2>';
+						echo '<div class="alert alert-warning" role="alert">每行一个敏感词。例如：江泽民</div>';
+						break;
+					case 'replace':
+						echo '<h2>替换敏感词管理</h2>';
+						echo '<div class="alert alert-warning" role="alert">每行一个敏感词，替换词写在后面，用 | 分隔。例如：傻逼|**。如果不填，默认以 ** 替换</div>';
+						break;
+				}
+			?>
+			<span class="h3 bg-success">Ctrl + Enter 快捷保存</span>
+		</div>
+		<hr>
+		<div>
+			<form action="<?php echo $site_url . 'bbs_censor/censor_save/' . $type; ?>" method="post">
+				<div class="col-md-5" style="padding-left:0px">
+					<textarea id="censor" name="censor_str" rows="20" class="form-control"><?php echo $censor_str; ?></textarea>
+					<p></p>
+					<div class="clearfix"></div>
+					<button id="submit" class="btn btn-primary pull-left">提交</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	<script src="<?php echo $base_url; ?>bootstrap/js/jquery.js"></script>
+	<script src="<?php echo $base_url; ?>bootstrap/js/bootstrap.min.js"></script>
+	<script>
+		$("#censor").keydown(function(event){
+			if(event.keyCode == 13 && event.ctrlKey){
+				$('#submit').click();
+			}
+		});
+	</script>
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,4 @@
+<ul class="nav nav-tabs">
+  <li <?php if ($page_type=='new_ssubj') echo 'class="active"'; ?>><a href="/special_subj/new_ssubj">新增专题</a></li>
+  <li <?php if ($page_type=='edit_ssubj') echo 'class="active"'; ?>><a href="/special_subj/edit_ssubj">专题配置</a></li>
+</ul>

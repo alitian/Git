@@ -1,0 +1,580 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+require_once BASEPATH . 'libraries/md_memcache.php';
+class Edm_ad extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->model('Common');
+    }
+
+    public function index() {
+        if (isset($_GET['edit'])) {
+            $data['edit_id'] = $_GET['edit'];
+        }
+        if (isset($_GET['del_edit'])) {
+            $data['del_edit_id'] = $_GET['del_edit'];
+        }
+        if ($_POST) {
+            $updata['name'] = $_POST['name'];
+            $updata['edm_title'] = $_POST['edm_title'];
+            $updata['email'] = $_POST['email'];
+            $updata['sms'] = $_POST['sms'];
+            $updata['qq'] = $_POST['qq'];
+            $updata['weixin'] = $_POST['weixin'];
+            $updata['app'] = $_POST['app'];
+            //$updata['feeds'] = $_POST['feeds'];
+            $updata['sms_dealer'] = $_POST['sms_dealer'];
+            $updata['sms_type'] = $_POST['smstype'];
+            if (isset($_GET['edit'])) {
+                $res = $this->Common->update('md_notify_config', array('id' => $_GET['edit']), $updata);
+            } else {
+                $updata['name'] = $_POST['name'];
+                $this->Common->add('md_notify_config', $updata);
+            }          
+            redirect('edm_ad/index');
+        }
+        $sql = "SELECT * FROM md_notify_config ORDER BY id DESC";
+        $data['configs'] = $this->db->query($sql)->result_array();
+        if (isset($_GET['del_edit'])) {
+            $res = $this->Common->delete('md_notify_config', array('id' => $_GET['del_edit']));
+            redirect('edm_ad/index');
+        }
+        $this->load->view('edm_ad/index', $data);
+    }
+
+    public function update_open() {
+        $result_arr = array('result' => 'error', 'error' => '参数错误');
+        if (isset($_POST['type']) && isset($_POST['id']) && isset($_POST['val'])) {
+            $res = $this->Common->update('md_notify_config', array('id' => $_POST['id']), array($_POST['type'] => $_POST['val'] == 'false' ? 0 : 1));
+            $result_arr = array('result' => $res);
+        }
+        echo json_encode($result_arr);
+    }
+
+    /**
+     * 手动发送通知短信功能
+     */
+    public function manual_sms() {
+        $data['error'] = '';
+        $contents = array();
+        $regex = "/1[34587]{1}\d{9}$/";
+        $sql = "SELECT id,`name` FROM md_product WHERE if_show=1 ORDER BY id DESC";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        $this->load->library("sms/sms_handler");
+
+        $numbers = array();
+        if ($_POST && $_SESSION['captcha'] == $_POST['vcode']) {
+            $log = array(
+                'admin_id' => $_SESSION['admin_id'],
+                'content' => $_POST['content'],
+                'send_type' => $_POST['send_type'],
+                'send_time' => date("Y-m-d H:i:s")
+            );
+            switch ($_POST['send_type']) {
+                //更具项目ID给支持者发送短信
+                case "project":
+                    if ($_POST['pro_id'] && $_POST['content']) {
+                        $sql = "SELECT address_name,address_mobile FROM md_product_back WHERE pro_id='{$_POST['pro_id']}' AND amount>0.01 AND if_pay=1 GROUP BY address_mobile";
+                        $result = $this->db->query($sql)->result_array();
+                        $log['send_to'] = $_POST['pro_id'];
+                        foreach ($result as $item) {
+                            $numbers[] = $item['address_mobile'];
+                            $contents[] = array('mobile' => $item['address_mobile'], 'content' => $_POST['content']);
+                        }
+                    } else {
+                        $data['error'] = '请选择项目,填寫內容';
+                    }
+                    break;
+                case "excel":
+                    $file_name = 'sms_' . date("y_m_d_H_i_s");
+                    $file_path = config_item('uploads_path');
+                    if (isset($_FILES['import_file']) && $_FILES['import_file']['name'] != '') {
+                        $exten = $this->Common->get_extension($_FILES['import_file']['name']);
+                        $to_from = "{$file_name}{$exten}";
+                        $file_path = $file_path . '/' . $to_from;
+                        copy($_FILES['import_file']['tmp_name'], $file_path);
+                        //$result = $this->md_imagick->upload($from, $from);
+                        $this->load->library('PHPExcel');
+                        if ($exten == '.xls') {
+                            $PHPReader = new PHPExcel_Reader_Excel5();
+                        } elseif ($exten == '.xlsx') {
+                            $PHPReader = new PHPExcel_Reader_Excel2007();
+                            $data['error'] = '暂时不支持xlsx格式，请转换成xls文件，辛苦了。';
+                        } else {
+                            $data['error'] = '不是合法的Excel(xls)';
+                        }
+                        if ($data['error'] == '') {
+
+                            $objPHPExcel = $PHPReader->load($file_path);
+
+
+                            $objWorksheet = $objPHPExcel->getActiveSheet();
+                            $highestRow = $objWorksheet->getHighestRow(); //取得总行数
+                            $highestColumn = $objWorksheet->getHighestColumn();
+                            $highestColumnIndex = PHPExcel_Cell::columnIndexFromString($highestColumn); //取得总列数
+                            $headtitle = array();
+                            $log['content'] = $file_path;
+                            if ($highestRow) {
+                                for ($i = 1; $i <= $highestRow; $i++) {
+                                    $num = $objWorksheet->getCellByColumnAndRow(0, $i)->getValue();
+                                    $content = $objWorksheet->getCellByColumnAndRow(1, $i)->getValue();
+                                    if ($num && $content) {
+                                        $numbers[] = str_replace(array("\n","\t"),"",$num);
+                                        $contents[] = array('mobile' => $num, 'content' => $content);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        $data['error'] = '没有选择Excel';
+                    }
+                    break;
+                default:
+                    if ($_POST['mobile_num'] && $_POST['content']) {
+                        $log['send_to'] = $_POST['mobile_num'];
+                        $numbers = explode("\n", $_POST['mobile_num']);
+                        foreach ($numbers as $item) {
+                            $contents[] = array('mobile' => $item, 'content' => $_POST['content']);
+                        }
+                    } else {
+                        $data['error'] = '请输入手机号码,填寫內容';
+                    }
+            }
+            if ($contents) {
+                if ($log) {
+                    $this->Common->add('md_sms_manual', $log);
+                    $data['ok'] = '发送成功';
+                }
+                $sql = "SELECT log.*,md_admin.email as sender FROM md_sms_manual log INNER JOIN md_admin ON md_admin.id=log.admin_id ORDER BY log_id DESC LIMIT 30";
+                $data['logs'] = $this->db->query($sql)->result_array();
+                echo $this->load->view('edm_ad/manual_sms', $data, true);
+                ob_flush();
+                flush();
+                sleep(2);
+                $i = 0;
+                foreach ($contents as $num) {
+                    $i++;
+                    $num['mobile'] = str_replace("\t",'',$num['mobile']);
+                    //$content = isset($contents[$num]) ? $contents[$num] : $_POST['content'];
+                    if (preg_match($regex, $num['mobile'])) {
+//                        $this->Common->send_long_sms($num['mobile'], $num['content']);
+
+//                        if ($_POST['sms_type'] == '2') {
+//                            $this->Common->send_long_sms($num['mobile'], $num['content'], 'bjmdzc-3', '9f2f8b',intval($_POST['sms_dealers']),intval($_POST['sms_type']));
+//                        } else {
+//                            $this->Common->send_long_sms($num['mobile'], $num['content'],'','',intval($_POST['sms_dealers']),intval($_POST['sms_type']));
+//                        }
+                        $this->sms_handler->send_edm_message($num['mobile'], $num['content']);
+                    }
+                    echo "\n" . '<script language="javascript">setbar(' . ($i / count($contents) * 100) . ');</script>';
+                    echo str_repeat(' ', 1024 * 4);
+                    ob_flush();
+                    flush();
+                }
+                exit;
+            }
+        } else {
+            if (isset($_POST['vcode']) && isset($_SESSION['captcha']) && $_SESSION['captcha'] != $_POST['vcode']) {
+                $data['error'] = '验证码错误';
+            }
+        }
+        unset($_SESSION['captcha']);
+        $sql = "SELECT log.*,md_admin.email as sender FROM md_sms_manual log INNER JOIN md_admin ON md_admin.id=log.admin_id ORDER BY log_id DESC LIMIT 30";
+        $data['logs'] = $this->db->query($sql)->result_array();
+        $this->load->view('edm_ad/manual_sms', $data);
+    }
+
+    /**
+     * 手动发送站内信与邮件
+     *
+     */
+    function manual_edm() {
+        if ($_POST && $_SESSION['captcha'] == $_POST['vcode']) {
+            $file_name = 'mail_' . date("y_m_d_H_i_s");
+            $file_path = realpath(BASEPATH . "../uploads/");
+            if (isset($_FILES['import_file']) && $_FILES['import_file']['name'] != '') {
+                $log['admin_id'] = $_SESSION['admin_id'];
+                $exten = $this->Common->get_extension($_FILES['import_file']['name']);
+                $to_from = "{$file_name}{$exten}";
+                $file_path = $file_path . '/' . $to_from;
+                $log['type'] = 'excel';
+                $log['title'] = $log['content'] = 'excel';
+                $log['send_time'] = date("Y-m-d H:i:s");
+                copy($_FILES['import_file']['tmp_name'], $file_path);
+                //$result = $this->md_imagick->upload($from, $from);
+                $this->load->library('PHPExcel');
+                if ($exten == '.xls') {
+                    $PHPReader = new PHPExcel_Reader_Excel5();
+                } elseif ($exten == '.xlsx') {
+                    $PHPReader = new PHPExcel_Reader_Excel2007();
+                    $data['error'] = '暂时不支持xlsx格式，请转换成xls文件，辛苦了。';
+                } else {
+                    $data['error'] = '不是合法的Excel(xls)';
+                }
+                if ($data['error'] == '') {
+                    $objPHPExcel = $PHPReader->load($file_path);
+                    $objWorksheet = $objPHPExcel->getActiveSheet();
+                    $highestRow = $objWorksheet->getHighestRow(); //取得总行数
+                    $highestColumn = $objWorksheet->getHighestColumn();
+                    $highestColumnIndex = PHPExcel_Cell::columnIndexFromString($highestColumn); //取得总列数
+                    $headtitle = array();
+                    if ($highestRow) {
+                        for ($i = 1; $i <= $highestRow; $i++) {
+                            $email = $objWorksheet->getCellByColumnAndRow(0, $i)->getValue();
+                            $title = $objWorksheet->getCellByColumnAndRow(1, $i)->getValue();
+                            $content = $objWorksheet->getCellByColumnAndRow(2, $i)->getValue();
+                            if ($email && $title && $content) {
+                                $this->Common->send_email($email, $title, $content);
+                            }
+                        }
+                        $this->Common->add('md_sendmail_manual', $log);
+                    }
+                }
+            } else {
+                if ($_POST['title'] && $_POST['content']) {
+                    $log['admin_id'] = $_SESSION['admin_id'];
+                    $title = $log['title'] = $_POST['title'];
+                    $content = $log['content'] = $_POST['content'];
+                    $content = str_replace("\n", "<br />", $content);
+                    $log['type'] = implode(',', $_POST['type']);
+                    $log['send_time'] = date("Y-m-d H:i:s");
+                    $msg['title'] = $title;
+                    $msg['content'] = $content;
+                    $msg['system'] = 1;
+                    if (isset($_POST['test_uid']) && $_POST['test_uid']) {
+                        $msg['to_uid'] = $_POST['test_uid'];
+                        $this->Common->add('md_message', $msg);
+                    }
+                    if (isset($_POST['test_email']) && $_POST['test_email']) {
+                        $this->Common->send_email($_POST['test_email'], $title, $content);
+                    }
+                    if ($_POST['type']) {
+                        $sql = "SELECT id,email FROM md_users ORDER BY id DESC";
+                        $users = $this->db->query($sql)->result_array();
+                        foreach ($users as $user) {
+                            if (in_array('1', $_POST['type'])) {
+
+                                $msg['to_uid'] = $user['id'];
+                                $this->Common->add('md_message', $msg);
+                            }
+                            if (in_array('2', $_POST['type']) && $user['email']) {
+                                $this->Common->send_email($user['email'], $title, $content);
+                            }
+                        }
+                        $this->Common->add('md_sendmail_manual', $log);
+                    } else {
+                        $data['error'] = '没有选择类型';
+                    }
+                } else {
+                    $data['error'] = '标题与内容不能为空';
+                }
+            }
+        } else {
+            if (isset($_POST['vcode']) && isset($_SESSION['captcha']) && $_SESSION['captcha'] != $_POST['vcode']) {
+                $data['error'] = '验证码错误';
+            }
+        }
+        $sql = "SELECT log.*,admin.email FROM md_sendmail_manual log INNER JOIN md_admin admin ON admin.id=log.admin_id ORDER BY log.id DESC";
+        $data['logs'] = $this->db->query($sql)->result_array();
+        unset($_SESSION['captcha']);
+        $this->load->view('edm_ad/manual_edm', $data);
+    }
+
+    public function get_send_state($days = 1) {
+        $user_map = array('msendmodian' => '推广类', 'modian1234send' => '触发类');
+        $this->load->library('mailer');
+        $where = array();
+        if (isset($_POST['start_time']) && isset($_POST['end_time']) && $_POST['start_time'] && $_POST['end_time']) {
+            $where = array("start" => $_POST['start_time'], 'end' => $_POST['end_time']);
+        }
+        $where['days'] = $days;
+        $list = $list2 = array();
+        $list = $this->mailer->get_state($where, 'default');
+        $title = array(
+            'sendDate' => '发送日期',
+            'request' => '请求总数',
+            'apiUser' => 'api_user',
+            'deliveredNum' => '发送的数目',
+            'clickNum' => '点击数目',
+            'openNum' => '打开数目',
+            'bounceNum' => '弹回数目',
+            'spamReportedNum' => '垃圾邮件报告数目',
+            'unsubscribeNum' => '取消订阅数目',
+            'uniqueOpensNum' => '独立打开数目',
+            'uniqueClicksNum' => '独立点击数目',
+            'invalidEmailsNum' => '无效邮件数目',
+            'delivered_percent' => '传送百分比',
+            'click_percent' => '点击百分比',
+            'open_percent' => '打开百分比',
+            'bounce_percent' => '弹回百分比',
+            'spamReported_percent' => '垃圾邮件举报百分比',
+            'unsubscribe_percent' => '取消订阅百分比',
+            'uniqueOpens_percent' => '独立打开百分比',
+            'uniqueClicks_percent' => '独立点击百分比',
+            'invalidEmails_percent' => '无效邮件百分比',
+//            'domain' => '域名',
+//            'labelName' => '标签名',
+//            'labelId' => '标签ID',
+        );
+        $total = array();
+        foreach ($list as $item) {
+            if ($_POST['sms_type'] == '1' && $item['apiUser'] == 'msendmodian') {
+                continue;
+            }
+            if ($_POST['sms_type'] == '2' && $item['apiUser'] == 'modian1234send') {
+                continue;
+            }
+            if (isset($total[$item['apiUser']][$item['sendDate']])) {
+                $total[$item['apiUser']][$item['sendDate']]['request'] += $item['request'];
+                $total[$item['apiUser']][$item['sendDate']]['deliveredNum'] += $item['deliveredNum'];
+                $total[$item['apiUser']][$item['sendDate']]['clickNum'] += $item['clickNum'];
+                $total[$item['apiUser']][$item['sendDate']]['openNum'] += $item['openNum'];
+                $total[$item['apiUser']][$item['sendDate']]['bounceNum'] += $item['bounceNum'];
+                $total[$item['apiUser']][$item['sendDate']]['spamReportedNum'] += $item['spamReportedNum'];
+                $total[$item['apiUser']][$item['sendDate']]['unsubscribeNum'] += $item['unsubscribeNum'];
+                $total[$item['apiUser']][$item['sendDate']]['uniqueOpensNum'] += $item['uniqueOpensNum'];
+                $total[$item['apiUser']][$item['sendDate']]['uniqueClicksNum'] += $item['uniqueClicksNum'];
+                $total[$item['apiUser']][$item['sendDate']]['invalidEmailsNum'] += $item['invalidEmailsNum'];
+            } else {
+                $total[$item['apiUser']][$item['sendDate']]['request'] = $item['request'];
+                $total[$item['apiUser']][$item['sendDate']]['deliveredNum'] = $item['deliveredNum'];
+                $total[$item['apiUser']][$item['sendDate']]['clickNum'] = $item['clickNum'];
+                $total[$item['apiUser']][$item['sendDate']]['openNum'] = $item['openNum'];
+                $total[$item['apiUser']][$item['sendDate']]['bounceNum'] = $item['bounceNum'];
+                $total[$item['apiUser']][$item['sendDate']]['spamReportedNum'] = $item['spamReportedNum'];
+                $total[$item['apiUser']][$item['sendDate']]['unsubscribeNum'] = $item['unsubscribeNum'];
+                $total[$item['apiUser']][$item['sendDate']]['uniqueOpensNum'] = $item['uniqueOpensNum'];
+                $total[$item['apiUser']][$item['sendDate']]['uniqueClicksNum'] = $item['uniqueClicksNum'];
+                $total[$item['apiUser']][$item['sendDate']]['invalidEmailsNum'] = $item['invalidEmailsNum'];
+            }
+            $total[$item['apiUser']][$item['sendDate']]['sendDate'] = $item['sendDate'];
+            $total[$item['apiUser']][$item['sendDate']]['apiUser'] = isset($user_map[$item['apiUser']]) ? $user_map[$item['apiUser']] : $item['apiUser'];
+            $total[$item['apiUser']][$item['sendDate']]['delivered_percent'] = round($total[$item['apiUser']][$item['sendDate']]['deliveredNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['click_percent'] = round($total[$item['apiUser']][$item['sendDate']]['clickNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['open_percent'] = round($total[$item['apiUser']][$item['sendDate']]['openNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['bounce_percent'] = round($total[$item['apiUser']][$item['sendDate']]['bounceNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['spamReported_percent'] = round($total[$item['apiUser']][$item['sendDate']]['spamReportedNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['unsubscribe_percent'] = round($total[$item['apiUser']][$item['sendDate']]['unsubscribeNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['uniqueOpens_percent'] = round($total[$item['apiUser']][$item['sendDate']]['uniqueOpensNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['uniqueClicks_percent'] = round($total[$item['apiUser']][$item['sendDate']]['uniqueClicksNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+            $total[$item['apiUser']][$item['sendDate']]['invalidEmails_percent'] = round($total[$item['apiUser']][$item['sendDate']]['invalidEmailsNum'] / $total[$item['apiUser']][$item['sendDate']]['request'] * 100, 2);
+        }
+        $data['total'] = $total;
+        $data['list'] = $list;
+        $data['title'] = $title;
+        $data['start'] = $_POST['start_time'];
+        $data['end'] = $_POST['end_time'];
+        //print_r($total);exit;
+        $this->load->view('edm_ad/mail_state', $data);
+    }
+
+    /**
+     * edm附加内容管理
+     */
+    public function content_plus() {
+        $data['type'] = 1;
+        $data['pro_id'] = 0;
+        if (isset($_GET['type'])) {
+            $data['type'] = $_GET['type'];
+        }
+        if (isset($_GET['pro_id'])) {
+            $data['pro_id'] = $_GET['pro_id'];
+            if ($_POST) {
+                $email_plus = array();
+                $update = array(
+                    'pro_id' => $data['pro_id'],
+                    'email_plus' => json_encode($_POST['email_plus']),
+                    'sms_plus' => $_POST['sms_plus'],
+                    'email_url' => $_POST['email_url'],
+                    'end_time' => $_POST['end_time'],
+                    'cuid' => $_SESSION['admin_id'],
+                    'ctime' => date("Y-m-d H:i:s")
+                );
+
+                if ($email_plus) {
+                    $update['email_plus'] = json_encode($email_plus);
+                }
+                if ($_POST['short_url']) {
+                    $update['sms_plus'] = $_POST['short_url'];
+                }
+                $sql = "SELECT * FROM md_edm_plus WHERE pro_id='{$data['pro_id']}'";
+                $res = $this->db->query($sql)->result_array();
+                if (count($res)) {
+                    $this->db->update('md_edm_plus', $update, array('pro_id' => $data['pro_id']));
+                } else {
+                    $this->db->insert('md_edm_plus', $update);
+                }
+            }
+            $sql = "SELECT pro.id,pro.name,pro.end_time,plus.email_plus,sms_plus,email_url FROM md_edm_plus plus INNER JOIN md_product pro ON pro.id=plus.pro_id";
+            $data['plus_list'] = $this->db->query($sql)->result_array();
+        }
+        $sql = "SELECT id,name,end_time FROM md_product WHERE if_show=1 ORDER BY id DESC";
+        $data['pro_list'] = $this->db->query($sql)->result_array();
+
+        $this->load->view("edm_ad/content_plus", $data);
+    }
+
+    public function get_short_url() {
+        if ($_POST['long_url']) {
+            $this->load->helper('url');
+            echo json_encode(short_url($_POST['long_url']));
+        } else {
+            echo json_encode(array('error' => '参数错误'));
+        }
+    }
+
+    public function sms_list($start=0){
+
+        $_SESSION["mobile"] = isset($_POST["mobile"]) ? $_POST["mobile"] : $_SESSION["mobile"];
+        //$_SESSION["start_time"] = isset($_POST["start_time"]) ? $_POST["start_time"] : "";
+        $_SESSION["start_time"] = isset($_POST["start_time"]) ? $_POST["start_time"] : $_SESSION["start_time"];
+        $_SESSION["end_time"] = isset($_POST["end_time"]) ? $_POST["end_time"] : $_SESSION["end_time"];
+        $_SESSION["status"] = isset($_POST["status"]) ? $_POST["status"] : $_SESSION["status"];
+        $_SESSION["dealers"] = isset($_POST["dealers"]) ? $_POST["dealers"] : $_SESSION["dealers"];
+        $_SESSION["sms_type"] = isset($_POST["sms_type"]) ? $_POST["sms_type"] : (!empty($_SESSION["sms_type"]) ? $_SESSION["sms_type"] : 1);
+
+    	$data = array();
+//    	$search["mobile"] = isset($_POST["mobile"]) ? $_POST["mobile"] : "";
+//    	$search["start_time"] = isset($_POST["start_time"]) ? $_POST["start_time"] : "";
+//        $search["end_time"] = isset($_POST["end_time"]) ? $_POST["end_time"] : "";
+//        $search["status"] = isset($_POST["status"]) ? $_POST["status"] : "";
+//        $search["dealers"] = isset($_POST["dealers"]) ? $_POST["dealers"] : "";
+//        $search["sms_type"] = isset($_POST["sms_type"]) ? $_POST["sms_type"] : 1;
+
+        $search["mobile"] = $_SESSION["mobile"];
+        $search["start_time"] = $_SESSION["start_time"];
+        $search["end_time"] = $_SESSION["end_time"];
+        $search["status"] = $_SESSION["status"];
+        $search["dealers"] = $_SESSION["dealers"];
+        $search["sms_type"] = $_SESSION["sms_type"];
+
+        switch($search["sms_type"]){
+            case 1:
+                $sql = "SELECT id,tel,content,status,send_time,dealers FROM md_edm_sms WHERE 1=1 ";
+                break;
+            case 2:
+                $sql = "SELECT id,tel,content,status,send_time,dealers FROM md_auth_sms WHERE 1=1 ";
+                break;
+        }
+
+    	if(!empty($search["mobile"])){
+    		$sql .= " and tel = '".$search["mobile"]."'";
+    	}
+
+        $sql .= !empty($search["start_time"]) ? " and send_time >= '".$search["start_time"]."'" : " and send_time >= '".date("Y-m-d 00:00:00")."'";
+        $sql .= !empty($search["end_time"]) ? " and send_time <= '".$search["end_time"]."'" : " and send_time <= '".date("Y-m-d 23:59:59")."'";
+
+    	if($search["status"] != ""){
+    		$sql .= " and status = ".$search["status"]."";
+    	}
+    	if(!empty($search["dealers"]) && $search["dealers"] != 0){
+    		$sql .= " and dealers = ".$search["dealers"]." ";
+    	}
+    	$sql .= " order by id desc";
+        $per_page = 10;
+        $total_rows = $this->db->query($sql)->num_rows();
+
+        $limit = $start.",".$per_page;
+
+        $sql .= " LIMIT $limit";
+    	$res = $this->db->query($sql)->result_array();
+    	$data["sms_list"] = $res;
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('edm_ad/sms_list/'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+            'num_links' => 5,
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+    	if(!empty($search["start_time"]) && !empty($search["end_time"])){
+    		$data["total_time"] = date("Y-m-d H:i:s",strtotime($search["start_time"]))." 至 ".date("Y-m-d H:i:s",strtotime($search["end_time"]));
+    	}else{
+    		$data["total_time"] = date("Y-m-d");
+    	}
+        $data["start_time"] = $search["start_time"] ;
+        $data["end_time"] = $search["end_time"];
+    	$data["total_success_num"] = $this->sms_status_info($search["start_time"], $search["end_time"], 1, $search["dealers"], $search["sms_type"]);
+    	$data["total_fail_num"] = $this->sms_status_info($search["start_time"], $search["end_time"], 2, $search["dealers"], $search["sms_type"]);
+    	$data["total_wait_num"] = $this->sms_status_info($search["start_time"], $search["end_time"], 0, $search["dealers"], $search["sms_type"]);
+        $data["total_num"] = $data["total_success_num"] + $data["total_fail_num"] + $data["total_wait_num"];
+
+        switch($search["sms_type"]){
+            case 1:
+                $data["sms_type"] = "营销类";
+                break;
+            case 2:
+                $data["sms_type"] = "验证类";
+                break;
+        }
+    	$this->load->view('edm_ad/sms_list', $data);
+    }
+
+    public function sms_status_info($start_time, $end_time, $status, $dealers, $sms_type){
+    	$num = 0;
+    	$res = array();
+        switch($sms_type){
+            case 1:
+                $sql = "SELECT count(id) as num FROM md_edm_sms WHERE 1=1 ";
+                break;
+            case 2:
+                $sql = "SELECT count(id) as num FROM md_auth_sms WHERE 1=1 ";
+                break;
+            default:
+                $sql = "SELECT count(id) as num FROM md_auth_sms WHERE 1=1 ";
+                break;
+        }
+        $sql .= !empty($start_time) ? " and send_time >= '".$start_time."'" : " and send_time >= '".date("Y-m-d 00:00:00")."'";
+        $sql .= !empty($end_time) ? " and send_time <= '".$end_time."'" : " and send_time <= '".date("Y-m-d 23:59:59")."'";
+    	$sql .= " and status = ".$status."";
+    	if(!empty($dealers)){
+    		$sql .= " and dealers = ".$dealers." ";
+    	}
+    	$sql .= " order by id desc";
+    	$res = $this->db->query($sql)->row_array();
+    	if(!empty($res)){
+    		$num = $res["num"];
+    	}
+    	return $num;
+    }
+    /*
+     * 短信运营商设置
+     */
+    public function sms_setting(){
+        
+    	$data = array();
+    	$config_info = $this->db->get("md_new_sms_config")->result_array();
+    	if(isset($_POST["sms_marketing"]) && isset($_POST["sms_register"])){
+           $update = array(
+               array("id"=>1, "sms_dealers"=>$_POST["sms_marketing"], "sms_type"=>1, "admin_id"=>$_SESSION["admin_id"]),
+               array("id"=>2, "sms_dealers"=>$_POST["sms_register"], "sms_type"=>2, "admin_id"=>$_SESSION["admin_id"]),
+               array("id"=>3, "sms_dealers"=>$_POST["sms_register_inter"], "sms_type"=>3, "admin_id"=>$_SESSION["admin_id"])
+           );
+    		if(empty($config_info)){
+    			$this->db->insert_batch('md_new_sms_config', $update);
+    		}else{
+    			$this->db->update_batch('md_new_sms_config', $update, "sms_type");
+    			$cache_key = sprintf('%s', "NEWMDSMSCONFIG");
+    			md_memcache::delete($cache_key);
+    		}
+    		$data["marketing"]["sms_dealers"] = $_POST["sms_marketing"];
+            $data["register"]["sms_dealers"] = $_POST["sms_register"];
+            $data["register_inter"]["sms_dealers"] = $_POST["sms_register_inter"];
+
+    	}else{
+    		$info = $config_info;
+            $data["marketing"]["sms_dealers"] = $info[2]["sms_dealers"];
+            $data["register"]["sms_dealers"] = $info[1]["sms_dealers"];
+            $data["register_inter"]["sms_dealers"] = $info[0]["sms_dealers"];
+    	}
+    	$this->load->view('edm_ad/sms_setting', $data);
+    }
+
+}

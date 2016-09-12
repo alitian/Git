@@ -1,0 +1,243 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false,
+        });
+
+        $('#datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+
+    });
+</script>
+<style type="text/css">
+    td,tr{
+        white-space: nowrap;
+    }
+    .black_overlay{  
+        display: none;  
+        position: absolute;  
+        top: 0%;  
+        left: 0%;  
+        width: 100%;  
+        height: 2000px;  
+        background-color: black;  
+        z-index:1001;  
+        -moz-opacity: 0.8;  
+        opacity:.80;  
+        filter: alpha(opacity=80);  
+    }  
+    .white_content {  
+        display: none;  
+        position: absolute;  
+        top: 25%;  
+        left: 25%;  
+        width: 50%;  
+        height: 0 auto;  
+        padding: 16px;  
+        border: 2px solid rgba(68, 218, 224, 0.5);  
+        background-color: white;  
+        z-index:1002;  
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/bottom_status/index">首页底部</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="市场管理-首页底部" style="height:300px;padding:10px;margin: 0;" data-options="collapsible:true">
+            <form method="POST" name='form1' id="form1" action="#">
+                <div class="span10">
+                    <div class="row-fluid">
+                        <div class="span3">主标题ID:<br />
+                            <input type="text" id='bottom_id' name='bottom_id' value="" placeholder="主标题ID" />
+                        </div>
+                        <div class="span3">主标题名称:<br />
+                            <input type="text" id='bottom_name' name='bottom_name' value="" placeholder="主标题名称" />
+                        </div>         
+                        <div class="span3">子标题名称:<br />
+                            <input type="text" id='bottom_son_name' name='bottom_son_name' value="" placeholder="子标题名称" />
+                        </div> 
+                    </div>
+                    <div class="row-fluid">
+                        <div class="span3">创建用户:<br />
+                            <input type="text" id='create_user' name='create_user' value="" placeholder="创建用户" />
+                        </div>
+                        <div class="span4">创建时间：<br>
+                            <div id="datetimepicker1" class="input-append">
+                                <input data-format="yyyy-MM-dd 00:00:00" type="text" placeholder="查找开始时间" name='start_time' id='start_time' value=""></input>
+                                <span class="add-on">
+                                    <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                    </i>
+                                </span>
+                            </div>   
+                        </div>
+                        <div class="span4">创建时间：<br>
+                            <div id="datetimepicker2" class="input-append">
+                                <input data-format="yyyy-MM-dd 00:00:00" type="text" placeholder="查找结束时间" name='end_time' id='end_time' value=""></input>
+                                <span class="add-on">
+                                    <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                    </i>
+                                </span>
+                            </div>   
+                        </div>
+                    </div>
+                </div>
+                <div class="span1" style="width:100px;text-align: center;vertical-align:middle;overflow:hidden;padding-top:32px;">                 
+                    <button class="btn btn-primary" id="btn_search" name="btn_search">查询</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br> 
+                    <a class="btn btn-primary" id="btn_create" name="btn_create" href="/bottom_status/create_new_bottom">创建新底部项</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>                
+                </div> 
+            </form>
+            <span  style="margin-right:54px;" class="btn btn-info"><a href="javascript:;" style="color:#EEEEEE;text-decoration:none;" id="order_fater_bottom">父类排序</a></span>
+            <span  style="margin-left:20px;" class="btn btn-info"><a href="/bottom_status/del_mem" style="color:#EEEEEE;text-decoration:none;">立即生效</a></span>           
+        </div>              	
+
+        <div class="box-content" style="overflow:scroll;height:300px;">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;" title="查询结果" 
+                   url="/bottom_status/ajax_bottom" iconCls="icon-save"
+                   pageSize=20 pagePosition="both"             
+                   rownumbers="true" pagination="true" showFooter="true">
+                <thead>
+                    <tr>  
+                        <th field="bottom_id" align="center" sortable="true">主ID</th>
+                        <th field="bottom_title" align="center">主标题</th>
+                        <th field="bottom_son_title" align="center">子标题</th>
+                        <th field="bottom_son_con" align="center">内容介绍</th>
+                        <th field="op_user" align="center">创建人</th>
+                        <th field="ctime" align="center">创建时间</th>
+                        <th field="work" align="center">操作</th>
+                    </tr>
+                </thead>
+            </table>            
+        </div>
+    </div><!--/span-->
+</div>
+<!-- 父类排序弹窗   -->
+<div id="light" class="white_content">
+    <iframe name="FORMSUBMIT" width="1" height="1" id="FORMSUBMIT"></iframe> 
+    <form class="forms addform" name="addform" id="addform" target="FORMSUBMIT" action="" method="post"> 
+        <h3>父类排序<a href="javascript:;" id="close" class="close">Close</a></h3>
+        <div style="width:100%;height:1px; background:#E0E0E0;"></div>
+        <div id="bottom_mess" class="bottom_mess">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th width="5%">权重</th>
+                        <th width="5%">父类ID</th>
+                        <th width="15%">父类标题</th>
+                        <th width="15%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($all_fater as $key=>$val){?>
+                        <tr>                      
+                            <td width="5%"><input max='3' maxlength='3' style='width:20px;' type='text' value='<?php echo $val['list_num'];?>' name='bottom_sort[<?php echo $val['title'];?>]' id='bottom_sort_<?php echo $val['fater_id'];?>' class='bottom_sort' fater_id='<?php echo $val['fater_id'];?>' /></td>
+                            <td width="5%"><?php echo $val['fater_id'];?></td>
+                            <td width="15%"><?php echo $val['title'];?></td>
+                            <?php if($val['if_show'] == 1){ ?>
+                                <td width="15%"><a href="/bottom_status/order_son_bottom/<?php echo $val['fater_id'];?>">子类排序</a> | <a href="/bottom_status/down_fater_bottom/<?php echo $val['fater_id'];?>">下线</a></td> 
+                            <?php }else{?>
+                                <td width="15%"><a href="/bottom_status/order_son_bottom/<?php echo $val['fater_id'];?>">子类排序</a> | <a href="/bottom_status/up_fater_bottom/<?php echo $val['fater_id'];?>">上线</a></td>                                 
+                            <?php }?>
+                        </tr>
+                    <?php }?>
+                </tbody>
+            </table>
+        </div>
+        <div>
+            <a style="margin-left:40%" class="btn btn-primary" id="btn_add_order" name="btn_add_order">提交</a>  
+            <a class="btn btn-primary" id="btn_del_order" name="btn_del_order">取消</a>                
+        </div>
+    </form>
+</div> 
+<!-- 父类排序结束 -->
+<div id="fade" class="black_overlay"> 
+</div> 
+
+<script type="text/javascript">
+    $(document).ready(function() {
+        $('#btn_search').click(function(e) {
+            e.preventDefault();
+            form1.action = "/bottom_status/ajax_bottom";
+            $('#tt').datagrid('load', {
+                bottom_id: $("#bottom_id").val(),
+                bottom_name: $("#bottom_name").val(),
+                bottom_son_name: $("#bottom_son_name").val(),
+                create_user: $("#create_user").val(),
+                start_time: $("#start_time").val(),
+                end_time: $("#end_time").val(),
+            });
+        });
+
+        $("#order_fater_bottom").click(function(){
+            $("#light").css('display','block');
+            $("#fade").css('display','block');
+        });
+        $('#close').click(function() {
+            $('#light').css('display', 'none');
+            $('#fade').css('display', 'none');
+        });
+        $('#btn_del_order').click(function() {
+            $('#light').css('display', 'none');
+            $('#fade').css('display', 'none');
+        });
+        $('#btn_add_order').click(function() {
+            var sort_input = $('.bottom_sort');
+            var length = sort_input.length;
+            var bottom_id_arr = [];
+            var bottom_sort_arr = [];
+            for(var i = 0;i <length ; i++){
+                var sort = $.trim(sort_input[i].value);
+                var bottom_id = parseInt(sort_input[i].getAttribute('fater_id'));
+                var num = i+1;
+                if(sort == ''){
+                    alert('第' +num+'行排序为空！' );
+                    return false;
+                }
+                if(isNaN(sort)){
+                    alert('第' +num+'行排序非数字！' );
+                    return false;
+                }
+                bottom_id_arr[i] = bottom_id;
+                bottom_sort_arr[i] = sort;      
+            }
+            var bottom_id = JSON.stringify(bottom_id_arr);
+            var bottom_sort = JSON.stringify(bottom_sort_arr);
+            $.ajax({
+                    type:"POST",
+                    traditional :true,
+                    url:"/bottom_status/ajax_bottom_sort",
+                    dataType: "json",
+                    data: {
+                        bottom_sort_arr:bottom_sort,
+                        bottom_id_arr:bottom_id,
+                    },
+                    dataType:'json',
+                    success:function(data){
+                        alert(data.message);
+                        location.replace(data.from_url); 
+                    }
+                });
+        });
+    });
+</script>
+<?php
+$this->load->view('ckad/footer')?>

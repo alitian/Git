@@ -1,0 +1,10 @@
+<?php
+header('Content-Type: text/html; charset=UTF-8');
+
+define( "WB_AKEY" , '3249442221' );
+define( "WB_SKEY" , '643d1a659f0363f911e3af320d7e0a40' );
+if(isset($_SESSION['is_wx']))
+	define( "WB_CALLBACK_URL" , 'http://www.modian.com/user/wx_weibocallback' );
+else
+	define( "WB_CALLBACK_URL" , 'http://www.modian.com/user/weibocallback' );
+unset($_SESSION['is_wx']);

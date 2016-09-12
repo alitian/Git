@@ -1,0 +1,66 @@
+<?php $this->load->view('ckad/header') ?>
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/default/easyui.css">
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/icon.css">
+<script type="text/javascript" src="<?= static_url(); ?>js/easyui/jquery.easyui.min.js"></script>
+
+<div class="row-fluid sortable">
+    <div class="box span12">
+
+        <div class="box-content">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;height:700px" title="筹资管理" 
+                   url="/main/ajax_backer"
+                   title="Load Data" iconCls="icon-save"
+                   sortName="ctime" sortOrder="DESC" pageSize=30 pagePosition="both"  toolbar="#searchtool"
+                   rownumbers="true" pagination="true">
+                <thead>
+                    <tr>
+                        <th field="user_id" width="80" sortable="true">投资人ID</th>
+                        <th field="username" width="80" sortable="true">投资人</th>
+                        <th field="pro_name" sortable="true">项目名</th>
+                        <th field="rew_content" width="400" sortable="true">索要奖励</th>
+                        <th field="amount" width="80" align="center" sortable="true">资助金额</th>
+                        <th field="address_name" width="150" align="center" sortable="true">真实姓名</th>
+                        <th field="address_city" width="50" align="center" sortable="true">城市</th>
+                        <th field="address_mobile" width="100" align="center" sortable="true">电话</th>
+                        <th field="address_email" width="150" align="center" sortable="true">邮箱</th>
+                        <th field="ctime" width="150" align="center" sortable="true">资助时间</th>
+                        <th field="if_pay" width="150" align="center" sortable="true">是否支付</th>
+                    </tr>
+                </thead>
+            </table>
+            <div id="searchtool" style="padding:5px">
+                <span>用户ID:</span><input type="text" id="user_id" value="" size=10 />
+                <span>项目名:</span><input type="text" id="pro_name" value="" size=10 /><br />
+                <span>回报内容:</span><input type="text" id="rew_content" value="" size=10 />
+                <span>支付:</span><select id="if_pay"><option value="1">已支付</option><option value="0">未支付</option><option value="3">退款</option></select>
+                <a href="javascript:FindData()" class="easyui-linkbutton" id="search" data-options="iconCls:'icon-search'">查询</a>
+            </div>  
+        </div>
+    </div><!--/span-->
+
+</div><!--/row-->
+
+
+<!-- content ends -->
+
+<script>
+    function confirm_delete(id) {
+        if (confirm("您确定要删除这个记录么？")) {
+            window.location.href = "ckad/delete_web/" + id;
+        } else {
+            return false;
+        }
+    }
+    $(function() {
+        $("#search").click(function() {
+            $('#tt').datagrid('load', {
+                pro_name: $('#pro_name').val(),
+                rew_content: $('#rew_content').val(),
+                user_id: $('#user_id').val(),
+                if_pay: $('#if_pay').val(),
+            });
+        })
+    });
+</script>
+<?php
+$this->load->view('ckad/footer')?>

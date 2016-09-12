@@ -1,0 +1,5 @@
+static_path = "http://s.modianinc.com/"
+cdn_url = 'http://u.modianinc.com/'
+base_url = "/"
+data_server = "http://dingzhihao.www.modianinc.com"
+js_ver = "?20150092501ABC"

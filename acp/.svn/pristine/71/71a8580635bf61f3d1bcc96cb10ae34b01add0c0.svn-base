@@ -1,0 +1,72 @@
+<?php $this->load->view('ckad/header'); ?>
+
+<style>
+    .keyword-container {
+        width: 90%;
+        margin: 20px auto;
+    }
+    .search_condition>input{
+        width: 120px;
+    }
+</style>
+<script>
+    $(function() {
+        // 去掉超链接或按钮点击时出现的虚线边框
+        $("body").on('focus', 'a,button', function(){this.blur()});
+    });
+</script>
+
+
+<div class="keyword-container row tabbable">
+    <h1>微信关键字管理</h1>
+    <hr>
+    <div>
+        <div class="search-container">
+            <form action="/main/wx_keyword" class="form-inline" method="get" style="width: 70%">
+                <span class="search_condition">
+                     按关键字查询: <input type="text" value="<?=$query['keyword']?>" placeholder="请输入主题名称" class="form-control" name="keyword"/>
+                </span>&nbsp;&nbsp;
+                <button id="edit_sortid" type="submit" class="btn btn-info btn-sm">查询</button>
+            </form>
+            <a href="/main/add_keyword"><button id="add_rule" class="btn btn-danger btn-lg" style="float: right;margin-top: -50px;">+新增关键字规则</button></a>
+        </div>
+        <hr>
+        <?php if($keyword_list): ?>
+            <div class="keyword">
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="10%">规划名</th>
+                        <th width="10%">关键字</th>
+                        <th width="10%">回复内容</th>
+                        <th width="10%">状态</th>
+                        <th>类型</th>
+                        <th>发布时间</th>
+                        <th width="20%">操作</th>
+                    </tr>
+                    <?php foreach($keyword_list as $keyword_info): ?>
+                        <tr>
+                            <td><?=$keyword_info["rule_name"]?></td>
+                            <td><?=$keyword_info['keyword'] ?></td>
+                            <td><?= $keyword_info['reply_content'] ?></td>
+                            <td><?= $keyword_info["status"]?"推荐中":"已失效" ?></td>
+                            <td><?=$keyword_info["type"]==1?"文本消息":($keyword_info["type"]==2?"图文消息":"图片消息") ?></td>
+                            <td><?= $keyword_info['ctime']?></td>
+                            <td><a class="edit" href="/main/edit_keyword/<?=$keyword_info['id']?>">编辑</a> | <?php if($keyword_info['status']){?><a href="/main/update_keyword_status/<?=$keyword_info['id']?>" class="del">下线</a><?php }else{ ?><a href="javascript:;" class="del">已下线</a><?php } ?> | <a href="#">查询访问数据</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+
+
+<?php $this->load->view('ckad/footer'); ?>

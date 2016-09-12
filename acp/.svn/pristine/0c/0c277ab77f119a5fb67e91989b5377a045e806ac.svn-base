@@ -1,0 +1,938 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+
+/**
+ * @auther: dingding
+ * @update: 2015-10-21
+ *
+ */
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Refund extends Acp_Controller {
+
+	public function __construct() {
+        parent::__construct();
+
+        $this->load->helper('url');
+        $this->load->helper('excel');
+        $this->load->model('Order_biz');
+        $this->load->library('md_edm');
+        $this->load->library('md_refund');
+        $this->load->library('md_payment_weixin');
+    }
+
+///////////////////////////////////////////////////////////////////////////////
+    // 批量退款
+    function batch_refund()
+    {
+        $pro_id = isset($_POST['pro_id']) ? $_POST['pro_id'] : 0;
+        if (empty($pro_id) || $pro_id == 0) {
+            err_exit('pro_id illegal', __FILE__, __FUNCTION__, __LINE__);
+        }
+        $pro_status = $this->md_refund->get_pro_fnc_status($pro_id);
+        if ($pro_status != '众筹失败') {
+            err_exit('pro_id illegal', __FILE__, __FUNCTION__, __LINE__);
+        }
+
+        // 退款前，服务器端保存该项目的所有订单明细
+        $path = config_item('uploads_path').'refund_back_file/';
+        $filename = $pro_id.'_项目退款订单明细_'.'退款前_'.date('YmdHis') . '.csv';
+        $filename = $path . $filename;
+        $data = $this->md_refund->get_backup_order_lsts($pro_id);
+        $this->md_refund->export_ord($data, $filename, 1);
+
+        // 对待退款订单退款
+        $this->_refund_account($pro_id);
+
+        // 银行转账订单进入后台审核流程
+        $this->_update_tranacc_order_status($pro_id);
+
+        // 赊账(支付状态为1)订单进入后台审核流程
+        $this->_update_debt_order_status($pro_id);
+
+        // 待支付订单状态变为已失效
+        $this->_update_unpay_order_status($pro_id);
+
+        // 跳转到新页面
+        redirect('/refund/index', 'location', 301);
+    }
+
+    // 待支付订单状态变为已失效
+    function _update_unpay_order_status($pro_id)
+    {
+        $olsts = $this->md_refund->get_unpay_order_lsts($pro_id);
+        foreach ($olsts as $row) {
+            $this->Order_biz->set_oid($row['back_id'])->update_status('104');
+        }
+    }
+    // 赊账(支付状态为1)订单交由审核管理功能
+    function _update_debt_order_status($pro_id)
+    {
+        $olsts = $this->md_refund->get_debt_order_lsts($pro_id);
+        $this->_system_simulate_sub_order($olsts, 19);
+    }
+    // 银行转账订单交由审核管理功能
+    function _update_tranacc_order_status($pro_id)
+    {
+        $olsts = $this->md_refund->get_tranacc_order_lsts($pro_id);
+        $this->_system_simulate_sub_order($olsts, 19);
+
+    }
+    function _system_simulate_sub_order($lsts, $op_type)
+    {
+        $refund_date = date("Y-m-d H:i:s");
+        $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+        $sub_lsts = array();
+        foreach ($lsts as $i => $v) {
+            $this->Order_biz->set_oid($v['back_id'])->update_status('303');
+
+            $sub_lsts[] = array('batch_no'            => '',
+                                    'back_id'           => "{$v['back_id']}",
+                                    'pay_out_trade_no'  => "{$v['pay_out_trade_no']}",
+                                    'trade_no'          => "{$v['trade_no']}",
+                                    'refund_amount'     => "{$v['refund_amount']}",
+                                    'refund_rsn'        => "{$v['refund_rsn']}",
+                                    'refund_date'       => "{$refund_date}",
+                                    'user_realname'     => "{$v['user_realname']}",
+                                    'user_reg_mobile'   => "{$v['user_reg_mobile']}",
+                                    'op_type'           => "{$op_type}",
+                                    'op_reason'         => "",
+                                    'op_time'           => "",
+                                    'op_man'            => "{$op_man}", // 文案??????
+                                    );
+        }
+        $this->md_refund->save_refund_order_info($sub_lsts);
+    }
+
+    // 退款
+    function _refund_account($pro_id)
+    {
+        $res = $this->md_refund->get_refund_lsts_info($pro_id);
+        if ( ! empty($res)) {
+            $refund_lsts = $res['lsts'];
+            $this->_cache_refund_lsts($refund_lsts);
+
+            $payways = array('alipay', 'weixin', 'sina');
+            foreach ($payways as $way) {
+                $batch = 0;
+                while ($lsts = $this->_filter_payway_lsts($way, ++$batch)) {
+                    switch ($way) {
+                    case 'alipay':
+                        $this->_refund_alipay_account($pro_id, $lsts);
+                        break;
+                    case 'weixin':
+                        $this->_refund_weixinpay_account($pro_id, $lsts);
+                        break;
+                    default:
+                        # code...
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    // 根据支付类型，获取每个批次的退款订单
+    function _filter_payway_lsts($way, $batch)
+    {
+        if (empty($way) || empty($batch)) {
+            err_exit('arguments illegal', __FILE__, __FUNCTION__, __LINE__);
+        }
+
+        $per_batch = 0;
+        $offset = 0;
+        switch ($way) {
+        case 'alipay':
+            $per_batch = 999;   // 每个退款批次的退款单数，调试时可设置为相应的值
+            $offset = ($batch - 1) * $per_batch;
+            $refund_lsts = $this->_get_cached_alipay_lsts();
+            break;
+        case 'weixin':
+            $per_batch = 100;   // 每个退款批次的退款单数，调试时可设置为相应的值
+            $offset = ($batch - 1) * $per_batch;
+            $refund_lsts = $this->_get_cached_weixinpay_lsts();
+            break;
+        case 'sina':
+            $refund_lsts = $this->_get_cached_sinapay_lsts();
+            break;
+        default:
+            $refund_lsts = array();
+            break;
+        }
+
+        return array_slice($refund_lsts, $offset, $per_batch);
+    }
+    // 众筹失败阿里批退退款接口
+    function _refund_alipay_account($pro_id, $lsts)
+    {
+        $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+        $refund_ord_info = array();
+        $batch_amount = 0;
+        $batch_id = $this->md_refund->get_next_batch_id($pro_id);
+        $batch_no = $this->md_refund->create_next_batch_no($pro_id, $batch_id, 'A');
+        $refund_date = date("Y-m-d H:i:s");
+        $batch_num = 0;
+        $detail_data = "";
+        foreach ($lsts as $v) {
+            ++$batch_num;
+            $detail_data .= "{$v['trade_no']}^{$v['refund_amount']}^{$v['refund_rsn']}#";
+
+            $batch_amount += $v['refund_amount'];
+            $refund_ord_info[] = array('batch_no'           => "$batch_no",
+                                        'back_id'           => "{$v['back_id']}",
+                                        'pay_out_trade_no'  => "{$v['pay_out_trade_no']}",
+                                        'trade_no'          => "{$v['trade_no']}",
+                                        'refund_amount'     => "{$v['refund_amount']}",
+                                        'refund_rsn'        => "{$v['refund_rsn']}",
+                                        'refund_date'       => "$refund_date",
+                                        'user_realname'     => "{$v['user_realname']}",
+                                        'user_reg_mobile'   => "{$v['user_reg_mobile']}",
+                                        'op_type'           => 1,
+                                        'op_reason'         => "",
+                                        'op_time'           => "",
+                                        'op_man'            => "{$op_man}", // 文案??????
+                                        );
+        }
+        $detail_data = rtrim($detail_data, '#');
+
+        // 退款
+        $parm['batch_no'] = $batch_no;
+        $parm['refund_date'] = $refund_date;
+        $parm['batch_num'] = $batch_num;
+        $parm['detail_data'] = $detail_data;
+        $alipayapi_return = $this->md_refund->refund_alipayapi($parm);
+
+        $req_status = $this->md_refund->get_refund_req_status($alipayapi_return['return_code']);
+        switch ($req_status) {
+        case '请求成功': // 更新状态：退款中
+            foreach ($refund_ord_info as $key => $ord_info) {
+                $this->Order_biz->set_oid($ord_info['back_id'])->update_status('402');
+            }
+            break;
+        case '请求失败': // 转入线下人工退款流程
+            foreach ($refund_ord_info as $key => $ord_info) {
+                $refund_ord_info["$key"]['op_type'] = 11;
+                $refund_ord_info["$key"]['op_reason'] = '支付宝退款请求失败';
+                $refund_ord_info["$key"]['op_time'] = date("Y-m-d H:i:s");
+            }
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        // 保存退款信息到数据库
+        $req_info = array('0' => $alipayapi_return + array('pro_id' => $pro_id, 'batch_id' => $batch_id, 'batch_amount' => $batch_amount));
+        $this->md_refund->save_refund_req_log($req_info);
+        $this->md_refund->save_refund_order_info($refund_ord_info);
+    }
+
+    // weixin 退款
+    function _refund_weixinpay_account($pro_id, $lsts) {
+        foreach ($lsts as $ii => $row) {
+            $err_msg = null;
+            $is_app = in_array($row['back_plan'], array('android', 'ios')) ? true : false;
+            if ($this->md_payment_weixin->refund($row['pay_out_trade_no'], $row['pay_amount'], $err_msg, $is_app) == true) {
+                $this->Order_biz->set_oid($row['back_id'])->update_status('400');
+            }
+            else
+            {
+                // var_dump($err_msg);
+            }
+            $log_path = '/tmp/'.date('Y-m-d').'-err-weixin-refund.log';
+            error_log(json_encode($err_msg).PHP_EOL, 3, $log_path);
+        }
+    }
+
+    // 缓存数据
+    static function _cache_refund_lsts($refund_lsts) {
+        $cache_key = sprintf('%s', "refundlsts4filurepro");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $refund_lsts, 43200);
+
+        $alipay_lsts = array_filter($refund_lsts, "self::_is_alipay");
+        $cache_key = sprintf('%s', "refundlsts4alipay");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $alipay_lsts, 43200);
+
+        $sinapay_lsts = array_filter($refund_lsts, "self::_is_sinapay");
+        $cache_key = sprintf('%s', "refundlsts4sinapay");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $sinapay_lsts, 43200);
+
+        $weixinpay_lsts = array_filter($refund_lsts, "self::_is_weixinpay");
+        $cache_key = sprintf('%s', "refundlsts4weixinpay");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $weixinpay_lsts, 43200);
+    }
+    static function _get_cached_refund_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4filurepro");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+    static function _get_cached_alipay_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4alipay");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+    static function _get_cached_weixinpay_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4weixinpay");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+    static function _get_cached_sinapay_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4sinapay");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+
+///////////////////////////////////////////////////////////////////////////////
+    // 批退的三个浏览页面
+    // 今日批退订单
+    public function index()
+    {
+        $data['failure_pro_lsts'] = $this->md_refund->get_refund_failure_pro_lsts();
+        $data['type'] = "众筹失败批退";
+        $result['lst_type'] = 1;
+        $this->load->view('refund/refund_ord', $data);
+    }
+    public function loadata()
+    {
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 20;
+        $pro_id = isset($_POST['pro_id']) ? intval($_POST['pro_id']) : 0;
+        $lst_type = isset($_POST['lst_type']) ? intval($_POST['lst_type']) : 1;
+
+        $refund_lsts = array();
+        $total_refund = 0;
+        $total_amount = 0;
+        if ($pro_id != 0) {
+            switch ($lst_type) {
+            case 1:
+                $res = $this->md_refund->get_refund_lsts_info($pro_id);
+                $refund_lsts = $res['lsts'];
+                $total_amount = $res['tamount'];
+                $total_refund = $res['total'];
+                break;
+            case 2:
+                $refund_lsts = $this->md_refund->get_debt_order_lsts($pro_id);
+                break;
+            case 4:
+                $refund_lsts = $this->md_refund->get_tranacc_order_lsts($pro_id);
+                break;
+            default:
+                # code...
+                break;
+            }
+
+            $per_page = $rows;
+            $offset = ($page - 1) * $per_page;
+            $refund_lsts = array_slice($refund_lsts, $offset, $per_page);
+        }
+
+        $footer = array(array('pay_out_trade_no' => "退款总笔数",
+                                'trade_no' => $total_refund,
+                                ),
+                        array('pay_out_trade_no' => "退款总金额",
+                                'trade_no' => $total_amount,
+                                ),
+                        );
+        $result['footer'] = $footer;
+        $result['total'] = $total_refund;
+        $result['rows'] = $refund_lsts;
+        $result['lst_type'] = $lst_type;
+
+        echo json_encode($result);
+    }
+    // 导出excel
+    function export_pro_order() {
+        $pro_id = isset($_POST['pro_id']) ? intval($_POST['pro_id']) : 0;
+        if ($pro_id == 0) {
+            err_exit('pro_id illegal', __FILE__, __FUNCTION__, __LINE__);
+        }
+
+        $data = $this->md_refund->get_backup_order_lsts($pro_id);
+        $filename = $pro_id.'_项目批退订单_'.date('YmdHis').'.xls';
+        $this->md_refund->export_ord($data, $filename, 0);
+    }
+
+    //
+    // 批退请求记录
+    function batch_log() {
+        $data['type'] = '退款请求记录';
+        $this->load->view("refund/refund_req", $data);
+    }
+    function load_batch_log() {
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 20;
+
+        $batch_log = $this->md_refund->get_refund_req_log();
+        $result['total'] = count($batch_log);
+
+        $result['success'] = 0;
+        $result['failure'] = 0;
+        foreach ($batch_log as $i => $v) {  // 后期改善：加一列状态字段
+            $req_status = $this->md_refund->get_refund_req_status($v['return_code']);
+            switch ($req_status) {
+            case '请求成功':
+                ++$result['success'];
+                break;
+            case '请求失败':
+                ++$result['failure'];
+                break;
+            default:
+                # code...
+                break;
+            }
+        }
+
+        $per_page = $rows;
+        $offset = ($page - 1) * $per_page;
+        $result['rows'] = array_slice($batch_log, $offset, $per_page);
+
+        echo json_encode($result);
+    }
+
+    //
+    // 批退结果明细
+    function refund_info() {
+        $data['type'] = "退款结果明细";
+        $this->load->view("refund/refund_info", $data);
+    }
+    function load_refund_ord_info() {
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 20;
+
+        $refund_ord = $this->md_refund->get_refund_order_info();
+
+        $result['total'] = count($refund_ord);      // 总退单数
+        $result['t_req_m'] = 0;                     // 总请求金额
+        $result['t_ntf_m'] = 0;                     // 总退款金额
+        $result['t_t'] = 0;                         // 今日退单数
+        $result['t_t_req_m'] = 0;                   // 今日总请求金额
+        $result['t_t_ntf_m'] = 0;                   // 今日总退款金额
+        $nowdays = date("Y-m-d 00:00:00");
+        $nowdaye = date("Y-m-d 23:59:59");
+        foreach ($refund_ord as $i => $v) {
+            if ($nowdays <= $v['refund_date'] && $v['refund_date'] <= $nowdaye) {
+                ++$result['t_t'];
+                $result['t_t_req_m'] += $v['refund_amount'];
+                $result['t_t_ntf_m'] += $v['ntf_amount'];
+            }
+            $result['t_req_m'] += $v['refund_amount'];
+            $result['t_ntf_m'] += $v['ntf_amount'];
+        }
+
+        $per_page = $rows;
+        $offset = ($page - 1) * $per_page;
+        $result['rows'] = array_slice($refund_ord, $offset, $per_page);
+
+        echo json_encode($result);
+    }
+
+// ///////////////////////////////////////////////////////////////////////////////
+    // 订单审核管理 功能
+    // here goes the page show
+    function refund_mng() {
+        $data['type'] = '退款审核管理';
+        $this->load->view("refund/refund_mng", $data);
+    }
+    function load_refund_mng_ord() {
+        $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+        $rows = isset($_POST['rows']) ? intval($_POST['rows']) : 20;
+        $where = $this->_get_rf_mng_where($_POST);
+        $filter = $this->_get_rf_mng_filter($_POST);
+
+        $rmo = $this->_get_refund_mng_ord($where);
+        $rmo = $this->_filter_refund_mng_ord($rmo, $filter);
+        $result['total'] = count($rmo);
+
+        $per_page = $rows;
+        $offset = ($page - 1) * $per_page;
+        $result['rows'] = array_slice($rmo, $offset, $per_page);
+
+        echo json_encode($result);
+    }
+    // 还是导出excel
+    function export_refund_mng_ord() {
+        $arr_title = array('back_id' => '订单号',
+                            'back_refund_status' => '订单退款状态',
+                            'back_post_status' => '订单物流状态',
+                            'pro_name' => '项目名称',
+                            'pro_status' => '项目状态',
+                            'user_realname' => '申请人姓名',
+                            'user_reg_mobile' => '申请人手机号',
+                            'pay_platform' => '支付工具',
+                            'refund_rsn' => '申请退款原因',
+                            'refund_date' => '申请时间',
+                            'op_type' => '操作',
+                            'op_reason' => '拒绝原因',
+                            'op_time' => '操作时间',
+                            'op_man' => '操作员',
+                            );
+
+        $where = $this->_get_rf_mng_where($_POST);
+        $filter = $this->_get_rf_mng_filter($_POST);
+        $rmo = $this->_get_refund_mng_ord($where);
+        $rmo = $this->_filter_refund_mng_ord($rmo, $filter);
+
+        $filename = '订单审核管理_'.date('YmdHis').'.xls';
+        export_to_excel($arr_title, $rmo, $filename, 0);
+    }
+
+    // 获取筛选条件
+    function _get_rf_mng_where($arr) {
+        $where['back_id']     = isset($arr['back_id']) ? intval($arr['back_id']) : 0;
+        $where['pro_id']      = isset($arr['pro_id']) ? intval($arr['pro_id']) : 0;
+        $where['pro_name']    = isset($arr['pro_name']) ? $arr['pro_name'] : '';
+        $where['user_id']     = isset($arr['user_id']) ? intval($arr['user_id']) : 0;
+        $where['rew_id']      = isset($arr['rew_id']) ? intval($arr['rew_id']) : 0;
+        $where['user_mobile'] = isset($arr['user_mobile']) ? $arr['user_mobile'] : '';
+        return $where;
+    }
+    function _get_rf_mng_filter($flt) {
+        $filter['pro_status'] = isset($flt['pro_status']) ? $flt['pro_status'] : "项目状态全部";
+        $filter['pay_way'] = isset($flt['pay_way']) ? $flt['pay_way'] : "支付方式全部";
+        $filter['post_status'] = isset($flt['post_status']) ? $flt['post_status'] : "订单物流状态全部";
+        $filter['ord_status'] = isset($flt['ord_status']) ? $flt['ord_status'] : "订单退款状态全部";
+        $filter['refund_reason'] = isset($flt['refund_reason']) ? $flt['refund_reason'] : "退款原因全部";
+        return $filter;
+    }
+    // 获取订单管理审核数据
+    function _get_refund_mng_ord($where) {
+        $payed_ords = $this->md_refund->get_payed_ord_ids();
+
+        $rmo = $this->md_refund->get_refund_mng_order_lsts($where);
+        $tmp_rmo = array();
+        $index = 0;
+        foreach ($rmo as $i => $v) {
+            if ($v['back_status_debt']==0 && !empty($v['pay_id']) && $v['pay_status']==0 && in_array($v['back_id'], $payed_ords)) // 过滤掉未支付的
+                continue;
+
+            if ($v['back_if_pay'] == 1 && ($v['back_status'] == '302' || $v['back_status'] == '402' || $v['back_status'] == '204'))
+                $v['back_refund_status'] = '退款中';
+            elseif ($v['back_if_pay'] == 3 && ($v['back_status'] == '300' || $v['back_status'] == '400' || $v['back_status'] == '205'))
+                $v['back_refund_status'] = '已退款';
+            elseif ($v['back_if_pay'] == '1' && $v['back_status'] == '303') //////////////////////////////////////
+                $v['back_refund_status'] = '退款申请待审核';
+            elseif ($v['back_if_pay'] == '1' && $v['back_status'] == '304') //////////////////////////////////////
+                $v['back_refund_status'] = '退款申请被拒绝';
+            else
+                $v['back_refund_status'] = "{$v['back_if_pay']}|{$v['back_status']}";
+
+            $v['pro_status'] = $this->md_refund->get_pro_fnc_status($v['pro_id']);
+
+            if ($v['back_post_time'] != '0000-00-00 00:00:00' && $v['back_receive_time'] != '0000-00-00 00:00:00')
+                $v['back_post_status'] = '已收货';
+            elseif ($v['back_post_time'] != '0000-00-00 00:00:00' && $v['back_receive_time'] == '0000-00-00 00:00:00')
+                $v['back_post_status'] = '已发货';
+            elseif ($v['back_post_time'] == '0000-00-00 00:00:00' && $v['back_receive_time'] == '0000-00-00 00:00:00'
+                        && $v['pro_status'] == '众筹成功')
+                $v['back_post_status'] = '众筹成功且未发货';
+            else
+                $v['back_post_status'] = '';
+
+            if ($v['pay_platform']=='alipay' || $v['pay_platform']=='alipay_wap') {
+                $v['pay_platform']='支付宝快捷';
+                if ($v['pay_bank_type']!='alipay' && $v['pay_bank_type']!='alipay_wap') {
+                    $v['pay_platform']='支付宝网银';
+                }
+            }
+            if (!empty($v['back_big_ord']) && empty($v['pay_id']))
+                $v['pay_platform'] = '银行转帐';
+            if (empty($v['back_big_ord']) && ((empty($v['pay_id']) && $v['back_if_pay']==1)
+                                                || (!empty($v['pay_id']) && $v['back_if_pay']==0)))
+                $v['pay_platform'] = '银行转帐';
+
+            if ($v['back_status_debt'] == 1)
+                $v['pay_platform'] = '赊账';
+
+            $tmp_rmo += array("$index" => $v);
+            ++$index;
+        }
+
+        return $tmp_rmo;
+    }
+
+    // 筛选项过滤
+    function _filter_refund_mng_ord($res, $cond) {
+        // 项目状态
+        if ($cond['pro_status'] == '众筹中')
+            $res = array_filter($res, "self::_is_fncing");
+        elseif ($cond['pro_status'] == '众筹成功')
+            $res = array_filter($res, "self::_is_fnc_succ");
+        elseif ($cond['pro_status'] == '众筹失败')
+            $res = array_filter($res, "self::_is_fnc_fail");
+        else
+            ;
+
+        // 支付方式
+        if ($cond['pay_way'] == 'alipay')
+            $res = array_filter($res, "self::_is_alipay_quick");
+        elseif ($cond['pay_way'] == 'alipay_bank')
+            $res = array_filter($res, "self::_is_alipay_bank");
+        elseif ($cond['pay_way'] == '银行转帐')
+            $res = array_filter($res, "self::_is_trans_acc");
+        elseif ($cond['pay_way'] == '赊账')
+            $res = array_filter($res, "self::_is_debt");
+        else
+            ;
+
+        // 订单物流状态
+        if ($cond['post_status'] == '众筹成功且未发货')
+            $res = array_filter($res, "self::_is_fs_up");
+        elseif ($cond['post_status'] == '已发货')
+            $res = array_filter($res, "self::_is_fs_p");
+        elseif ($cond['post_status'] == '系统确认收货')
+            $res = array_filter($res, "self::_is_fs_sr");
+        elseif ($cond['post_status'] == '用户确认收货')
+            $res = array_filter($res, "self::_is_fs_ur");
+        elseif ($cond['post_status'] == '已收货')
+            $res = array_filter($res, "self::_is_rc");
+        else
+            ;
+
+        // 订单退款状态
+        if ($cond['ord_status'] == '退款申请待审核') {
+            $res = array_filter($res, "self::_is_rf_to");
+        } elseif ($cond['ord_status'] == '退款中') {
+            $res = array_filter($res, "self::_is_rfing");
+        } elseif ($cond['ord_status'] == '退款申请被拒绝') {
+            $res = array_filter($res, "self::_is_rf_rj");
+        } elseif ($cond['ord_status'] == '已退款') {
+            $res = array_filter($res, "self::_is_rfed");
+            usort($res, "self::my_sort_op_time");
+        } else {
+            ;
+        }
+
+        // 退款原因
+        if ($cond['refund_reason'] == '1')
+            $res = array_filter($res, "self::_is_rr_1");
+        elseif ($cond['refund_reason'] == '2')
+            $res = array_filter($res, "self::_is_rr_2");
+        elseif ($cond['refund_reason'] == '3')
+            $res = array_filter($res, "self::_is_rr_3");
+        elseif ($cond['refund_reason'] == '4')
+            $res = array_filter($res, "self::_is_rr_4");
+        elseif ($cond['refund_reason'] == '5')
+            $res = array_filter($res, "self::_is_rr_5");
+        elseif ($cond['refund_reason'] == '6')
+            $res = array_filter($res, "self::_is_rr_6");
+        elseif ($cond['refund_reason'] == '7')
+            $res = array_filter($res, "self::_is_rr_7");
+        elseif ($cond['refund_reason'] == '8')
+            $res = array_filter($res, "self::_is_rr_8");
+        elseif ($cond['refund_reason'] == '9')
+            $res = array_filter($res, "self::_is_rr_9");
+        else
+            ;
+
+        return $res;
+    }
+
+
+///////////////////////////////////////////////////////////////////////////////
+    // 订单管理审核中的退款逻辑
+    // 1. 对于同意退款的，一般直接调用退款接口，但对于系统退款失败的情况，不会调用退款接口; 转3
+    // 2. 对于拒绝退款的，转3
+    // 3. 获取相关信息，更新数据库
+    function manual_refund() {
+        $pay_out_trade_no = $_POST['pay_out_trade_no'];
+        $trade_no = $_POST['trade_no'];
+        $back_id = $_POST['back_id'];
+        $if_rf = $_POST['if_rf'];
+        $reject_rsn = ($if_rf == 0) ? $_POST['reject_rsn'] : '';
+
+        if (empty($back_id)) {
+            err_exit('back_id illegal', __FILE__, __FUNCTION__, __LINE__);
+        } else {
+            $rmo = $this->_get_refund_mng_ord(array('back_id' => "$back_id", 'pay_out_trade_no' => $pay_out_trade_no));
+            foreach ($rmo as $i => $row) {
+                switch (intval($row['op_type'])) {
+                    case 3:
+                    case 4:
+                        $is_handle = 0;
+                        break;
+                    default:
+                        $is_handle = 1;
+                        $handle_data = $row;
+                        break;
+                }
+
+                if ($is_handle == 1) {
+                    $rmo = $handle_data;
+                    break;
+                }
+            }
+
+            if (empty($rmo)) {
+                return ;
+            }
+        }
+
+        $back_status = $rmo['back_status'];
+        $batch_no = $rmo['batch_no'];
+        $ntf_amount = $rmo['ntf_amount'];
+        $ntf_result = $rmo['ntf_result'];
+        $op_type = $rmo['op_type'];
+        $op_reason = $rmo['op_reason'];
+        $op_time = date("Y-m-d H:i:s");
+        $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+
+        // 站内信、邮件、短信，告知用户相关信息
+        $emd_num = 0;
+        $user = $this->md_refund->get_edm_info($back_id);
+        $replace['#nickname#'] = $user['nickname'];
+        $replace['#pro_name#'] = $user['short_name'] ? $user['short_name'] : $user['pro_name'];
+        $replace['#back_id#']  = $back_id;
+
+        if ($if_rf == 0) { // 拒绝退款，更新状态为“退款申请被拒绝”
+            $op_type = 3;
+            $op_reason = $reject_rsn;
+
+            $back_status = '304';
+
+            // 站内信、邮件、短信，告知用户退款申请被拒绝
+            $replace['#op_reason#'] = $reject_rsn;
+            $emd_num = 13;
+            // $this->md_edm->send_edm(5, $user, $replace);
+
+        } elseif ($if_rf == 1) { // 同意退款，更新状态为“退款中”、“已退款”
+            $op_type = 2;
+            $op_reason = '';
+
+            if (($rmo['op_type'] == 19 || $rmo['op_type'] == 18 || $rmo['op_type'] == 11)
+                    && ($rmo['pay_platform'] == '支付宝快捷' || $rmo['pay_platform'] == '支付宝网银')) { // 调用ali退款接口退款
+                $rc = $this->_manual_refund_alipay_ord($rmo);
+                $batch_no = $rc['batch_no'];
+                $ali_rtrn = $rc['ali_rtrn'];
+
+                if ($ali_rtrn == '请求成功') {
+                    switch ($rmo['pro_status']) {
+                    case '众筹失败':
+                        $back_status = '402';
+                        break;
+                    case '众筹中':
+                        $back_status = '302';
+                        break;
+                    case '众筹成功':
+                        $back_status = '204';
+                        break;
+                    default:
+                        # code...
+                        break;
+                    }
+
+                    // 清票操作在回调接口
+                    // nothing to do here
+                } else {
+                    $op_reason = '支付宝退款请求失败';
+                    $op_type = 11; // 取消注释，转入线下人工退款流程
+                }
+            } elseif (($rmo['op_type'] == 19 || $rmo['op_type'] == 18 || $rmo['op_type'] == 11)
+                    && ($rmo['pay_platform'] == 'weixin')) { // 调用微信退款接口退款
+                $err_msg = null;
+                $is_app = in_array($rmo['md_plan'], array('android', 'ios')) ? true : false;
+                if ($this->md_payment_weixin->refund($rmo['pay_out_trade_no'], $rmo['refund_amount'], $err_msg, $is_app)) {
+                    switch ($rmo['pro_status']) {
+                    case '众筹失败':
+                        $back_status = '400';
+                        break;
+                    case '众筹中':
+                        $back_status = '300';
+                        break;
+                    case '众筹成功':
+                        $back_status = '205';
+                        break;
+                    default:
+                        # code...
+                        break;
+                    }
+
+                    // 执行清票操作
+                    $this->md_refund->clear_user_vote_info($back_id);
+                } else {
+                    $op_reason = '微信退款失败';
+                    $op_type = 11; // 取消注释，转入线下人工退款流程
+                }
+                $log_path = '/tmp/'.date('Y-m-d').'-err-weixin-refund.log';
+                error_log(json_encode($err_msg).PHP_EOL, 3, $log_path);
+            } elseif (($rmo['op_type'] == 19 || $rmo['op_type'] == 18)
+                        && $rmo['pay_platform'] == 'sina_pay') {
+                // 新浪退款流程
+                // ...
+            } elseif ($rmo['pay_platform'] == '银行转帐'
+                        || $rmo['pay_platform'] == '赊账') { // 系统退款失败，人工退款后，更新状态
+                // 分项目众筹情况，更新状态，已退款
+                switch ($rmo['pro_status']) {
+                case '众筹失败':
+                    $back_status = '400';
+                    $emd_num = 8;
+                    break;
+                case '众筹中':
+                    $back_status = '300';
+                    $emd_num = 12;
+                    break;
+                case '众筹成功':
+                    $back_status = '205';
+                    $emd_num = 12;
+                    break;
+                default:
+                    # code...
+                    break;
+                }
+
+                // 站内信、邮件、短信，告知用户退款成功
+                // $emd_num = 4;
+                // $this->md_edm->send_edm(4, $user, $replace);
+
+                // 执行清票操作
+                $this->md_refund->clear_user_vote_info($back_id);
+            } else {}
+        } else {}
+
+        if ($this->md_refund->if_repeat_order($back_id)) {
+            $this->md_refund->update_order_pay_status($back_id, $rmo['pay_out_trade_no'], 35);
+        } else {
+            $this->Order_biz->set_oid($back_id)->update_status($back_status);
+        }
+        $this->md_refund->update_refund_order_info(array('trade_no' => "$trade_no",
+                                                            'back_id' => "$back_id",
+                                                            'batch_no' => "$batch_no",
+                                                            'ntf_amount' => "$ntf_amount",
+                                                            'ntf_result' => "$ntf_result",
+                                                            'op_type' => "$op_type",
+                                                            'op_reason' => "$op_reason",
+                                                            'op_time' => "$op_time",
+                                                            'op_man' => "$op_man"));
+
+        // 站内信、邮件、短信，告知用户退款成功
+        if ($emd_num == 8 || $emd_num == 12 || $emd_num == 13) {
+           // $this->md_edm->send_edm($emd_num, $user, $replace);
+            $back_base_data = array();
+            $back_base_data['back_id'] = $back_id;
+            $amount_sql = "SELECT  `amount` FROM `md_product_back` WHERE `id` = '{$back_id}'";
+            $amount = $this->db->query($amount_sql)->row_array();
+            $back_base_data['amount'] = $amount['amount'];
+            $back_base_data['pro_id'] = $user['pro_id'];
+            $back_base_data['pro_name'] = $user['pro_name'] ;
+            $back_base_data['pay_out_trade_no'] = $pay_out_trade_no;
+            $back_base_data['op_reason'] = $rmo['op_reason'];
+            $base_back = serialize($back_base_data);
+            $this->load->library('notify_push/notify_api');
+            notify_api::notify_test($emd_num, $user['id'], $base_back);
+        }
+    }
+
+    // 支付宝单笔退款接口
+    function _manual_refund_alipay_ord($lst) {
+        if (empty($lst)) {
+             err_exit('no order needed to refund', __FILE__, __FUNCTION__, __LINE__);
+        }
+
+        $pro_id = $lst['pro_id'];
+        $batch_id = $this->md_refund->get_next_batch_id($pro_id);
+        $parm['batch_no'] = $this->md_refund->create_next_batch_no($pro_id, $batch_id, 'M');
+        // $parm['refund_date'] = $lst['refund_date'];
+        $parm['refund_date'] =  date("Y-m-d H:i:s");
+        $parm['batch_num'] = 1;
+        $parm['detail_data'] = "{$lst['trade_no']}^{$lst['refund_amount']}^{$lst['refund_rsn']}";
+
+        $alipayapi_return = $this->md_refund->refund_alipayapi($parm);
+        $rtrn['ali_rtrn'] = $this->md_refund->get_refund_req_status($alipayapi_return['return_code']);
+
+        $back_data = array('0' => $alipayapi_return + array('pro_id' => $pro_id, 'batch_id' => $batch_id, 'batch_amount' => $lst['refund_amount']));
+        $this->md_refund->save_refund_req_log($back_data);
+
+        $rtrn['batch_no'] = $parm['batch_no'];
+// var_dump($lst);var_dump($back_data);var_dump($rtrn);
+        return $rtrn;
+    }
+
+
+///////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////
+    // help function used for function array_filter
+    // 项目状态
+    static function _is_fncing($v) {if ($v['pro_status']=='众筹中') return true; else return false;}
+    static function _is_fnc_succ($v) {if ($v['pro_status']=='众筹成功') return true; else return false;}
+    static function _is_fnc_fail($v) {if ($v['pro_status']=='众筹失败') return true; else return false;}
+
+    // 支付方式
+    static function _is_debt($v) {if ($v['pay_platform']=='赊账') return true; else return false;}
+    static function _is_trans_acc($v) {if ($v['pay_platform']=='银行转帐') return true; else return false;}
+    static function _is_alipay($v) {
+        if($v['pay_platform'] == 'alipay' || $v['pay_platform'] == 'alipay_wap')
+            return true;
+        return false;
+    }
+    static function _is_sinapay($v) {
+        if($v['pay_platform'] == 'sina_pay')
+            return true;
+        return false;
+    }
+    static function _is_weixinpay($v) {if($v['pay_platform'] == 'weixin') return true; return false;}
+    static function _is_alipay_quick($v) {if($v['pay_platform'] == '支付宝快捷') return true; return false;}
+    static function _is_alipay_bank($v) {if($v['pay_platform'] == '支付宝网银') return true; return false;}
+
+
+    // 订单物流状态
+    static function _is_fs_up($v) {if ($v['back_post_status']=='众筹成功且未发货') return true; else return false;}
+    static function _is_fs_p($v) {if ($v['back_post_status']=='已发货') return true; else return false;}
+    static function _is_fs_sr($v) {if ($v['back_post_status']=='系统确认收货') return true; else return false;}
+    static function _is_fs_ur($v) {if ($v['back_post_status']=='用户确认收货') return true; else return false;}
+    static function _is_rc($v) {if ($v['back_post_status']=='已收货') return true; else return false;}
+
+    // 订单退款状态
+    static function _is_rf_to($v) {if ($v['back_refund_status']=='退款申请待审核') return true; else return false;}
+    static function _is_rfing($v) {if ($v['back_refund_status']=='退款中') return true; else return false;}
+    static function _is_rf_rj($v) {if ($v['back_refund_status']=='退款申请被拒绝') return true; else return false;}
+    static function _is_rfed($v) {if ($v['back_refund_status']=='已退款') return true; else return false;}
+
+    // 退款原因
+    static function _is_rr_1($v) {
+        if (preg_match('/.*项目众筹失败退款$/', $v['refund_rsn']))
+            return true;
+        else return false;
+    }
+    static function _is_rr_2($v) {if ($v['refund_rsn']=='选错项目，想支持其他项目') return true; else return false;}
+    static function _is_rr_3($v) {if ($v['refund_rsn']=='项目进展不顺，不看好该项目，想撤回投资') return true; else return false;}
+    static function _is_rr_4($v) {if ($v['refund_rsn']=='一时冲动，没看清楚，想重新选择项目') return true; else return false;}
+    static function _is_rr_5($v) {if ($v['refund_rsn']=='回报发放时间过长，等不及了') return true; else return false;}
+    static function _is_rr_6($v) {if ($v['refund_rsn']=='一直没收到货') return true; else return false;}
+    static function _is_rr_7($v) {if ($v['refund_rsn']=='回报质量太差') return true; else return false;}
+    static function _is_rr_8($v) {if ($v['refund_rsn']=='实际收到的回报与项目中承诺的回报内容不一致') return true; else return false;}
+    static function _is_rr_9($v) {
+        if (!preg_match('/.*项目众筹失败退款$/', $v['refund_rsn']) &&
+            $v['refund_rsn']!='选错项目，想支持其他项目' &&
+            $v['refund_rsn']!='项目进展不顺，不看好该项目，想撤回投资' &&
+            $v['refund_rsn']!='一时冲动，没看清楚，想重新选择项目' &&
+            $v['refund_rsn']!='回报发放时间过长，等不及了' &&
+            $v['refund_rsn']!='一直没收到货' &&
+            $v['refund_rsn']!='回报质量太差' &&
+            $v['refund_rsn']!='实际收到的回报与项目中承诺的回报内容不一致')
+            return true;
+        else return false;
+    }
+
+
+    //////
+    static function my_sort_op_time($a, $b) {
+        if ($a['op_time'] == $b['op_time']) return 0;
+        return ($a['op_time'] > $b['op_time']) ? -1 : 1;
+    }
+
+
+
+
+
+}

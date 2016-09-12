@@ -1,0 +1,112 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:wb=“http://open.weibo.com/wb”>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+        <title>摩点网</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="keywords" content="摩点网" />
+            <meta name="description" content="摩点网" />
+            <meta property="qc:admins" content="51634667041166100754636" />
+            <meta property="wb:webmaster" content="41a2e5188a914b49" />
+            <link rel="shortcut icon" href="/static//img/favicon.ico" /> <!--64*64-->
+            <link rel="icon" href="/static/img/favicon.ico" />
+            <link type="text/css" rel="stylesheet" href="/static//css/style.css?t=20140515020" />
+            <style type="text/css">
+                /* 404 page */
+                .nofound {background:#00c7ff;min-height:552px;min-width:1000px;padding-top:48px;color:#fff;font-size:24px}
+                .link {display:inline-block; vertical-align:middle;font-size:24px;color:#fff;background:#FFC700;width:140px;height:40px;text-align:center;line-height:40px;}
+                .link:hover {background:#FFCA5F}
+                .link:active {background:#DFAD00}
+            </style>
+    </head>
+    <body>
+
+        <div class="nofound">
+            <div class="wrap">
+                <p style="padding-left:255px;font-size:50px;color:#ffc700">出错了！<img style="vertical-align:text-bottom" src="/static/img/404.png" width="140" height="140" alt="出错了-404" /></p>
+                <p style="text-align:center;padding:60px 0 30px">不好意思，摩点开了个小差...</p>
+                <p style="text-align:center">您可以<a href="javascript:void(0)" onclick="ga('send', 'event', 'cuowuyemian_cuowuyemiantishi', 'xiayibuxuanze', 'fanhuishangyibu');history.go(-1);" class="link" style="margin:0 55px 0 15px">返回上一页</a>或者<a href="/" class="link" style="margin-left:55px" onclick="ga('send', 'event', 'cuowuyemian_cuowuyemiantishi', 'xiayibuxuanze', 'shouye');">返回首页</a></p>
+                <p style="text-align:center;padding:30px 0 15px">还可以扫一扫码了神马的~</p>
+                <p style="text-align:center"><img src="/static/img/404qrcode.jpg" width="140" height="140" alt="摩点网" /></p>
+            </div>
+        </div>
+        <div class="footer">
+            <div class="footlinks">
+                <div class="wrap">
+                    <ul class="clearfix">
+                        <li style="width:330px">
+                            <h6>关于我们</h6>
+                            <div>
+                                <a href="/about/index?id=2" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuwomen', 'guanyumodian');">关于摩点</a><i>|</i><a href="/about/index?id=3" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuwomen', 'tuanduijieshao');">团队介绍</a><i>|</i><a href="/about/index?id=16" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuwomen', 'jiarumodian');">加入摩点</a><br /><a href="/about/index?id=4" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuwomen', 'hezuohuoban');">合作伙伴</a><i>|</i><a href="/about/index?id=5" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuwomen', 'lianxiwomen');">联系我们</a>
+                            </div>
+                        </li>
+                        <li style="width:330px">
+                            <h6>关于项目</h6>
+                            <div>
+                                <a href="/about/index/2?id=6" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuxiangmu', 'faqixiangmu');">发起项目</a><i>|</i><a href="/about/index/2?id=13" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuxiangmu', 'zhichixiangmu');">支持项目</a><br /><a href="/about/index/2?id=14" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuxiangmu', 'fuwuxieyi');">服务协议</a><i>|</i><a href="/about/index/2?id=15" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanyuxiangmu', 'yinsitiaokuan');">隐私条款</a>
+                            </div>
+                        </li>
+                        <li>
+                            <h6>用户帮助</h6>
+                            <div>
+                                <a href="/about/index/4?id=17" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'yonghubangzhu', 'changjianwenti');">常见问题</a><i>|</i><a href="javascript:void(0)" onClick="feedbackPop();ga('send', 'event', 'cuowuyemian_yemiandibu', 'yonghubangzhu', 'yijianfankui');">意见反馈</a>
+                            </div>
+                            <div style="color:#aaa">官方QQ群：<a style="color:#999" target="_blank" href="http://shang.qq.com/wpa/qunwpa?idkey=00f4a653cc52778dde03f722459cec3f56b894912cad68e2cc76e1ae3742507c" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'guanfangQQqun', 'jiaruQQqun');"> <img  src="/static/img/QQqun.png" /> 239169777</a></div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div class="friendlink">
+                <div class="wrap">
+
+                    <p class="copy">&copy; www.modian.com 版权所有 北京摩点众筹科技有限公司 京icp备140122922  <a href="/main/?v=mb" style="margin-left:20px" onclick="ga('send', 'event', 'cuowuyemian_yemiandibu', 'yidongban', 'yidongban');">移动版</a></p>
+                </div>
+            </div>
+        </div>
+        <!--[if IE 6]>
+        <script src="js/DD_belatedPNG.js"></script>
+        <script>
+          DD_belatedPNG.fix('*');
+        </script>
+        <![endif]-->
+        <div style="display:none">
+            <script>
+                (function(i, s, o, g, r, a, m) {
+                    i['GoogleAnalyticsObject'] = r;
+                    i[r] = i[r] || function() {
+                        (i[r].q = i[r].q || []).push(arguments)
+                    }, i[r].l = 1 * new Date();
+                    a = s.createElement(o),
+                            m = s.getElementsByTagName(o)[0];
+                    a.async = 1;
+                    a.src = g;
+                    m.parentNode.insertBefore(a, m)
+                })(window, document, 'script', '//www.google-analytics.com/analytics.js', 'ga');
+
+                ga('create', 'UA-52084273-1', 'modian.com');
+                ga('send', 'pageview');
+
+                //页面级定制代码
+                ga('send', 'pageview', { 'dimension3':  'daohang'});
+                ga('send', 'pageview', { 'dimension4':  'cuowuyemian'});
+                ga('send', 'pageview', { 'dimension5':  'cuowuyemian'});
+                ga('set', 'contentGroup1', 'cuowuyemian');
+                ga('send', 'pageview', 'pn_cuowuyemian');
+
+                $(function(){
+                    var mdupss = getcookie('MDNEWUPSS');
+                    if(undefined != mdupss && null != mdupss)
+                        ga('send', 'pageview', { 'dimension7':  'yidenglu'});
+                    else
+                        ga('send', 'pageview', { 'dimension7':  'weidenglu'});
+                })
+
+            </script>
+            <script type="text/javascript">
+                var _bdhmProtocol = (("https:" == document.location.protocol) ? " https://" : " http://");
+                document.write(unescape("%3Cscript src='" + _bdhmProtocol + "hm.baidu.com/h.js%3Fc0ecbebb7cc96e86533bdd3aae2e5adb' type='text/javascript'%3E%3C/script%3E"));
+            </script>
+        </div>
+    </body>
+</html>

@@ -1,0 +1,69 @@
+<?php $this->load->view('ckad/header') ?>
+
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div class="box-header well" data-original-title>
+            <h2><i class="icon-picture"></i>已发送的站内信</h2>
+
+        </div>
+        <div class="box-content">
+			<?php if( isset($message) && !empty($message) ):?>
+				<table class="table table-striped table-bordered bootstrap-datatable datatable">
+					<tr>
+						<th>内容</th>
+						<th>发送时间</th>
+						 <th>操作</th>
+					</tr>													
+					<?php foreach($message as $key=>$value):?>
+					<tr>
+						<td style="overflow:hidden"><?php echo mb_substr($value['content'],0,50).'...';?></td>	
+						<td style="overflow:hidden"><?php echo $value['ctime'];?></td>									
+						<td style="overflow:hidden"><a  href="/main/delete_message?id=<?php echo $value['id'];?>&amp;pro_id=<?php echo $value['id'];?>" onClick="return confirm('确认删除?')">删除</a></td>
+					</tr>
+					<?php endforeach;?>					
+				</table>        
+					<div style="clear:both">
+						<br/>
+						 <?php if (isset($pagination)):?>
+							<?php echo $pagination;?>
+						 <?php endif;?>
+					</div>					
+			<?php endif;?>
+						<br><br>
+
+                    	<form action="" method="POST" onSubmit="return Validator.Validate(this,3)">
+
+                            <table class="prorlists">
+
+                                <tr>
+                                    <td valign="top">站内信内容:</td>
+                                    <td><textarea id="message_content" placeholder="输入站内信内容" name="content" style="width:500px;height:120px" dataType="Require"  msg="请输入消息内容" ></textarea></td>
+                                </tr>
+                                <tr>
+                                	<td colspan="4"><input type="submit" value="发送" class="backbtn" /></td>
+                                </tr>
+                            </table>
+                        </form>			
+			
+        </div>
+    </div><!--/span-->
+
+</div><!--/row-->
+
+
+<script type="text/javascript" charset="utf-8" src="/js/ueditor/ueditor.config.js?12345"></script>
+<script type="text/javascript" charset="utf-8" src="/js/ueditor/ueditor.all.min.js"></script>
+<script type="text/javascript" charset="utf-8" src="/js/ueditor/lang/zh-cn/zh-cn.js"></script>
+<script type="text/javascript">
+$(function() {
+    // ueditor
+    UE.getEditor('message_content', {
+    initialFrameWidth:"100%", //初始化选项
+    initialFrameHeight: 100
+    });
+  })
+
+</script>
+
+<?php
+$this->load->view('ckad/footer')?>

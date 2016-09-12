@@ -1,0 +1,46 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('special_subj/ssubj_editor_nav'); ?>
+
+<style>
+    .hidden-input {
+        display: none;
+    }
+
+    form.ssubj-info-layer {
+        margin-top: 32px;
+        padding: 11px;
+    }
+</style>
+
+<form class="ssubj-info-layer form-horizontal" action="" method="post">
+    <div class="control-group">
+        <label class="control-label">页面模板</label>
+        <div class="controls">
+            <select value="0">
+                <option value="0"></option>
+                <option value="101">独立游戏嘉年华</option>
+                <option value="2">2模板</option>
+                <option value="3">3模板</option>
+                <option value="4">4模板</option>
+                <option value="5">5模板</option>
+                <option value="6">6模板</option>
+                <option value="7">7模板</option>
+                <option value="8">8模板</option>
+                <option value="9">9模板</option>
+                <option value="10">10模板</option>
+                <option value="11">11模板</option>
+            </select>
+        </div>
+    </div>
+
+    <hr>
+    <div class="control-group">
+        <div class="controls">
+            <button type="submit" class="btn">好 <i class="icon-arrow-right"></i></button>
+        </div>
+    </div>
+</form>
+
+
+
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,143 @@
+<?php
+include_once('md_image.php');
+class md_upyun implements MD_Image {
+	public function crop($opt,$img_from,$img_to,$pos_x,$pos_y,$width,$height,$fix_value = 0){
+
+		$upyun_space = $opt['domainname'];
+    	$upyun_user = $opt['username'];
+    	$upyun_pwd = $opt['password'];
+        $upyun_imgurl = $opt['upyun_imgurl'];
+		// 保存图片到 modian 空间的根目录下，且保存名称为 $to_url
+		$to_url = $upyun_space . $img_to;
+        $process = curl_init($to_url);
+
+        // 上传操作
+        curl_setopt($process, CURLOPT_PUT, 1);
+        curl_setopt($process, CURLOPT_USERPWD, "$upyun_user:$upyun_pwd");
+        curl_setopt($process, CURLOPT_HEADER, 0);
+        curl_setopt($process, CURLOPT_TIMEOUT, 60);
+
+        // 本地待上传的图片文件
+        $local_file_path = $img_from;
+        $datas = fopen($local_file_path,'r');
+        fseek($datas, 0, SEEK_END);
+        $file_length = ftell($datas);
+        fseek($datas, 0);
+
+        // 设置待上传图片的内容
+        curl_setopt($process, CURLOPT_INFILE, $datas);
+
+        // 设置待上传图片的长度
+        curl_setopt($process, CURLOPT_INFILESIZE, $file_length);
+
+        if($fix_value != 0)
+        {
+            $option = array(
+                "x-gmkerl-crop: $pos_x,$pos_y,$width,$height",
+                "x-gmkerl-type: fix_width",
+                "x-gmkerl-value: $fix_value",
+                "x-gmkerl-unsharp: true",
+                );
+        } else {
+            $option = array(
+                "x-gmkerl-crop: $pos_x,$pos_y,$width,$height",
+                );
+        }
+        // 设置图片旋转参数：从左上顶点开始，裁剪$width x $height大小的图片
+        curl_setopt($process, CURLOPT_HTTPHEADER, $option);
+        
+        curl_exec($process);
+        $err = curl_getinfo($process, CURLINFO_HTTP_CODE);
+        curl_close($process);
+        fclose($datas);
+        if ( $err != 200 )
+            return false;
+        else
+            return $upyun_imgurl . $img_to;
+	}
+
+	public function resize($opt,$img_from,$img_to,$width = '',$height = '') {
+        $upyun_space = $opt['domainname'];
+    	$upyun_user = $opt['username'];
+    	$upyun_pwd = $opt['password'];
+        $upyun_imgurl = $opt['upyun_imgurl'];
+		$to_url = $upyun_space . $img_to;
+        $process = curl_init($to_url);
+
+        curl_setopt($process, CURLOPT_PUT, 1);
+        curl_setopt($process, CURLOPT_USERPWD, "$upyun_user:$upyun_pwd");
+        curl_setopt($process, CURLOPT_HEADER, 0);
+        curl_setopt($process, CURLOPT_TIMEOUT, 60);
+
+        $local_file_path = $img_from;
+        $datas = fopen($local_file_path,'r');
+        fseek($datas, 0, SEEK_END);
+        $file_length = ftell($datas);
+        fseek($datas, 0);
+
+        if(!empty($width) && !empty($height))
+        {
+        	$fix_type = 'fix_both';
+        	$fix_value = "{$width}x{$height}";
+        } elseif (!empty($width)) {
+        	$fix_type = 'fix_width';
+        	$fix_value = "$width";
+        } else {
+        	$fix_type = 'fix_height';
+        	$fix_value = "$height";
+        }
+
+        curl_setopt($process, CURLOPT_INFILE, $datas);
+        curl_setopt($process, CURLOPT_INFILESIZE, $file_length);
+        curl_setopt($process, CURLOPT_HTTPHEADER, array(
+                        "x-gmkerl-type: $fix_type",
+                        "x-gmkerl-value: $fix_value",
+                        "x-gmkerl-unsharp: true",
+                ));
+        curl_exec($process);
+        $err = curl_getinfo($process, CURLINFO_HTTP_CODE);
+        curl_close($process);
+        fclose($datas);
+        if ( $err != 200 )
+            return false;
+        else
+            return $upyun_imgurl . $img_to;
+	}
+
+	public function upload($opt,$img_from,$img_to) {
+        $upyun_space = $opt['domainname'];
+    	$upyun_user = $opt['username'];
+    	$upyun_pwd = $opt['password'];
+        $upyun_imgurl = $opt['upyun_imgurl'];
+        //$space = "modian";
+		$to_url = $upyun_space . $img_to;
+        $process = curl_init($to_url);
+
+        curl_setopt($process, CURLOPT_PUT, 1);
+        curl_setopt($process, CURLOPT_USERPWD, "$upyun_user:$upyun_pwd");
+        curl_setopt($process, CURLOPT_HEADER, 0);
+        curl_setopt($process, CURLOPT_TIMEOUT, 60);
+
+        //$local_file_path = $img_from;
+        $datas = fopen($img_from,'r');
+        fseek($datas, 0, SEEK_END);
+        $file_length = ftell($datas);
+        fseek($datas, 0);
+
+        curl_setopt($process, CURLOPT_INFILE, $datas);
+        curl_setopt($process, CURLOPT_INFILESIZE, $file_length);
+        curl_exec($process);
+        $err = curl_getinfo($process, CURLINFO_HTTP_CODE);
+        curl_close($process);
+        fclose($datas);
+        if ( $err != 200 )
+            return false;
+        else
+            return $upyun_imgurl . $img_to;
+	}
+
+	public function geturl($img_name) {
+		$img_url = 'http://v0.api.upyun.com/modian/' . $img_name;
+		return $img_url;
+	}
+}

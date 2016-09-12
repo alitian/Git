@@ -1,0 +1,511 @@
+<?php	
+	class Bbs_report_model extends CI_Model{
+
+		const MD_BBS_POST_TABLE = 'bbs_post';
+		const MD_BBS_POST_CONTENT_TABLE = 'bbs_post_content';
+		const MD_BBS_POST_TAG_MAP_TABLE = 'bbs_post_tag_map';
+		const MD_BBS_POST_MANAGER_LOG_TABLE = 'bbs_post_manager_log';
+		const MD_BBS_REPLY_MANAGER_LOG_TABLE = 'bbs_reply_manager_log';
+		const MD_BBS_TAG_TABLE  = 'bbs_tag';
+		const MD_BBS_TAG_MAP_TABLE  = 'bbs_tag_map';
+		const MD_BBS_REPORT_TABLE  = 'bbs_report';
+		const MD_BBS_REPLY_TABLE_PREFIX = 'bbs_reply_';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs/bbs_tag_m');
+		}
+
+		/**
+		 *	获取顶级的tag列表，作为帖子的筛选条件
+		 *
+		 * @return 		array 		$toptag_list
+		 *
+		 */
+		public function get_toptag_list()
+		{
+			$select = 't.tag_id, t.tag_name';
+			// $join_condition = 'tag_id';
+			$join_condition = 't.tag_id = m.tag_id';
+			$where = array(
+						'parent_id' => 0
+					);
+			$order_by = 'ctime DESC';
+			$this->moxi_db->select($select);	
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$tag_query = $this->moxi_db->get();
+			$toptag_list = $tag_query->result_array();
+			$toptag_list = $toptag_list ? $toptag_list : array(); 		// 如果未查询到，返回空
+			return $toptag_list;
+		}
+
+		/**
+		 *
+		 * 	获取举报帖子列表
+		 *
+		 *	@param 		int 		$nextpage
+		 *	@param 		int 		$perpage
+		 * 	@param 		int 		$tag_id
+		 *	@param 		int 		$time
+		 *	@return 	array 		$report_post_list
+		 */
+		public function get_report_post_list($nextpage, $perpage, $tag_id = 0, $time = 1)
+		{
+			$offset = ($nextpage - 1) * $perpage;
+			$where = array(
+						'r.type' => 'post',
+						'r.status' => 0, 			// 举报的状态，我们规定：0 - 未处理 | 1 - 已处理
+						'r.isshow' => 1
+					);
+			$join_condition = 'r.post_id = p.post_id';
+			$order_by = ($time == 1) ? 'r.ctime DESC' : 'r.ctime ASC';
+			$this->moxi_db->select('r.*, p.subject');
+			$this->moxi_db->from(self::MD_BBS_REPORT_TABLE . ' r');
+			$this->moxi_db->join(self::MD_BBS_POST_TABLE . ' p', $join_condition, 'LEFT');
+
+			// 筛选条件，继续inner join，看能否实现
+			if($tag_id){
+				$join_condition_m = 'r.post_id = m.post_id';
+				$this->moxi_db->join(self::MD_BBS_POST_TAG_MAP_TABLE . ' m', $join_condition_m, 'INNER');
+				$where['m.tag_id'] = $tag_id;
+			}
+
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$this->moxi_db->limit($perpage, $offset);
+			$report_query = $this->moxi_db->get();
+			$report_post_list = $report_query->result_array();
+
+			if( empty($report_post_list) ){
+				return array();
+			}
+
+			/*
+			// 如果选择了某个顶级标签，我们得进行进一步筛选，不太好做
+			if($tag_id){
+				foreach($report_post_list as $report){
+					$post_id_array[] = $report['post_id'];
+				}
+
+				// 筛选帖子ID
+				$this->moxi_db->select('post_id');
+				$this->moxi_db->from(self::MD_BBS_POST_TAG_MAP_TABLE);
+				$this->moxi_db->where('tag_id', $tag_id);
+				$this->moxi_db->where_in('post_id', $post_id_array);
+				$post_id_query = $this->moxi_db->get();
+				$post_id_list = $post_id_query->result_array();
+				foreach($post_id_list as $post_id){
+					$post_id_filter_array[] = $post_id['post_id'];
+				}
+
+				// 循环举报帖子列表，判断，帖子的ID，在我们筛选出的帖子ID数组中，表示是我们筛选的帖子结果
+				foreach($report_post_list as $report){
+					if(in_array($report['post_id'], $post_id_filter_array)){
+						$post_filter_list[] = $report;
+					}
+				}
+			}else{
+				$post_filter_list = $report_post_list;
+			}
+			*/
+
+			foreach($report_post_list as $report){
+				$fuid[] = $report['fuid'];				
+			}
+
+			$this->load->model('bbs_md_user_model');
+			$user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($fuid);
+			foreach($report_post_list as &$report){
+				$report['ctime'] = date('Y-m-d H:i:s', $report['ctime']);
+
+				// 反转回来
+				$report['message'] = htmlspecialchars_decode($report['message']);
+				foreach($user_list as $user_info){
+					if($user_info['id'] == $report['fuid']){
+						$report['user_info'] = $user_info; 		// 将用户信息储存在 'fuser' 元素中
+						break;
+					}
+				}
+			}
+			return $report_post_list;
+		}
+
+		/**
+		 *
+		 * 	获取举报回复列表
+		 *
+		 *	@param 		int 		$nextpage
+		 *	@param 		int 		$perpage
+		 *	@param 		int 		$post_id
+		 *	@param 		int 		$time
+		 *	@return 	array 		$report_reply_list
+		 */
+		public function get_report_reply_list($nextpage, $perpage, $post_id, $time)
+		{
+			$offset = ($nextpage - 1) * $perpage;
+			$where = array(
+						'type' => 'reply',
+						'status' => 0, 			// 举报的状态，我们规定：0 - 未处理 | 1 - 已处理
+						'isshow' => 1
+					);
+			if($post_id){
+				$where['post_id'] = $post_id;
+			}
+			$order_by = ($time == 1) ? 'ctime DESC' : 'ctime ASC';
+			$this->moxi_db->from(self::MD_BBS_REPORT_TABLE);
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$this->moxi_db->limit($perpage, $offset);
+			$report_query = $this->moxi_db->get();
+			$report_list = $report_query->result_array();
+
+			if( empty($report_list) ){
+				return array();
+			}
+
+			foreach($report_list as $report){
+				$fuid[] = $report['fuid'];				
+			}
+
+			$this->load->model('bbs_md_user_model');
+			$user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($fuid);
+
+			/*
+				这里得说明一下：
+					还是不要进行关联查询，效率很低。我们还是单独给report的内容做一个单独的跳转页面，管理员审核的时候，能单独跳转到这个页面去查看 ----------- 因此，我们得在用户点击 '举报' 的时候，生成一个链接，数据库中存这个链接地址，管理员直接点击!(或者自己来构建这么一个地址，不用存储到库里了)
+
+					因仅用于管理员处理举报查看，我们就不引用前台的帖子详情页，在后台新增加一个帖子内容查看页
+			 */
+			foreach($report_list as &$report){
+				$report['ctime'] = date('Y-m-d H:i:s', $report['ctime']);
+				$report['message'] = htmlspecialchars_decode($report['message']);
+				$report['subject'] = '点击查看回复内容';
+				foreach($user_list as $user_info){
+					if($user_info['id'] == $report['fuid']){
+						$report['user_info'] = $user_info; 		// 将用户信息储存在 'fuser' 元素中
+					}
+				}
+			}
+
+			return $report_list;
+
+		}
+
+		/**
+		 *
+		 * 	获取举报列表总数
+		 *
+		 *	@param 		int 		$tag_id
+		 *	@retrun 	int 		$total_num
+		 */
+		public function get_total_post_num($tag_id = 0)
+		{
+			$this->moxi_db->from(self::MD_BBS_REPORT_TABLE . ' r');
+			if($tag_id){
+				$where = array(
+							'm.tag_id' => $tag_id,
+							'r.type' => 'post',
+							'r.status' => 0,
+							'r.isshow' => 1
+						);
+				$join_condition = 'r.post_id = m.post_id';
+				$this->moxi_db->join(self::MD_BBS_POST_TAG_MAP_TABLE . ' m', $join_condition, 'INNER');
+			}else{
+				$where = array(
+							'type' => 'post',
+							'status' => 0,
+							'isshow' => 1
+						);
+			}
+			$this->moxi_db->where($where);
+			$total_num = $this->moxi_db->count_all_results();
+			return $total_num;
+		}
+
+		/**
+		 *
+		 * 	获取举报列表总数
+		 *
+		 *	@param 		int 		$post_id
+		 *	@retrun 	int 		$total_num
+		 */
+		public function get_total_reply_num($post_id = 0)
+		{
+			$where = array(
+						'type' => 'reply',
+						'status' => 0,
+						'isshow' => 1
+					);
+			if($post_id){
+				$where['post_id'] = $post_id;
+			}
+			$this->moxi_db->from(self::MD_BBS_REPORT_TABLE);
+			$this->moxi_db->where($where);
+			$total_num = $this->moxi_db->count_all_results();
+			return $total_num;
+		}
+
+		/**
+		 *
+		 * 	忽略举报
+		 *
+		 *	@param 		int 		$report_id
+		 *	@param 		int 		$tuid
+		 *	@param 		string 		$treason
+		 *	@retrun 	int 		$return
+		 */
+		public function report_transact($report_id, $tuid, $treason)
+		{
+			$set = array(
+						'status' => 1,
+						'tuid' => $tuid,
+						'treason' => $treason,
+						'ttime' => time()
+					);
+			$where = array(
+						'report_id' => $report_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_REPORT_TABLE, $set, $where);
+			if(!$bool){
+				return 0;
+			}
+
+			// 添加管理操作
+			$report_info = $this->get_report_info_by_report_id($report_id);
+			$reason = '忽略举报';
+			if($report_info['type'] == 'post'){
+				$set = array(
+							'manager_uid' => $tuid,
+							'manager_post_id' => $report_info['post_id'],
+							'manager_type' => 8,
+							'manager_reason' => $reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager){
+					return -1;		// 添加操作记录失败
+				}
+			}else{
+				$set = array(
+							'manager_uid' => $tuid,
+							'manager_post_id' => $report_info['post_id'],
+							'manager_reply_id' => $report_info['reply_id'],
+							'manager_type' => 3,
+							'manager_reason' => $reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_REPLY_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager){
+					return -1;		// 添加操作记录失败
+				}
+			}
+			return 1;
+		}
+
+		/**
+		 *
+		 * 	删除举报 + 删除该帖子(或回复)
+		 *
+		 *	@param 		int 		$report_id
+		 *	@param 		int 		$tuid
+		 * 	@param 		string 		$treason
+		 *	@return 	int 		$return
+		 */
+		public function report_del($report_id, $tuid, $treason) 
+		{
+
+			// 更改举报状态为 '已处理' + '删除该条举报'
+			$set = array(
+						'isshow' => 0,
+						'status' => 1,
+						'tuid' => $tuid,
+						'treason' => $treason,
+						'ttime' => time()
+					);
+			$where = array(
+						'report_id' => $report_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_REPORT_TABLE, $set, $where);
+			if(!$bool){
+				return 0;
+			}
+
+			// 查询该举报的帖子(或回复)，然后更改状态为 '删除'
+			// 并添加操作记录！
+			$report_info = $this->get_report_info_by_report_id($report_id);
+			$reason = '删除举报';
+			if($report_info['type'] == 'post'){
+
+				// 更改帖子的isshow = 0
+				$set = array(
+							'isshow' => 0
+						);
+				$where = array(
+							'post_id' => $report_info['post_id']
+						);
+				$bool_post = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+
+				// 表示删除帖子失败
+				if(!$bool_post){
+					return -1;
+				}
+
+				// 获取帖子的tagids
+				$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+				$this->moxi_db->where('post_id', $post_id);
+				$post_query = $this->moxi_db->get();
+				$post_info = $post_query->row_array();
+				$tag_id_array = explode(',', $post_info['tagids']);
+
+				// 当管理员审核成功后，帖子对应的标签的 post_num - 1
+				foreach($tag_id_array as $tag_id){
+					$bool_tag = $this->bbs_tag_m->update_tag_post_num($tag_id, -1);
+				}
+				if(!$bool_tag){
+					return -4; 		// 表示标签的post_num更新失败
+				}
+
+				$set = array(
+							'manager_uid' => $tuid,
+							'manager_post_id' => $report_info['post_id'],
+							'manager_type' => 9,
+							'manager_reason' => $reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager){
+					return -3;		// 添加操作记录失败
+				}
+
+			}else{
+
+				// 更改回复的isshow = 0
+				$reply_table = self::MD_BBS_REPLY_TABLE_PREFIX . ($report_info['post_id'] % 10);
+				$set = array(
+							'isshow' => 0
+						);
+				$where = array(
+							'reply_id' => $report_info['reply_id']
+						);
+				$bool_reply = $this->moxi_db->update($reply_table, $set, $where);
+
+				// 表示删除回复失败
+				if(!$bool_reply){
+					return -2;
+				}
+
+				// 添加帖子的回复数 -1
+		        $bool_post = $this->bbs_post_m->update_post_reply_num($report_info['post_id'], -1);
+				if(!$bool_post){
+					return -5; 			// 表示更新帖子下的回复数失败
+				}
+
+				$this->moxi_db->from($reply_table);
+				$this->moxi_db->where('reply_id', $report_info['reply_id']);
+				$reply_query = $this->moxi_db->get();
+				$reply = $reply_query->row_array();
+
+				// 发现是二级回复，我们给一级回复的二级回复数 -1
+				if($reply['reply_rid']){
+			        $bool_reply = $this->bbs_post_m->update_post_reply_num($reply['post_id'], $reply['reply_rid'], -1);
+					if(!$bool_reply){
+						return -6; 			// 表示更新回复下的二级回复数失败
+					}
+				}
+
+				$set = array(
+							'manager_uid' => $tuid,
+							'manager_post_id' => $report_info['post_id'],
+							'manager_reply_id' => $report_info['reply_id'],
+							'manager_type' => 4,
+							'manager_reason' => $reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_REPLY_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager){
+					return -3;		// 添加操作记录失败
+				}
+
+				// 是不是应该让 '所在的post' 的replynum -1？太麻烦，不做
+			}
+			return 1;
+		}
+
+		/**
+		 *
+		 * 	获取举报
+		 *
+		 * 	@param 			int 		$report_id
+		 * 	@return 		array 		$report_info
+		 *
+		 */	
+		public function get_report_info_by_report_id($report_id)
+		{
+			$this->moxi_db->from(self::MD_BBS_REPORT_TABLE);
+			$this->moxi_db->where('report_id', $report_id);
+			$report_query = $this->moxi_db->get();
+			$report_info = $report_query->row_array();
+			return $report_info;
+		}
+
+		/**
+		 *
+		 * 	更新标签下帖子数 -1
+		 *
+		 * 	@param 		array 		$tag_id_array ------------- 不同于以往，这里的帖子，可能有多个标签，我们传入一个数组
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_tag_postnum_decrease($tag_id_array)
+		{
+			$this->moxi_db->where_in('tag_id', $tagid_array);
+			$this->moxi_db->set('post_num', 'post_num - 1', FALSE);
+			$bool = $this->moxi_db->update(self::MD_BBS_TAG_TABLE);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	更新帖子下回复数 -1
+		 *
+		 * 	@param 		int 		$tag_id
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_post_replynum_decrease($post_id)
+		{
+			$where = array(
+						'post_id' => $post_id
+					);
+			$this->moxi_db->set('reply_num', 'reply_num - 1', FALSE);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, NULL, $where);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	更新回复下二级回复数 -1
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_id
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_reply_reply_r_num_decrease($post_id, $reply_id)
+		{
+			$reply_table = self::MD_BBS_REPLY_TABLE_PREFIX . ($post_id % 10);
+			$where = array(
+						'reply_id' => $reply_id
+					);
+			$this->moxi_db->set('reply_r_num', 'reply_r_num - 1', FALSE);
+			$bool = $this->moxi_db->update($reply_table, NULL, $where);
+			return $bool;
+		}
+
+	}

@@ -1,0 +1,802 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Project_manager extends Acp_Controller {
+
+    public $pro_if_show = array(
+        '-1' => '已删除',
+        '0' => '准备中',
+        '1' => '通过审核',
+        '2' => '待审核',
+        '3' => '审核未通过',
+    );
+    public function __construct() {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->model('Common');
+        $this->load->model('User_m');
+        $this->load->model('Product_m');
+        $this->load->model('product_model');
+        $this->load->model('Easyfund_m');
+        $this->load->model('Admin_m');
+        $this->load->model('Order_biz');
+        $this->load->model('md_bbs');
+        $this->load->model('Comment_model');
+
+        $this->load->library('md_refund');
+    }
+
+    public function index() {
+        $data['status'] = $this->pro_if_show;
+        $data['category'] = $this->product_model->get_category_list();
+        $this->load->view('project_manager/index', $data);
+    }
+
+    public function _get_order_where($arr_where) {
+        $where = '';
+        if (isset($arr_where['pro_id']) && $arr_where['pro_id'] !== '') {
+            $where .= " AND pro.`id` ='{$arr_where['pro_id']}'";
+        }
+        if (isset($arr_where['pro_name']) && $arr_where['pro_name'] !== '') {
+            $where .= " AND pro.`name` LIKE '%{$arr_where['pro_name']}%'";
+        }
+        if (isset($arr_where['category']) && $arr_where['category'] !== '') {
+            $where .= " AND pro.`category` ='{$arr_where['category']}'";
+        }
+        if (isset($arr_where['province']) && $arr_where['province'] !== '') {
+            $where .= " AND pro.`province` ='{$arr_where['province']}'";
+        }
+        if (isset($arr_where['city']) && $arr_where['city'] !== '') {
+            $where .= " AND pro.`city` ='{$arr_where['city']}'";
+        }
+
+        if (isset($arr_where['realname']) && $arr_where['realname'] !== '') {
+            $where .= " AND (usr.nickname='{$arr_where['realname']}' OR usr.realname='{$arr_where['realname']}') ";
+        }
+        if (isset($arr_where['user_id']) && $arr_where['user_id'] !== '') {
+            $where .= " AND pro.`user_id` ='{$arr_where['user_id']}'";
+        }
+        if (isset($arr_where['qq']) && $arr_where['qq'] !== '') {
+            $where .= " AND pro.`qq` ='{$arr_where['qq']}'";
+        }
+        if (isset($arr_where['tel']) && $arr_where['tel'] !== '') {
+            $where .= " AND usr.`tel` ='{$arr_where['tel']}'";
+        }
+
+        if (isset($arr_where['state']) && $arr_where['state'] !== '') {
+            switch($arr_where['state']){
+                case 0:  //待审核
+                    $where .= " AND pro.`if_show` = 2 ";
+                    break;
+                case 1:  //准备中
+                    $where .= " AND pro.`if_show` = 0 ";
+                    break;
+                case 2:  //通过审核
+                    $where .= " AND pro.`if_show` = 1 ";
+                    break;
+                case 3:  //审核未通过
+                    $where .= " AND pro.`if_show` = 3 ";
+                    break;
+                case 4:  //已删除
+                    $where .= " AND pro.`if_show` = -1 ";
+                    break;
+                case 5: //全部
+                    $where .= " ";
+                    break;
+                default:  //默认
+                    $where .= " AND pro.`if_show` = 2 ";
+                    break;
+            }
+        }
+
+        if (isset($arr_where['send_start_time']) && $arr_where['send_start_time'] !== '') {
+            $where .= " AND ( pro.examine_time >= '{$arr_where['send_start_time']}' OR pro.examine_time_idea >= '{$arr_where['send_start_time']}' ) ";
+        }
+        if (isset($arr_where['send_end_time']) && $arr_where['send_end_time'] !== '') {
+            $where .= " AND ( pro.examine_time <= '{$arr_where['send_end_time']}' OR pro.examine_time_idea <= '{$arr_where['send_end_time']}' ) ";
+        }
+//        echo $where;exit;
+        return $where;
+    }
+
+    //基本资料编辑
+    public function edit($pro_id) {
+        //修改资料
+        if ($_POST) {
+            $product_base = $this->input->post(null,true);
+            //log
+            $this->_set_edit_log($pro_id,$product_base);
+
+            $update['name'] = $product_base['name'];
+            $update['short_title'] = $product_base['short_title'];
+            $update['start_time']  = $product_base['start_time'];
+            $update['end_time']    = $product_base['end_time'];
+            $update['goal']        = $product_base['goal'];
+            $update['category']    = $product_base['category'];
+            $update['pro_tag']     = $product_base['pro_tag'];
+            $update['des']         = $product_base['des'];
+            $update["duration"] = (strtotime($product_base["end_time"]) - strtotime($product_base["start_time"])) / 3600 / 24;
+            $update['install_money'] = $product_base['goal'];
+//            $result = $this->Common->update('md_product', array('id' => $pro_id), $update);
+            $this->load->model('base/product_base');
+            $obj_pro = new Product_base;
+            $update['id'] = intval($pro_id);
+            $result = $obj_pro->update($update);
+            if($result){
+                $data['if_update']     = 1;
+                $this->load->model('base/product_base');
+                $this->product_base->refresh_cache($pro_id);
+            }
+            unset($update);
+        }
+        $this->db->select("md_product.*,md_users.username,md_users.realname,md_users.id_number,md_users.id_image,md_users.gender,md_users.tel,md_users.email");
+        $this->db->join("md_users", "md_product.user_id=md_users.id", "INNER");
+        $this->db->where("md_product.id", $pro_id);
+        $query = $this->db->get("md_product");
+        $res = $query->row_array();
+        $gap_time = strtotime($res['end_time'])-strtotime($res['start_time']);
+        $gap_day = floor($gap_time/(60*60*24));
+        $gap_hour = floor($gap_time%86400/3600);
+        $res['duration'] = $gap_day.'天'.$gap_hour.'小时';
+        $data["res"] = $res;
+        $data['category'] = $this->product_model->get_category_list();
+        $this->load->view('project_manager/edit', $data);
+    }
+
+    public function dl_file() {
+        //$file='http://183.61.83.222:8090/P0A/15/50/wKjJHVVQcof43NMqADfXdTSCCEQ997.mp4'
+        $file = isset($_POST["vedio"]) ? $_POST["vedio"] : "";
+        $len = filesize($file);
+        $filename = basename($file);
+        $file_extension = strtolower(substr(strrchr($filename, "."), 1));
+        //Begin writing headers
+        header("Pragma: public");
+        header("Expires: 0");
+        header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+        header("Cache-Control: public");
+        header("Content-Description: File Transfer");
+
+        //Use the switch-generated Content-Type
+        header("Content-Type:application/octet-stream.mp4");
+        //Force the download
+        $header = "Content-Disposition: attachment; filename=" . $filename . "";
+        header($header);
+        header("Content-Transfer-Encoding: binary");
+        header("Content-Length: " . $len);
+        readfile($file);
+    }
+
+    public function download_vedio($videoId = '') {
+        $downloadId = "c376da5e2a"; //下载ID跟用户ID一样
+        $secretKey = "1d6f3d24336683d8f51adfbc93a3802f";  //下载的密钥，不能泄露
+        $userId = "c376da5e2a";  //用户ID
+        list($usec, $sec) = explode(" ", microtime());
+        $times = ((float) $usec + (float) $sec) * 1000;
+        $times = substr($times, 0, 13);
+
+        $randomString = md5(uniqid(rand(), true));
+        $plain = $downloadId . $secretKey . $videoId . $times . $randomString;
+        $sign = md5($plain);
+        $url = "http://dl.videocc.net/" . $userId . "/source_" . $videoId . "?downloadId=" . $downloadId . "&times=" . $times . "&ran=" . $randomString . "&sign=" . $sign;
+        //echo $url;
+        header("Location:" . $url);
+    }
+
+    public function ajax_project() {
+        $base_url = _gc('main_site_url', 'config');
+        $rows = $_POST['rows'];
+        $cur_page = $_POST['page'];
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $limit = " LIMIT " . ($cur_page - 1) * $rows . " ,{$rows}";
+        $order_by = " ORDER BY {$sort} {$order}";
+        $where = $this->_get_order_where($_POST);
+        if($where ==''){  //默认待审核
+            $where .= ' AND pro.`if_show` = 2 ';
+        }
+        foreach ($this->Common->get_all_type() as $item) {
+            $all_type[$item['id']] = $item['type_name'];
+        }
+        $sql = "SELECT count(1) c  FROM md_product pro INNER JOIN md_users usr ON usr.id=pro.user_id WHERE 1 {$where}";
+        $count = $this->db->query($sql)->row_array();
+        $count = $count['c'];
+        $sql = "SELECT pro.*,usr.nickname , CASE WHEN pro.pro_type = 4 THEN pro.examine_time_idea ELSE pro.examine_time END AS examine_time ,usr.tel,'null' as bd FROM md_product pro INNER JOIN md_users usr ON usr.id=pro.user_id WHERE 1 {$where} {$order_by} {$limit}";
+        $result = $this->db->query($sql)->result_array();
+//        echo $this->db->last_query();exit("OK");
+        foreach ($result as &$item) {
+            $types = explode(',', $item['type_id']);
+            foreach ($types as &$type) {
+                $type = $all_type[$type];
+            }
+            $item['type_id'] = implode(',', $types);
+            $item['user_id'] = "<a href='{$base_url}/user?id={$item['user_id']}' target='_blank'>{$item['user_id']}</a>";
+            $item['pro_type'] = ($item['pro_type'] == 4 )?'创意':'众筹';
+            $item['nickname'] = $item['nickname'].' <br> '.$item['qq'].' <br> '.$item['tel'];
+            if (stripos($_SESSION['power_ids'], ",36,") !== false) {
+                $item['operation'] .= "<a href='/project_manager/check/{$item['id']}' target='_blank'>审批</a>";
+            }
+            if (stripos($_SESSION['power_ids'], ",35,") !== false) {
+                $item['operation'] .= " | <a href='/project_manager/edit/{$item['id']}' target='_blank'>编辑</a>";
+            }
+            if (stripos($_SESSION['power_ids'], ",33,") !== false) {
+                if (!empty($item['vedio']) && strpos($item['vedio'], 'http://player.polyv.net') !== false) {
+                    $swf = explode("/videos/", $item['vedio']);
+                    $vid_str = explode(".swf", $swf [1]);
+                    $vid = $vid_str [0];
+                    $item['operation'] .= " | <a href='/project_manager/download_vedio/{$vid}' target='_blank'>视频下载</a>";
+                }
+            }
+//            if (in_array('project:edit_reward', $_SESSION['power_uri'])) {
+//                $item['operation'] .= " | <a href='/project_mnaager/edit_reward/{$item['id']}' target='_blank'>修改回报</a>";
+//            }
+            if($item['if_show'] == 1){
+                $item['operation'] .= " | <a href='/cron/to_html_by_pid/{$item['id']}' target='_blank'>生成静态页</a>";
+            }
+            $item['if_show'] = $this->pro_if_show[$item['if_show']];
+
+        }
+        $result = array('total' => $count, 'rows' => $result);
+        echo json_encode($result);
+    }
+
+    public function edit_pro_address() {
+        $pro_id = isset($_POST["pro_id"]) ? intval($_POST["pro_id"]) : "";
+        $status = isset($_POST["status"]) ? intval($_POST["status"]) : "";
+
+        if (!empty($pro_id)) {
+            $update['process_status'] = $status;
+            $res = $this->Common->update('md_product', array('id' => $pro_id), $update);
+            if ($res) {
+                echo json_encode(array('status' => 'OK', 'data' => "操作成功"));
+            } else {
+                echo json_encode(array('status' => 'ERROR', 'data' => "操作失败"));
+            }
+        } else {
+            echo json_encode(array('status' => 'ERROR', 'data' => "操作失败"));
+        }
+    }
+
+    /**
+     * 项目详情编辑
+     * @param $pro_id
+     */
+    public function edit_detail($pro_id) {
+        $pro_id = intval($pro_id);
+        if ($_POST) {
+            //刷新缓存
+            $this->load->model('base/product_base');
+            $obj_pro = new Product_base;
+            $update['content'] = htmlspecialchars($this->input->post('content'));
+//            print_r($update['content']);exit("OK");
+            if(!empty($update['content'])){
+                $obj_pro->get_by_id($pro_id);
+                $obj_pro->content = $update['content'];
+                $result = $obj_pro->save();
+            }
+//          $result = $this->Common->update('md_product', array('id' => $pro_id), $update);
+
+            //添加log
+            if($result){
+                $pro_log['edit_class']  = "编辑-项目详情";
+                $pro_log['edit_detail'] = "项目详情";
+                $pro_log['user_id']     = $_SESSION['admin_id'];
+                $pro_log['nickname']     = $_SESSION['admin_name'];
+                $pro_log['pro_id']     = $pro_id;
+                $this->Common->add('md_product_log', $pro_log);
+            }
+            $data['if_update'] = 1;
+            unset($update);
+        }
+        $this->db->select("id,content");
+        $this->db->where("id", $pro_id);
+        $query = $this->db->get("md_product");
+        $res = $query->row_array();
+//        //处理图片地址
+//        $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+//        preg_match_all($pattern, $res['content'], $matches);
+//        foreach ($matches[1] as $key => $value) {
+//            $replace[] = cdn_url($value, 'p', 'fix');
+//        }
+//        $res['content'] = str_replace($matches[1], $replace, $res['content']);
+//
+//        $res['content'] = $res['content'];
+
+        $this->load->model("operation_m");
+        $data["editor_white_list"] = $this->operation_m->get_editor_list();
+        $data["res"] = $res;
+        $this->load->view('project_manager/edit_detail', $data);
+    }
+
+    public function get_detail($pro_id) {
+        $date = date("Y-m-d");
+        $sql = "SELECT pro.*,usr.nickname,usr.tel,'null' as bd,duration-DATEDIFF('{$date} 23:59:59',start_time) as remain_days,(SELECT sum(amount) FROM md_product_back WHERE pro_id=pro.id AND if_pay=1) as back_amount FROM md_product pro INNER JOIN md_users usr ON usr.id=pro.user_id WHERE pro.id='{$pro_id}'";
+        $data['pro_info'] = $this->db->query($sql)->row_array();
+        $this->load->view('project_manager/simple_order_tbl', $data);
+    }
+
+    public function sh_pro() {
+        $pro_id = (int) $this->input->post("id", true);
+        $status = (int) $this->input->post("status", true);
+        $reason = htmlspecialchars($this->input->post("reason", true));
+        $start_time = htmlspecialchars($this->input->post("start_time", true));
+
+        if ($pro_id) {
+            $product = $this->Product_m->get_product_info($pro_id);
+            $data = array(
+                'if_show' => $status,
+                'examine_modify_time' => date('Y-m-d H:i:s')
+            );
+            if ($product['pro_type'] == 4) {
+                unset($data['examine_modify_time']);
+                $data['examine_modify_time_idea'] = date('Y-m-d H:i:s');
+            }
+            $data['start_time'] = $start_time;
+            $data['end_time'] = date("Y-m-d H:i:s", $product['duration'] * 24 * 3600 + strtotime($data['start_time']));
+            $query = $this->Common->update('md_product', array('id' => $pro_id), $data);
+
+            if ($query) {
+
+                md_memcache::flush();
+                $user_detail = $this->User_m->get_user_info($product['user_id']);
+                # 发送邮件和站内信通知用户审核结果				
+                $title = '摩点团队审核通知';
+                sleep(2);
+                $this->load->model('base/product_base');
+                $obj = new Product_base();
+                $obj->refresh_cache($pro_id);
+                $obj->get_by_id($pro_id)->to_array();
+
+                if ($status == 1) { //审核通过
+                    /**
+                     * 海燕需求：审核通过后自动发布更新
+                     */
+                    $this->load->model('bbs/bbs_common_m');
+                    $this->load->model('Product_model');
+                    $pro_info = $this->Product_model->get_product_info($pro_id);
+
+                    //创意升级项目不在生成帖子
+                    if(!$pro_info['moxi_post_id']){
+                        $topic_id = $this->Comment_model->acp_add_thread($product['user_id'], $product["name"], $product["content"], $product["logo"], $product["video"], $product["category"], !empty($product["pro_tag"]) ? explode(",", $product["pro_tag"]) : "");
+                        $pro_result = $this->Common->update('md_product', array('id' => $pro_id), array("moxi_post_id" => $topic_id));
+                    }
+                    
+                    $insert_update = array();
+                    $insert_update['user_id'] = $pro_info['user_id'];
+                    $insert_update['pro_id'] = $pro_info['id'];
+                    $insert_update['type'] = 0;
+
+                    if ($product['pro_type'] == 4) {
+                        $insert_update['title'] = '发布了创意';
+                        $insert_update['content'] = '创意“' . $pro_info['name'] . '”上线了。期待得到您的持续关注和评论，给我们投“看好”票。';
+                    } else {
+                        $insert_update['title'] = '发布了项目';
+                        $insert_update['content'] = '新项目“' . $pro_info['name'] . '”上线了。我们的项目必须在 ' . $pro_info['end_time'] . ' 之前，筹集到' . $pro_info['install_money'] . '元才可成功，希望您能给予支持，持续关注我们的项目！';
+                    }
+                    $pro_tags = !empty($pro_info['pro_tag']) ? $pro_info['pro_tag'] : '';
+                    $post_tag_ids = array();
+                    if (!empty($pro_tags)) {
+                        $pro_tags = explode(',', $pro_tags);
+                        foreach ($pro_tags as $tag) {
+                            $post_tag_ids[] = $this->bbs_common_m->add_tag(-1, $tag);
+                        }
+                    } else {
+                        if (!empty($pro_info['category']))
+                            $post_tag_ids[] = $this->bbs_common_m->add_tag(-1, $pro_info['category']);
+                    }
+                    $insert_update['moxi_post_id'] = $this->bbs_common_m->add_post(
+                            $insert_update['user_id'], $insert_update['title'], $insert_update["content"], !empty($insert_update['logo']) ? array($insert_update['logo']) : array($product['logo']), !empty($insert_update['video']) ? array($insert_update['video']) : array(), $post_tag_ids
+                    );
+                    foreach ($post_tag_ids as $tag_id) {
+                        $this->bbs_common_m->add_post_tag($insert_update['moxi_post_id'], $tag_id);
+                    }
+
+                    $this->db->insert('md_product_update', $insert_update);
+                    $base_url = _gc('domain_zhongchou', 'domain');
+                    file_get_contents("{$base_url}/p/set_to_html/{$pro_id}");
+//                    $title = '您提交的' . $product['name'] . '项目成功通过审核！';
+//                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '，<br/>';
+//                    $content .= '您发起的' . $product['name'] . '项目已经通过审核，您可以到项目管理中查看项目效果并发布更新。如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！';
+//                    $content .= '<br/><br/>祝好<br/>摩点团队';
+                    ##推送发起项目通过审核信息
+                    $pro_base_data = array();
+                    $pro_base_data['pro_id'] = $pro_id;
+                    $pro_base_data['pro_name'] = $product["name"];
+                    $pro_base_data['end_time'] = $product["end_time"];
+                    $pro_base = json_encode($pro_base_data);
+                    $this->load->library('notify_push/notify_api');
+                    notify_api::notify_test(2, $product['user_id'], $pro_base);
+
+                    ##与用户系统标签相同的项目推广
+//                    $pro_tagsql = "SELECT pro_tag FROM md_product WHERE id={$pro_id}";
+//                    $pro_tag = $this->db->query($pro_tagsql)->row_array();
+//                    $sql = "SELECT pro.name,pro.short_title,pro.end_time,pro.goal,pro.pro_tag,pro.des ,u.id as user_id,u.nickname,u.username,u.sys_tags,u.mobile,u.email FROM md_product pro ";
+//                    $sql .= "INNER JOIN md_users u ON (u.sys_tags LIKE '%{$pro_tag['pro_tag']}%') ";
+//                    $sql .= "WHERE pro.id={$pro_id}";
+//                    $prouser_mes = $this->db->query($sql)->result_array();
+//                    if (empty($prouser_mes)) {
+//                        return false;
+//                    }
+//                    foreach ($prouser_mes as $item) {
+//                        $pro_data_base = array();
+//                        $pro_data_base['pro_id'] = $pro_id; 
+//                        $pro_data_base['pro_name'] = $item['name'];
+//                        $pro_data_base['end_time'] = $item['end_time'];
+//                        $pro_data_base['goal'] = $item['goal'];  
+//                        $pro_data_base['pro_content'] = mb_substr($item['des'], 0, 30); 
+//                        $pro_data_base['tag_name'] = $item['pro_tag'];
+//                        $pro_base = serialize($pro_data_base);
+//                        notify_api::notify_test(4, $item['user_id'], $pro_base);
+//                    }
+                    $return_data['status'] = 1;
+                    $pro_log["edit_detail"] = ($pro_info['pro_type']==4)?'创意审核通过':'审核通过';
+                } elseif ($status == 3) { //审核未通过
+//                    $title = '您提交的' . $product['name'] . '项目未通过审核！';
+//                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '，<br/>';
+//                    $content .= '抱歉的通知您，您发起的' . $product['name'] . '项目没有通过审核，' . ($reason ? "(拒绝理由:{$reason})" : '') . ' 麻烦您按照项目规范来修改您的项目。如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！';
+//                    $content .= '<br/><br/>祝好<br/>摩点团队';
+                    $this->load->model('bbs/bbs_common_m');
+                    $this->load->model('Product_model');
+                    $pro_info = $this->Product_model->get_product_info($pro_id);
+                    ##推送发起项目未通过审核信息
+                    $pro_base_data = array();
+                    $pro_base_data['pro_id'] = $pro_id;
+                    $pro_base_data['pro_name'] = $product["name"];
+                    $pro_base_data['op_reason'] = $reason;
+                    $pro_base_data['end_time'] = $product["end_time"];
+                    $pro_base = json_encode($pro_base_data);
+                    $this->load->library('notify_push/notify_api');
+                    notify_api::notify_test(16, $product['user_id'], $pro_base);
+                    $return_data['status'] = 3;
+                    $pro_log["edit_detail"] = ($pro_info['pro_type']==4)?'创意审核不通过':'审核不通过';
+                    $pro_log["edit_detail"] .= "--理由：".$reason;
+                }
+//                #邮件
+//                $this->Common->send_email($product['email'], $title, $content);
+//                #站内信通知
+//                $insert = array();
+//                $insert['to_uid'] = $product['user_id'];
+//                $insert['title'] = $title;
+//                $insert['content'] = $content;
+//                $insert['system'] = 1;
+//                $result = $this->Common->add('md_message', $insert);
+                //添加log
+                $pro_log['edit_class'] = "审核";
+                $pro_log['user_id']    = $_SESSION['admin_id'];
+                $pro_log['nickname']   = $_SESSION['admin_name'];
+                $pro_log['pro_id']     = $pro_id;
+                $this->Common->add('md_product_log', $pro_log);
+                $return_data['msg'] = "修改成功";
+            } else {
+                $return_data['status'] = -1;
+            }
+            echo json_encode($return_data);
+        }
+    }
+
+    public function check($id) {
+        if ($id != 0) {
+            //编辑单个app是否推荐、头条、首行，第二行
+
+
+            $this->db->select("md_product.*,md_users.username,md_users.realname,md_users.id_number,md_users.id_image,md_users.gender,md_users.tel,md_users.email,md_users.social_networks");
+            $this->db->join("md_users", "md_product.user_id=md_users.id", "INNER");
+            $this->db->where("md_product.id", $id);
+            $query = $this->db->get("md_product");
+
+            $data['account'] = $this->Common->get_single_record('md_product_account', array('pro_id' => $id));
+
+            $res = $query->row_array();
+            $res['end_time'] = date("Y-m-d H:i:s", $res['duration'] * 24 * 3600 + strtotime($res['start_time']));
+            //处理图片地址
+            $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+            preg_match_all($pattern, $res['content'], $matches);
+            foreach ($matches[1] as $key => $value) {
+                //$value = strstr($value,'old')?str_replace('uploads/old', '', $value):$value;
+                $replace[] = cdn_url($value, 'p', 'fix');
+            }
+            $res['content'] = str_replace($matches[1], $replace, $res['content']);
+
+            $res['content'] = $res['content'];
+            $data["res"] = $res;
+
+            $flag = $res['flag'];
+            $data['flag'] = explode(',', $flag);
+
+
+
+            $rewards = $this->Common->get_select_records('md_product_rewards', array('pro_id' => $id));
+            $data['rewards'] = $rewards;
+
+            $data['res']['status'] = $this->pro_if_show[$data['res']['if_show']];
+            $types = explode(',', $data['res']['type_id']);
+            foreach ($this->Common->get_all_type() as $item) {
+                $all_type[$item['id']] = $item['type_name'];
+            }
+            foreach ($types as &$type) {
+                $type = $all_type[$type];
+            }
+            $data['logs'] = $this->_product_log_list($id);
+            $weibo_binding_info = $this->Common->get_single_record("md_weixin_binding", array("user_id" => $this->user_id, "platform" => "weibo"));
+            $data['res']['social_networks'] = "http://".str_replace('http://','',$res['social_networks']);
+            $data['res']["weibo_binding_status"] = !empty($weibo_binding_info) ? 1 : 0;
+            $data['res']["weibo_url"] = "http://weibo.com/u/".$weibo_binding_info['open_id'];
+
+            $data['res']['type_id'] = implode(',', $types);
+            $this->load->view('project_manager/check', $data);
+        }
+    }
+
+    public function edit_reward($pro_id, $edit_id = 0) {
+        $data['pro_id'] = $pro_id;
+        $data['edit_id'] = $edit_id;
+        $data['if_address_array'] = array('1' => '邮寄', '2' => '发码', '3' => '邮寄+发码');
+        if ($_POST) {
+            if (isset($_POST['is_top'])) {
+                foreach ($_POST['is_top'] as $k => $v) {
+                    $update['is_top'] = $v;
+                    $result = $this->Common->update('md_product_rewards', array('id' => $k), $update);
+                    $pro_log['edit_detail'] = "回报排序";
+                }
+            }else{
+                if($edit_id != 0){
+                    $update = array();
+                    $update['num'] = 0;
+                    if (isset($_POST['num']) && is_numeric($_POST['num'])) {
+                        $update['num'] = $_POST['num'];
+                    }
+                    if ($_POST['content']) {
+                        $update['content'] = $_POST['content'];
+                    }
+                    if ($_POST['if_address']) {
+                        $update['if_address'] = $_POST['if_address'];
+                    }
+                    if ($_POST['reward_day']) {
+                        $update['reward_day'] = $_POST['reward_day'];
+                    }
+                    if ($_POST['rew_log']) {
+                        $update['rew_logo'] = implode('|#|', $_POST['rew_log']);
+                    } else {
+                        $update['rew_logo'] = '';
+                    }
+                    if ($update) {
+                        //刷新缓存
+                        $update['id'] = $edit_id;
+                        $this->load->model('base/product_rewards_base');
+                        $obj_pro = new Product_rewards_base();
+                        $result = $obj_pro->update($update);
+//                        $result = $this->Common->update('md_product_rewards', array('id' => $edit_id), $update);
+                        $pro_log['edit_detail'] = "回报内容";
+                    }
+                }
+            }
+            //添加log
+            if($result){
+                $pro_log['edit_class']  = "编辑-项目回报";
+                $pro_log['user_id']     = $_SESSION['admin_id'];
+                $pro_log['nickname']     = $_SESSION['admin_name'];
+                $pro_log['pro_id']     = $pro_id;
+                $this->Common->add('md_product_log', $pro_log);
+                $data['if_update']     = 1;
+
+            }
+        }
+        $data['project'] = $this->Product_m->get_product_info($pro_id);
+        $data['rewards'] = $this->Product_m->get_product_rewards_list($pro_id, 1, 1);
+        $data['rewards'] = Product_model::resort_rewards($data['rewards']);
+        $this->load->view('project_manager/edit_reward', $data);
+    }
+
+    public function upload_file($rew_id = 0) {
+        $error = "";
+        $msg = "";
+        $fileElementName = 'img';
+        if (!empty($_FILES[$fileElementName]['error'])) {
+            switch ($_FILES[$fileElementName]['error']) {
+
+                case '1':
+                    $error = 'The uploaded file exceeds the upload_max_filesize directive in php.ini';
+                    break;
+                case '2':
+                    $error = 'The uploaded file exceeds the MAX_FILE_SIZE directive that was specified in the HTML form';
+                    break;
+                case '3':
+                    $error = 'The uploaded file was only partially uploaded';
+                    break;
+                case '4':
+                    $error = 'No file was uploaded.';
+                    break;
+
+                case '6':
+                    $error = 'Missing a temporary folder';
+                    break;
+                case '7':
+                    $error = 'Failed to write file to disk';
+                    break;
+                case '8':
+                    $error = 'File upload stopped by extension';
+                    break;
+                case '999':
+                default:
+                    $error = 'No error code avaiable';
+            }
+        } elseif (empty($_FILES[$fileElementName]['tmp_name']) || $_FILES[$fileElementName]['tmp_name'] == 'none') {
+            $error = 'No file was uploaded..';
+        } else {
+            if ($rew_id) {
+                //for security reason, we force to remove all uploaded file
+                $file_name = "{$rew_id}_" . time() . "_" . rand(0, 9);
+                $file_path = realpath(_gc('uploads_path') . "rew");
+                $exten = $this->Common->get_extension($_FILES[$fileElementName]['name']);
+                $file_name = "{$file_name}{$exten}";
+                copy($_FILES[$fileElementName]['tmp_name'], "{$file_path}/{$file_name}");
+                $msg = "uploads/rew/{$file_name}";
+                @unlink($_FILES[$fileElementName]);
+            } else
+                $error = '没有传入回报ID';
+        }
+        $data['error'] = $error;
+        $data['msg'] = $msg;
+        echo json_encode($data);
+    }
+
+    public function upload_pic($file_id, $size) {
+        $picture = "";
+        if ($_FILES[$file_id]) {
+            if (!empty($_FILES[$file_id]["name"])) {
+                $this->load->library('md_imagick');
+                $exten = $this->Common->get_extension($_FILES[$file_id]["name"]);
+                $str = date("Ymd");
+                $filename = $str . "_" . time() . "_" . rand(1000, 9999);
+                $to = "{$file_id}/" . $filename . $exten;
+                $picture = md_imagick::web_upload($_FILES[$file_id]["tmp_name"], _gc('uploads_path') . $to, $size);
+            } else {
+                md_common::display_javascript("请选择正确的文件");
+                exit();
+            }
+        }
+
+        $data["pro_picture"] = str_replace(_gc('uploads_path'), "", $picture["pic"]);
+        echo json_encode(array("num" => $picture["num"], "cdn_url" => _gc('cdn_url'), "pic" => str_replace("uploads/", "", $data["pro_picture"])));
+        exit();
+    }
+
+    public function get_pro_tag(){
+        $category = $this->input->post("category",true);
+        $pro_tag   = $this->input->post("pro_tag",true);
+        $tags = explode(',',$pro_tag);
+        $this->load->model("comment_model");
+        $res = $this->comment_model->get_tag_child_list_by_tag_name($category);
+//        print_r($res);exit();
+        $data['status'] = -1;
+        if(!empty($res) && $res[0]['tag_name'] != ''){
+            $data['status'] = 1;
+            $pro_tag = '';
+            foreach($res  as $tag){
+                if(in_array($tag['tag_name'],$tags)){
+                    $pro_tag .= '<a  class="hovertype_a" href="javascript:void(0);" value="'.$tag['tag_name'].'">'.$tag['tag_name'].'</a>';
+                }else{
+                    $pro_tag .= '<a href="javascript:void(0);" value="'.$tag['tag_name'].'">'.$tag['tag_name'].'</a>';
+                }
+            }
+            $data['msg'] = $pro_tag;
+        }
+        echo json_encode($data);
+    }
+
+    /**
+     * 上传图片
+     * @param $file_id
+     * @param $size
+     * @param $pro_id
+     */
+    public function upload_cover($file_id, $size, $pro_id) {
+        $picture = "";
+        if ($_FILES[$file_id]) {
+            if (!empty($_FILES[$file_id]["name"])) {
+                $exten = $this->Common->get_extension($_FILES[$file_id]["name"]);
+                $str = date("Ymd");
+                $filename = 'project_' . $str . "_" . time() . "_" . rand(1000, 9999);
+                $to = 'project/' . $filename . $exten;
+                $picture = md_imagick::web_upload($_FILES[$file_id]["tmp_name"], config_item('uploads_path') . $to, $size);
+                if ($picture['num'] == 1) {
+                    $picture['pic'] = $to;
+                }
+            } else {
+                md_common::display_javascript("请选择正确的文件");
+                exit();
+            }
+        }
+
+        $data["pro_picture"] = str_replace(ROOTPATH, "", $picture["pic"]);
+        echo json_encode(array("num" => $picture["num"], "pic" => cdn_url(str_replace("uploads/", "", $data["pro_picture"])),"db_path"=>$data['pro_picture']));
+    }
+
+    //设置log
+    private function _set_edit_log($pro_id,$update_data){
+        //log
+        $this->load->model('bbs/bbs_common_m');
+        $this->load->model('Product_model');
+        $pro_info = $this->Product_model->get_product_info($pro_id);
+        $product_base = $update_data;
+
+        $pro_log['edit_class'] = '编辑-';
+        $pro_log['edit_detail'] = '';
+        if($pro_info['name'] != $product_base['name']){
+            $pro_log['edit_class']  .= ' 项目标题 |';
+            $pro_log['edit_detail'] .= $product_base['name'].' | ';
+        }
+        if($pro_info['short_title'] != $product_base['short_title']){
+            $pro_log['edit_class']  .= ' 项目简称 |';
+            $pro_log['edit_detail'] .= $product_base['short_title'].' | ';
+        }
+        if($pro_info['start_time'] != $product_base['start_time']){
+            $pro_log['edit_class']  .= ' 项目开始时间 |';
+            $pro_log['edit_detail'] .= $product_base['start_time'].' | ';
+        }
+        if($pro_info['end_time'] != $product_base['end_time']){
+            $pro_log['edit_class']  .= ' 项目结束时间 |';
+            $pro_log['edit_detail'] .= $product_base['end_time'].' | ';
+        }
+        if($pro_info['goal'] != $product_base['goal']){
+            $pro_log['edit_class']  .= ' 目标金额 |';
+            $pro_log['edit_detail'] .= $product_base['goal'].' | ';
+        }
+        if($pro_info['category'] != $product_base['category']){
+            $pro_log['edit_class']  .= ' 项目类别 |';
+            $pro_log['edit_detail'] .= $product_base['category'].' | ';
+        }
+        if($pro_info['pro_tag'] != $product_base['pro_tag']){
+            $pro_log['edit_class']  .= ' 项目标签 |';
+            $pro_log['edit_detail'] .= $product_base['pro_tag'].' | ';
+        }
+        if($pro_info['des'] != $product_base['des']){
+            $pro_log['edit_class']  .= ' 项目简介 |';
+            $pro_log['edit_detail'] .= $product_base['des'].' | ';
+        }
+        $pro_log['user_id']     = $_SESSION['admin_id'];
+        $pro_log['nickname']    = $_SESSION['admin_name'];
+        $pro_log['pro_id']      = $pro_id;
+        $this->Common->add('md_product_log', $pro_log);
+    }
+
+    //取log
+    private function _product_log_list($pro_id){
+        $this->db->where("pro_id",$pro_id);
+        $this->db->where("type",1);
+        $result = $this->db->get("md_product_log")->result_array();
+        return $result;
+    }
+
+    public function save_pro_logo(){
+        $pro_id    = $this->input->post("pro_id",true);
+        $file_id   = $this->input->post("file_id",true);
+        $logo_path = $this->input->post("logo_path",true);
+        $this->load->model('base/product_base');
+        $obj_pro = new Product_base;
+        $obj_pro->get_by_id($pro_id);
+        if ($file_id == 'pro_logo_1') {
+            $obj_pro->logo = $logo_path;
+            $pro_log['edit_detail'] = "PC端图片";
+        }
+        if ($file_id == 'pro_logo_2') {
+            $obj_pro->logo2 = $logo_path;
+            $pro_log['edit_detail'] = "APP端图片";
+        }
+        $res = $obj_pro->save();
+        if($res){
+            $return_data['status'] = 1;
+            //计入log
+            $pro_log['edit_class']  = "编辑-图片";
+            $pro_log['user_id']     = $_SESSION['admin_id'];
+            $pro_log['nickname']     = $_SESSION['admin_name'];
+            $pro_log['pro_id']     = $pro_id;
+            $this->Common->add('md_product_log', $pro_log);
+        }
+        echo json_encode($return_data);
+    }
+
+
+}

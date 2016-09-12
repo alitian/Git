@@ -1,0 +1,134 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div class="row">
+        <div>
+            <h1>微信关键字管理</h1>
+            <hr>
+            <div class="form-container">
+                <form action="/main/add_keyword" method="post" enctype="multipart/form-data" role="form" id="keyword-form">
+                    <div class="form-group">
+                        <label for="name">规则名:</label>
+                        <input type="text" class="form-control" id="name" placeholder="15个汉字" name="rule_name" value="<?=$keyword_info["rule_name"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="keyword">关键字:</label>
+                        <input type="text" class="form-control" id="keyword" data-id="<?=$keyword_info["id"]?>" placeholder="请输入名称" name="keyword" value="<?=$keyword_info["keyword"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="reply_content">回复内容:</label>
+                        <script type="text/plain" id="reply_content" name="reply_content"><?=$keyword_info["reply_content"]?></script>
+                    </div>
+                    <div style="height:40px;"></div>
+                    <input type="hidden" name="id" value="<?=$keyword_info["id"]?>">
+                    <input type="hidden" name="is_new" value="1">
+                    <input type="hidden" name="pic" id="pro_img" value="<?= $topic_info['pic']?>">
+                    <div class="form-group">
+                        <label for="pic_link">图片链接:</label>
+                        <input type="text" class="form-control" id="pic_link" placeholder="请输入图片链接" name="pic_link" value="<?=$keyword_info["pic_link"]?>">
+                    </div>
+<!--                    <button type="submit" class="btn btn-primary btn-lg" id="do_submit">保存</button>-->
+<!--                    <button type="reset" class="btn btn- btn-lg">取消</button>-->
+                </form>
+                    <p></p>
+                    <div class="form-group">
+                        <label class="col-sm-2 control-label" for="img_preview">推荐图</label>
+                        <?php if ($keyword_info['pic']): ?>
+                            <div class="col-sm-10" style="text-align:center;width:600px">
+                                <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px"></p>
+                                <img style="vertical-align:middle;max-width:100%;" id="img_preview" src="<?= cdn_url($keyword_info['pic']) ?>">
+                            </div>
+                        <?php else:?>
+                            <div class="col-sm-10" style="text-align:center;width:600px">
+                                <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px">暂无图片</p>
+                                <img style="vertical-align:middle;max-width:100%;display:none;" id="img_preview">
+                            </div>
+                        <?php endif ?>
+
+                    </div>
+                    <p style="height:20px;"></p>
+                    <form id="up_form" action="main/upload_kw_attachment" method="post" enctype="multipart/form-data" target="winupload">
+                        <div class="form-group">
+                            <!-- <h3>点击上传按钮上传图片</h3> -->
+                        </div>
+                        <p></p>
+                        <input class="form-control" type="file" id="upfile" name="upfile">
+                    </form>
+
+                    <iframe src="" style="display:none" name="winupload"></iframe>
+                <button type="button" class="btn btn-primary btn-lg" id="do_submit">保存</button>
+                <button type="reset" class="btn btn- btn-lg">取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 引入百度编辑器替换 -->
+<script>
+    $('#upfile').change(function(){
+        $('#up_form').submit();
+    });
+    var do_submit="";
+    $('#do_submit').click(function(){
+        if(! $.trim($("#keyword").val())){
+            alert("关键字不能为空");
+            return false;
+        }
+        if(! $.trim($("#name").val())){
+            alert("规则名不能为空");
+            return false;
+        }
+        if(do_submit){
+            alert("关键字已经存在");
+            return false;
+        }
+        //规则名
+        var rule_name = $.trim($("#name").val());
+        if(rule_name.length>15){
+            alert("规则名15字以内");
+            $("#name").focus();
+            return false;
+        }
+        $('#keyword-form').submit();
+    });
+
+    //检测关键字是否重复
+    $("#keyword").blur(function(){
+        var that = $(this);
+        var kw = $.trim($(this).val());
+        var id = that.data('id');
+        if(kw.length){
+            $.ajax({
+                type:"post",
+                url :"/main/check_keyword",
+                dataType:"json",
+                data:{kw:kw,id:id},
+                async:false,
+                success:function(return_data){
+                    if(return_data.status){
+                        alert(return_data.msg);
+                        do_submit=1;
+                    }else{
+                        do_submit="";
+                    }
+                }
+            });
+        }
+    })
+
+    // 定义公共的静态文件路径，用于编辑器中的路径引入(我们在ueditor.all.js中使用到了)
+    $(function() {
+        var ue = UE.getEditor('reply_content', {
+            // 服务器统一请求接口路径
+            toolbars: [
+                ['link']
+            ]
+        });
+//        $(document).on('click',"#edui3_buttons",function(){
+//            alert(2222);
+//            ue.execCommand( 'link', '{url:"ueditor.baidu.com",title:"ueditor",target:"_blank"}');
+//        });
+    });
+
+</script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.config.js?t=20150918"></script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.all.js?t=20150421"></script>
+<?php $this->load->view('ckad/footer'); ?>

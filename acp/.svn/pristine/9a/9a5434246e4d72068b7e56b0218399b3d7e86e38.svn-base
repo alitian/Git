@@ -1,0 +1,241 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker1,#datetimepicker2,#datetimepicker3,#datetimepicker4').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false,
+        });
+        
+    });
+</script>
+<style type="text/css">
+    .wechat_jy{width: 224px;border-radius: 10px;border: 1px solid #ccc;padding: 0 8px;position: relative;font-size: 14px;background: #fff;}
+    .wechat_jy>div:first-child{height: 10px;border-top-left-radius: 9px;border-top-right-radius: 9px;position: absolute;top: 0;left: 0;width: 100%;}
+    p{line-height: 16px;}
+    .wechat_bold{font-weight: bold;margin-top: 25px;font-size: 16px;}
+    .wechat_p{font-size: 14px;color: #888;line-height: 8px;}
+    td,tr{
+        white-space: nowrap;
+    }
+    .black_overlay{  
+        position: absolute;  
+        top: 0%;  
+        left: 0%;  
+        width: 100%;  
+        height: 2000px;  
+        background-color: black;  
+        z-index:1001;  
+        -moz-opacity: 0.8;  
+        opacity:.80;  
+        filter: alpha(opacity=80);  
+    }  
+    .white_content {  
+        position: absolute;  
+        top: 25%;  
+        left: 30%;  
+        width: 0 auto;  
+        height: 0 auto;  
+        padding: 16px;  
+        border: 2px solid rgba(68, 218, 224, 0.5);  
+        background-color: white;  
+        z-index:1002;  
+    }    
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/weixin_manage/weixin_spread">微信应用管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="微信定向推广" style="height:250px;padding:10px;margin: 0;" data-options="collapsible:true">
+            <form method="POST" name='form1' id="form1" action="#">
+                <div class="span10">
+                    <div class="row-fluid">
+                        <div class="span3">推广ID:<br />
+                        	<input type="text" id='spread_id' name='spread_id' value="" placeholder="推广ID" />
+                        </div>
+                        <div class="span3">推广标题:<br />
+                        	<input type="text" id='spread_title' name='spread_title' value="" placeholder="推广标题" />
+                        </div>
+                        <div class="span3">创建用户ID:<br />
+				<input type="text" id='create_userID' name='create_userID' value="" placeholder="创建用户ID" />
+	                </div>
+                        <div class="span3">创建用户名称:<br />
+				<input type="text" id='create_user' name='create_user' value="" placeholder="创建用户名称" />
+	                </div>                                          
+                    </div>
+                    <div class="row-fluid">                  
+                        <div class="span3">创建开始时间：<br>
+	                        <div id="datetimepicker1" class="input-append">
+		                        <input data-format="yyyy-MM-dd hh:00" type="text" placeholder="开始时间" name='start_time' id='start_time' value=""></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div>   
+                        </div>
+                        <div class="span3">创建开始时间：<br>
+	                        <div id="datetimepicker2" class="input-append">
+		                        <input data-format="yyyy-MM-dd hh:00" type="text" placeholder="截止时间" name='end_time' id='end_time' value=""></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div>   
+                        </div>
+                        <div class="span3">推送类型:<br />
+                            <select id="send_type" name="send_type">
+                                <option value=""></option>
+                                <option value="1">自定义</option>
+                                <option value="2">及时</option>
+                            </select>
+	                </div>
+                        <div class="span3">发布状态:<br />
+                            <select id="send_status" name="send_status">
+                                <option value=""></option>
+                                <option value="1">待发布</option>
+                                <option value="2">已发布</option>
+                            </select>
+	                </div>                   
+                    </div>
+                    <div class="row-fluid">
+                        <div class="span3">发布开始时间:<br />
+                            <div id="datetimepicker3" class="input-append">
+		                        <input data-format="yyyy-MM-dd hh:00" type="text" placeholder="开始时间" name='send_start_time' id='send_start_time' value=""></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div> 
+	                </div>
+                        <div class="span3">发布截止时间:<br />
+                            <div id="datetimepicker4" class="input-append">
+		                        <input data-format="yyyy-MM-dd hh:00" type="text" placeholder="截止时间" name='send_end_time' id='send_end_time' value=""></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div> 
+	                </div>
+                    </div>
+                </div>
+                <div class="span1" style="width:100px;text-align: center;vertical-align:middle;overflow:hidden;padding-top:32px;">                 
+                    <button class="btn btn-primary" id="btn_search" name="btn_search">查询</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br> 
+                    <a class="btn btn-primary" id="btn_create" name="btn_create" href="/weixin_manage/create_weixin_spread">发起新活动</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>                
+                </div>               
+            </form>
+        </div>              	
+       
+        <div class="box-content" style="overflow:scroll;height:300px;">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;" title="查询结果" 
+                   url="/weixin_manage/ajax_weixin_spread" iconCls="icon-save"
+                    pageSize=20 pagePosition="both"             
+                   rownumbers="true" pagination="true" showFooter="true">
+                <thead>
+                    <tr>                       
+                        <th field="spread_id" align="center" sortable="true">推广ID</th>
+                        <th field="spread_title" align="center">推广标题</th>
+                        <th field="spread_users_name" align="center">推广用户群名称</th>
+                        <th field="spread_users_deals" align="center">推广用户群范围</th>
+                        <th field="spread_template" align="center">推广模板id</th>
+                        <th field="spread_template_name" align="center">推广模板名称</th>
+                        <th field="spread_type" align="center">推送类型</th>
+                        <th field="start_time" align="center">发布时间</th> 
+                        <th field="spread_status" align="center">发布状态</th>                       
+                        <th field="op_user" align="center">创建人</th>
+                        <th field="ctime" align="center">创建时间</th>
+                        <th field="work" align="center">操作</th>
+                    </tr>
+                </thead>
+            </table>            
+        </div>
+    </div><!--/span-->
+    <!-- 推广预览 -->
+    <?php if(!empty($spread_mes)){ ?>
+    <div id="preview_weixin_spread" class="white_content">
+        <a href="javascript:;" id="close" class="close">Close</a><hr>
+        <div class="wechat_jy">          
+            <?php if($spread_mes['send_wx_tpl'] == 10){?>
+                <p class="wechat_bold"><?php echo $s_con_arr[0]?></p>
+                <p class="wechat_p">x月x日</p>               
+                <div>
+                    <span>项目名称：</span>
+                    <span><?php echo $s_con_arr[1]?></span>
+                </div>
+                <div>
+                    <span>目标金额：</span>
+                    <span><?php echo $s_con_arr[2]?></span>
+                </div>
+                <div>
+                    <span>结束时间：</span>
+                    <span><?php echo $s_con_arr[3]?></span>
+                </div>
+                <div>
+                    <span>项目简介：</span>
+                    <span><?php echo $s_con_arr[4]?></span>
+                </div>
+                <p><?php echo $s_con_arr[5]?></p>
+            <?php }elseif($spread_mes['send_wx_tpl'] == 13){?>
+                <p class="wechat_bold"><?php echo $s_con_arr[0]?></p>
+                <p class="wechat_p">x月x日</p>
+                <div>
+                    <span>微信号：</span>
+                    <span>xxxxxx</span>
+                </div>
+                <div>
+                    <span>绑定状态：</span>
+                    <span>未绑定</span>
+                </div>             
+                <p><?php echo $s_con_arr[1]?></p>
+            <?php }?>                       
+        </div>
+    </div>
+    <?php } ?>
+    <!-- 推广预览结束 -->
+</div>
+<?php if(!empty($spread_mes)){ ?>
+<div id="fade" class="black_overlay"> 
+</div>
+<?php } ?>
+<script type="text/javascript">
+$(document).ready(function(){   
+	 $('#btn_search').click(function(e){
+            e.preventDefault();
+            form1.action = "/weixin_manage/ajax_weixin_spread";
+            $('#tt').datagrid('load', {
+                spread_id:$("#spread_id").val(),
+                spread_title:$("#spread_title").val(),
+                create_userid:$("#create_userID").val(),
+                create_user:$("#create_user").val(),
+                create_start_time:$("#start_time").val(),
+                create_end_time:$("#end_time").val(),
+                send_type:$("#send_type").val(),
+                send_status:$("#send_status").val(),
+                send_start_time:$("#send_start_time").val(),
+                send_end_time:$("#send_end_time").val(),
+            });
+	 });
+	 
+});
+
+$('#close').click(function(e) {
+    $('#preview_weixin_spread').css('display', 'none');
+    $('#fade').css('display', 'none');
+    location.replace('/weixin_manage/weixin_spread');
+});
+</script>
+<?php $this->load->view('ckad/footer')?>

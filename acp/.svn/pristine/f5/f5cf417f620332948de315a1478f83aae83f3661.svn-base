@@ -1,0 +1,269 @@
+<?php
+
+set_time_limit(0);
+/**
+ * 队列守护进程
+ */
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Queue_cron extends MD_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        set_time_limit(0);
+        $this->load->helper('url');
+        $this->load->library("md_queue");
+        $this->load->model("feed_model");
+        $this->load->library("md_feed");
+        $this->load->model("score_model");
+    }
+
+    /**
+     * 守护进程:
+     * 命令行使用: 将feed数据从队列中取出并入库
+     */
+    public function push_feed() {
+        while ($data = $this->md_queue->get()) {
+            if (empty($data)) {
+                sleep(1);
+            } else {
+                list($key, $val) = each($data);
+                switch ($key) {
+                    //用户产生的动态
+                    case 'userfeed':
+                        $this->_push_user_feed($val);
+                        break;
+                    //项目产生的动态
+                    case 'profeed':
+                        $this->_push_pro_feed($val);
+                        break;
+                    //拉取某用户之前的feed流
+                    case 'pull_feed_from_user':
+                        $this->_pull_feed_from_user($val['action_item_id'], $val['user_id']);
+                        break;
+                    //拉取产品的feed
+                    case 'pull_feed_from_project':
+                        break;
+                    //删除feed
+                    case 'delfeed':
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+    }
+
+    /**
+     * 加积分
+     */
+    public function add_score() {
+        $data = $this->md_queue->set_queue_name("score")->get();
+        if (empty($data)) {
+            sleep(1);
+        } else {
+            list($key, $val) = each($data);
+            switch ($key) {
+                case 'add_score':
+                    $type = (int) $val['type'];
+
+                    $score['user_id'] = (int) $val["user_id"];
+                    $score['score'] = (int) $val['score'];
+                    $score['type'] = (int) $val['type'];
+                    $score['ip_address'] = $val['ip_address'];
+                    if (!empty($score['user_id']) && !empty($score['score']) && !empty($score['type'])) {
+                        $this->score_model->add_score($score);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }   	
+    }
+    /**
+     * 推送用户feed
+     * @param type $val
+     * @return boolean
+     */
+    public function _push_user_feed($val) {
+        if (empty($val['action_item_id']) || empty($val['source_id']) || empty($val['type'])) {
+            return false;
+        }
+#将动态插入动态源表，即自己触发的行为
+        if ($val['type'] < 200) {
+            $this->feed_model->set_source_user_id($val['action_item_id'])->add_feed_source($val);
+        }
+#将动态推送给关注过自己的人
+        $sql = "SELECT user_id FROM md_users_friendships WHERE friend_id ={$val['action_item_id']}";
+        $row = $this->db->query($sql)->result_array();
+        if (count($row) > 0 && !empty($row)) {
+            foreach ($row as $u) {
+                if (!empty($u['user_id'])) {
+                    $feed_arr['action_item_id'] = $val['action_item_id'];
+                    $feed_arr['source_id'] = $val['source_id'];
+                    $feed_arr['type'] = $val['type'];
+                    if (!empty($u)) {
+                        $this->feed_model->set_user_id($u['user_id'])->add_feed($feed_arr);
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 推送产品的feed
+     * @param type $val
+     * @return boolean
+     */
+    public function _push_pro_feed($val) {
+        $buy_ids = array();
+        $follow_ids = array();
+        $action_item_id = $val['action_item_id'];   //　行为产生者为：项目
+        $user_ids = $this->md_feed->get_fav_and_back_ids($action_item_id);
+        if (count($user_ids) > 0 && !empty($user_ids)) {
+            foreach ($user_ids as $u) {
+                $feed_arr['action_item_id'] = $action_item_id;
+                $feed_arr['source_id'] = $val['source_id'];
+                $feed_arr['type'] = $val['type'];
+                if (!empty($u)) {
+                    $this->feed_model->set_user_id($u)->add_feed($feed_arr);
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @拉取某个用户之前产生的动态
+     * @param type $user_id
+     * @param type $to_user_id
+     */
+    private function _pull_feed_from_user($user_id, $to_user_id) {
+        $this->md_feed->add_user_feed($user_id, $to_user_id);
+        return true;
+    }
+
+    /**
+     * @拉取项目产生的动态
+     */
+    public function _pull_feed_from_project() {
+        
+    }
+
+    /*
+     * 定时脚本推送feed
+     */
+
+    public function cron_user_feed() {
+        $date = date("Y-m-d H:i:s", time() - 60 * 4);
+        $this->load->model("feed_model", "feed");
+        $this->load->model("user_m");
+        $type_arr = $this->md_feed->get_feed_type_list();
+        foreach ($type_arr as $feed_type) {
+            $list = $this->md_feed->get_user_feed_list($feed_type, $date);
+            foreach ($list as $feed_arr) {
+                $res = $this->feed->set_source_user_id($feed_arr['action_item_id'])->add_feed_source($feed_arr);
+                if ($res) {
+                    $this->push_to_followers($feed_arr['action_item_id'], $feed_arr);
+                }
+            }
+        }
+    }
+
+    /**
+     * 关注好友后,拉取他的动态
+     */
+    public function cron_pull_user_feed() {
+        $this->load->model("feed_model", "feed");
+        $feed_type_list = $this->md_feed->get_feed_type_list();
+        $date = date("Y-m-d H:i:s", time() - 60 * 3);
+        $guanzhu_sql = "SELECT * FROM md_users_friendships  WHERE ctime>'{$date}'";
+        $guanzhu_list = $this->db->query($guanzhu_sql)->result_array();
+        foreach ($guanzhu_list as $guanzhu) {
+            foreach ($feed_type_list as $feed_type) {
+                $feed_lists = $this->md_feed->get_user_feed_list($feed_type, "", $guanzhu['friend_id']);
+                foreach ($feed_lists as $feed_arr) {
+                    $this->feed->set_user_id($guanzhu['user_id'])->add_feed($feed_arr);
+                }
+            }
+        }
+    }
+
+    /**
+     * 定时脚本产品动态
+     */
+    public function cron_project_feed() {
+        $this->load->model("feed_model", "feed");
+        $date = date("Y-m-d H:i:s", time() - 3600 * 24);
+        $sql = "SELECT u.ctime, u.id, u.pro_id FROM md_product_update u inner join md_product p on u.pro_id = p.id WHERE p.if_show=1 AND u.ctime>'{$date}'";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $pro) {
+            $buyers = $this->md_feed->get_fav_and_back_ids($pro['pro_id']);
+            foreach ($buyers as $user) {
+                $feed_arr = array();
+                $feed_arr['action_item_id'] = $pro['pro_id'];
+                $feed_arr['source_id'] = $pro['id'];
+                $feed_arr['type'] = FEED_PROJECT_UPDATE;
+                $feed_arr['ctime'] = $pro['ctime'];
+                $this->feed->set_user_id($user)->add_feed($feed_arr);
+            }
+        }
+        //产品成动feed
+        $sql = "SELECT mp.id as pro_id,mp.user_id,mp.install_money,mpa.amount_total as back_amount FROM md_product mp
+INNER JOIN md_product_archive mpa ON mp.id=mpa.pro_id
+WHERE mpa.is_send_edm=2";
+        $result = $this->db->query($sql)->result_array();
+        foreach ($result as $item) {
+            if ($item['back_amount'] >= $item['install_money']) {
+                $buyers = $this->md_feed->get_fav_and_back_ids($item['pro_id']);
+                foreach ($buyers as $user) {
+                    $feed_arr = array();
+                    $feed_arr['action_item_id'] = $item['pro_id'];
+                    $feed_arr['source_id'] = $item['pro_id'];
+                    $feed_arr['type'] = FEED_PROJECT_TO_SUCC;
+                    $feed_arr['ctime'] = $pro['ctime'];
+                    $this->feed->set_user_id($user)->add_feed($feed_arr);
+                }
+            }
+        }
+    }
+
+    /**
+     * 添加默认关注好友
+     */
+    function cron_add_default_friends() {
+        $this->load->model("feed_model", "feed");
+        $this->load->model("user_m");
+        $feed_type_list = $this->md_feed->get_feed_type_list();
+        $def_friends = $this->md_feed->get_default_friends();
+        $date = date("Y-m-d H:i:s", time() - 60 * 3);
+        $sql = "SELECT * FROM md_users  WHERE ctime>'{$date}'";
+        $userlist = $this->db->query($sql)->result_array();
+
+        foreach ($userlist as $user) {
+            foreach ($def_friends as $key => $friend) {
+                if (is_friend($user['id'], $friend) < 0) {
+                    $data = array();
+                    $data = array("user_id" => $user['id'], "friend_id" => $friend);
+                    $this->user_m->add_friend_info($data);
+                    foreach ($feed_type_list as $feed_type) {
+                        $feed_lists = $this->md_feed->get_user_feed_list($feed_type, "", $friend);
+                        foreach ($feed_lists as $feed_arr) {
+                            $this->feed_model->set_user_id($user['id'])->add_feed($feed_arr);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private function push_to_followers($user_id, $feed_arr) {
+        $follows = $this->user_m->get_fellowed_list($user_id);
+        foreach ($follows as $user) {
+            $this->feed->set_user_id($user['user_id'])->add_feed($feed_arr);
+        }
+    }
+
+}

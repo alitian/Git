@@ -1,0 +1,107 @@
+<?php $this->load->view('ckad/header') ?>
+<script language='javascript'>
+    function setbar(num)
+    {
+        $("#bar").attr('style', 'width:' + num + '%');
+    }
+</script>
+<?php if (isset($error) && $error): ?>
+    <div class="alert alert-error">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Warning!</strong> <?= $error; ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($ok) && $ok): ?>
+    <div class="alert alert-success">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Well done!</strong> <?= $ok; ?>
+    </div>
+    <div class="progress progress-striped active">
+        <div class="bar" id="bar" style="width: 0%;"></div>
+    </div>
+<?php endif; ?>
+<form action="" method="post" enctype="multipart/form-data">
+    <table class="table table-bordered" style="width:60%">
+        <tr>
+            <th colspan="2">手動發送短信</th>
+        </tr>
+        <tr>
+            <th>短信內容:</th>
+            <td>
+                <textarea name="content" style="width:90%"></textarea>
+            </td>
+        </tr>
+        
+        <tr>
+            <th>短信运营商:</th>
+            <td>
+                <label class="radio">
+                    <input type="radio" name="sms_dealers" value="1" /> 创蓝
+                </label>
+                <label class="radio">
+                    <input type="radio" name="sms_dealers" value="2" checked/>漫道
+                </label>
+            </td>
+        </tr>
+        
+        <tr>
+            <th>短信类型:</th>
+            <td>
+                <label class="radio">
+                    <input type="radio" name="sms_type" value="1" checked />通知类短信
+                </label>
+                <label class="radio">
+                    <input type="radio" name="sms_type" value="2" /> 营销类短信
+                </label>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label class="checkbox"><input type="radio" name="send_type" value="project" >選擇項目支持者:</lable>
+            </td>
+        <td>
+            <select name="pro_id">
+                <?php foreach ($projects as $project): ?>
+                <option value="<?= $project['id']; ?>"><?= $project['name']; ?></option>
+                <?php endforeach; ?>
+            </select>
+        </td>
+        </tr>
+        <tr>
+            <td>
+                <label class="checkbox"><input type="radio" name="send_type" value="excel" checked="checked" >导入Excel逐条定制信息:</label>
+            </td>
+            <td>
+                <input type="file" name="import_file" id="import_file" /><br />(Excel定制每条消息) <a href="/static/other/sms_m.xls">模板下载</a>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label class="checkbox"><input type="radio" name="send_type" value="mobile" checked="checked" >手動發送列表:</label>
+            </td>
+            <td>
+                <textarea style="width:90%" name="mobile_num"></textarea><br />(手机号換行分隔)
+            </td>
+        </tr>
+        <tr>
+            <td>
+                验证码:
+            </td>
+            <td>
+                <img src="/init/captcha_code?name=mobile_acptcha" /><input type="text" name="vcode" style="width:50px;" maxlength="4" />
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <input type="submit" class="btn btn-primary" value="确认发送" />
+            </td>
+        </tr>
+    </table>
+</form>
+    <table class="table">
+        <tr><th>发送时间</th><th>发送人</th><th>发送内容</th><th>接收人群</th></tr>
+    <?php foreach ($logs as $log): ?>
+                <tr><td><?= $log['send_time'] ?></td><td><?= $log['sender'] ?></td><td><?= $log['content'] ?></td><td><?php if ($log['send_type'] == 'project'): ?>项目ID为<?= $log['send_to'] ?> <?php else: ?>手机号为<?= str_replace("\n", '<br />', $log['send_to']); ?> <?php endif; ?></td></tr>
+    <?php endforeach; ?>
+    </table>
+<?php $this->load->view('ckad/footer') ?>

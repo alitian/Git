@@ -1,0 +1,62 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_view extends Acp_Controller {
+
+		public $site_url;
+		public $base_url;
+		public $compress_marker = '_compress';
+		public $thumb_marker = '_thumb';
+
+		public function __construct(){
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_tag_m');
+			$this->load->model('bbs_view_model');
+		}
+
+		/**
+		 *
+		 * 	查看帖子详情
+		 *
+		 * 	@param 			int 		$post_id
+		 */
+		public function post($post_id)
+		{
+			$post_info = $this->bbs_view_model->get_post_info($post_id);
+			if($post_info['attachment_list']){
+				foreach($post_info['attachment_list'] as &$attachment){
+					$attachment['origin_url'] = cdn_url($attachment['path']);				
+					$point_pos = strrpos($attachment['origin_url'], '.');
+					$attachment['thumb_url'] = substr($attachment['origin_url'], 0, $point_pos) . $this->thumb_marker . substr($attachment['origin_url'], $point_pos);
+					$attachment['origin_url'] = substr($attachment['origin_url'], 0, $point_pos) . $this->compress_marker. substr($attachment['origin_url'], $point_pos);				
+				}
+			}
+			$post_info['tag_names'] = $this->bbs_tag_m->convert_tagids_to_tags($post_info['tagids']);
+			$this->load->vars('post_info', $post_info);
+			$this->load->view('bbs_view/post');
+		}
+
+		/**
+		 *
+		 * 	查看回复详情
+		 *
+		 * 	@param 			int 		$post_id
+		 * 	@param 			int 		$reply_id
+		 */
+		public function reply($post_id, $reply_id)
+		{
+			$reply_info = $this->bbs_view_model->get_reply_info($post_id, $reply_id);
+			if($reply_info['attachment_list']){
+				foreach($reply_info['attachment_list'] as &$attachment){
+					$attachment['origin_url'] = cdn_url($attachment['path']);				
+					$point_pos = strrpos($attachment['origin_url'], '.');
+					$attachment['thumb_url'] = substr($attachment['origin_url'], 0, $point_pos) . $this->thumb_marker . substr($attachment['origin_url'], $point_pos);;
+					$attachment['origin_url'] = substr($attachment['origin_url'], 0, $point_pos) . $this->compress_marker. substr($attachment['origin_url'], $point_pos);;				
+				}
+			}
+			$this->load->vars('reply_info', $reply_info);
+			$this->load->view('bbs_view/reply');
+		}
+
+	}

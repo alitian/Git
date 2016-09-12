@@ -1,0 +1,129 @@
+<?php
+
+
+class Search_m extends CI_Model
+{
+    function __construct()
+    {
+        parent::__construct();
+        $this->config->load('plan');
+    }
+
+    /**
+     * 获取指定产品的订单列表。如果指定$rew_id，将获取该产品的这种回报的订单列表
+     */
+	function get_pro_order_list($pro_id, $rew_id="")
+	{
+        $this->db->where('if_pay', '1');
+        $this->db->where('pro_id', $pro_id);
+        if (!empty($rew_id))
+        	$this->db->where('rew_id', $rew_id);
+        $this->db->select('*');
+        $query = $this->db->get('md_product_back');
+        $res = $query->result_array();
+        return $res;
+	}
+
+	/**
+	 * 获取指定产品的已筹资金额。如果指定$rew_id，将获取该产品的这种回报的筹资金额
+	 */
+	function get_product_back_money($pro_id, $rew_id="")
+	{
+        $this->db->where('if_pay', '1');
+        $this->db->where('pro_id', $pro_id);
+        if (!empty($rew_id)) {
+        	$this->db->where('rew_id', $rew_id);
+        	$this->db->group_by('rew_id');
+        }
+        $this->db->select('SUM(amount) as tamount ');
+        $query = $this->db->get('md_product_back');
+        $res = $query->row_array();
+        return isset($res['tamount']) ? $res['tamount'] : 0;
+	}
+
+	/**
+	 * 获取指定项目名
+	 */
+	function get_product_name_byid($pro_id)
+	{
+        $this->db->where('id', $pro_id);
+        $this->db->select('name');
+        $query = $this->db->get('md_product');
+        $res = $query->row_array();
+        return $res['name'];
+	}
+
+	/**
+	 * 获取指定产品的支持人列表。如果指定$rew_id，将获取该产品的这种回报的支持人列表
+	 */
+	function get_pro_support_list($pro_id, $rew_id="")
+	{
+        $this->db->where('if_pay', '1');
+        $this->db->where('pro_id', $pro_id);
+        if (!empty($rew_id))
+        	$this->db->where('rew_id', $rew_id);
+        $this->db->group_by('user_id');
+        $this->db->select('*');
+        $query = $this->db->get('md_product_back');
+        $res = $query->result_array();
+        return $res;
+	}
+
+    /**
+     * 获取指定项目的回报信息
+     */
+    function get_product_reward($pro_id)
+    {
+        $this->db->where('if_show', '1');
+        $this->db->where('pro_id', $pro_id);
+        $this->db->select('*');
+        $query = $this->db->get('md_product_rewards');
+        $res = $query->result_array();
+        return $res;
+    }
+
+
+    /**
+     *  查询指定产品的发起人的评论列表
+     */
+    function get_pro_owner_comments_list($pro_id, $owner_id)
+    {
+        $this->db->where('if_show', '1');
+        $this->db->where('pro_id', $pro_id);
+        $this->db->where('user_id', $owner_id);
+        $this->db->select('*');
+        $query = $this->db->get('md_product_comments');
+        $res = $query->result_array();
+        return $res;
+    }
+
+    /**
+     * 获取所有上线项目
+     */
+	function get_online_pro_data($where = '', $order = 'ORDER BY start_time') {
+        $sql = "SELECT 
+                        id as pro_id, 
+                        name as pro_name, 
+                        user_id as pro_owner_id, 
+                        install_money as finance_goal, 
+                        start_time as pro_start_date, 
+                        end_time as pro_end_date,
+                        if_installments
+                    FROM md_product
+                    WHERE $where
+                    {$order}";
+        $query = $this->db->query($sql);
+        $res['cnt'] = $query->num_rows();
+        $res['result'] = $query->result_array();
+
+        return $res;
+    }
+
+}
+
+
+
+
+
+
+?>

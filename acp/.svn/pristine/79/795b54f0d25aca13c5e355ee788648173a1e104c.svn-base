@@ -1,0 +1,405 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<div>
+			<h1>
+				标签关系
+			</h1>
+		</div>
+		<hr>
+		<form class="form-inline" action="" method="post">
+			<div class="form-group">
+				<input type="text" class="form-control" name="tag_name" placeholder="请输入要查询的标签" id="request_tag_name">
+				<input type="hidden" name="submit" value="1">
+				<button class="btn btn-default" type="submit" id="request_tag_btn">查询</button>
+				<button class="btn btn-default" type="button" id="add">新增普通标签</button>
+				<button class="btn btn-default" type="button" id="add_top">新增顶级标签</button>
+			</div>
+		</form>
+		<div>
+			<h3>
+			<?php 
+				if($is_top){
+					echo "当前顶级标签：<a id='view' href='javascript:;'><mark>{$cur_tag['tag_name']}</mark></a> <a target='_blank' href='{$site_url}bbs_tag/edit_tag/{$cur_tag['tag_id']}' style='margin-bottom:3px;' class='btn btn-default'>编辑</a>";
+				}else{
+					echo "当前标签：<a id='view' href='javascript:;'><mark>{$cur_tag['tag_name']}</mark></a> <a target='_blank' href='{$site_url}bbs_tag/edit_tag/{$cur_tag['tag_id']}' style='margin-bottom:3px' class='btn btn-default'>编辑</a>";
+				}
+			?>
+			</h3>
+		</div>
+<?php
+		// 新增 "相关标签"
+		if($relative_tag_list){
+			echo '<hr>';
+			echo '<h3>相关标签</h3>';
+			echo '<hr>';
+			foreach($relative_tag_list as $relative_tag){
+				echo "<span style='color:red;' class='request_tag'><a tag_id={$relative_tag['tag_id']}>{$relative_tag['tag_name']}</a></span> &nbsp;&nbsp;&nbsp;";
+			}
+		}
+
+		if(!$is_top){
+		echo '
+		<hr>
+
+		<h3>父关系：</h3>
+		<hr>
+		<div>
+			<h4 id="parent_tags">';
+
+			if(!empty($parent_list)){
+				foreach($parent_list as $key => $parent_tag){
+					echo '<span class="label label-primary" title="删除该标签">' . $parent_tag['tag_name'] . '  </span><a href="javascript:;" class="del_tag" data="'.$parent_tag['tag_id'].'" tagname="'.$parent_tag['tag_name'].'" type="parent"><span aria-hidden="true" >&times;</span></a>';
+				}
+			}
+
+		/*
+		echo '
+			</h4>
+		<p> </p>
+			<form class="form-inline">
+				<div class="form-group">
+					<input type="text" name="new_parent" class="form-control">
+					<button id="add_parent" class="btn btn-default" type="button">新增父关系</button>
+				</div>
+			</form>
+		</div>
+		';
+		*/
+		}
+		echo '
+		<hr>
+		<h3>子关系：</h3>
+		<hr>
+		<div>
+			<h4 id="child_tags">';
+
+		if(!empty($child_list)){
+			foreach($child_list as $key => $child_tag){
+				echo '<span class="label label-primary" title="删除该标签">' . $child_tag['tag_name'] . '  </span><a href="javascript:;" class="del_tag" data="'.$child_tag['tag_id'].'" tagname="'.$child_tag['tag_name'].'" type="child"><span aria-hidden="true" >&times;</span></a>';
+			}
+		}
+
+		echo '
+			</h4>
+		<p> </p>
+			<form class="form-inline">
+				<div class="form-group">
+					<input type="text" name="new_child" class="form-control">
+					<button id="add_child" class="btn btn-default" type="button">新增子关系</button>
+				</div>
+			</form>
+		</div>';
+
+	if($branch_list){
+		echo "<hr>";
+		echo "<h3>父级组织结构：</h3>";
+		echo "<p></p>";
+		foreach($branch_list as $branch_info){
+			echo "<div>";
+			$str = '';
+			foreach($branch_info as $tag_info){
+				$str .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+				echo $str . "- <span><a target='_blank' href='/bbs_tag/edit_tag/{$tag_info['tag_id']}'>{$tag_info['tag_name']}</a></span>";
+				echo '<br>';
+			}
+			echo "</div>";
+			echo "<p></p>";
+		}
+	}
+?>
+	</div>
+	<div id="add_tag" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<form action="<?php echo $site_url . 'bbs_tag/add_tag'; ?>" method="post" enctype="multipart/form-data" class="form-horizontal">
+					<div class="modal-header">
+				        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+				        <h4 class="modal-title" id="myModalLabel">新增标签</h4>
+				    </div>
+				    <div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="tag_name">标签名：</label>
+						    <div class="col-sm-10">
+						    	<input class="form-control" type="text" id="tag_name" placeholder="请输入标签名" name="tag_name">
+						    </div>
+						</div>
+						<p></p>
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="description">标签描述：</label>
+						    <div class="col-sm-10">
+						    	<textarea row="5" style="width:300px;height:70px;" class="form-control" id="description" placeholder="请输入标签描述" name="description"></textarea>
+						    </div>
+						</div>
+						<p></p>
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="rest"></label>
+						    <div class="col-sm-10">
+						    	<span>字数限制：</span><span id="rest">最多80字</span>
+						    </div>
+						</div>
+						<p></p>
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="icon" style="margin:0px">标签图标：</label>
+						    <div class="col-sm-10">
+						    	<input class="form-control" type="file" id="icon" name="icon">
+						    </div>
+						</div>
+						<p></p>
+						<div>
+                            <label class="col-sm-2 control-label" for="icon "> </label>
+							<div class="col-sm-10">
+							（建议尺寸：100px*100px，20K以内，建议PNG格式）
+							</div>
+						</div>
+				    </div>
+				    <div class="modal-footer">
+				    	<input type="hidden" name="is_top" value="0">
+				        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="submit" class="btn btn-primary" id="add_btn">新增</button>
+				    </div>
+				</form>
+			</div>
+		</div>
+	</div>
+
+	<!-- 新增，tag查看模态框 -->
+	<div id="view_tag" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+					<div class="modal-header">
+				        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+				        <h4 class="modal-title" id="myModalLabel">查看标签</h4>
+				    </div>
+				    <div class="modal-body">
+				    </div>
+			</div>
+		</div>
+	</div>
+	<div id="del_all_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<div class="modal-header">
+			        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+			        <h4 class="modal-title" id="myModalLabel">删除关联关系</h4>
+			    </div>
+			    <p></p>
+			    <div class="modal-body">
+					<div class="alert alert-warning" role="alert" id="confirm"></div>
+					<span id="del_all_data" tag_id="" parent_id="" del_id=""><span>
+			    </div>
+			    <p></p>
+			    <div class="modal-footer">
+			        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+			        <button type="button" class="btn btn-primary" id="del_all_button">删除</button>
+			    </div>
+			</div>
+		</div>
+	</div>
+		
+<script>
+
+	// 暂时禁止所有的enter键
+	$(document).on('keydown', 'input:text', function(event){
+		if(event.keyCode == '13'){
+			return false;
+		}
+	});
+
+	// 模态框事件添加
+	$("#add_tag").on("hidden.bs.modal", function() {
+		$('input[name=tag_name]').val('');
+		$('textarea[name=description]').val('');
+		$('input[name=icon]').val('');
+		$('input[name=is_top]').val('0');
+		$('#rest').text('最多80字');
+	});
+
+	// 加载模态框
+	$('#add').click(function(){
+		$('#add_tag').modal();
+	});
+
+	// 添加顶级标签
+	$('#add_top').click(function(){
+		$('#add_tag').modal();
+		$('[name=is_top]').val('1');
+	});
+
+	// 添加字数提醒
+	$('textarea[name=description]').keyup(function(){
+		var description = $.trim($(this).val());
+		var length = parseInt(description.length);
+		var rest  = 80 - length;
+		if(rest < 0){
+			$('#rest').text('剩余字数0')
+			var str = description.substring(0, 80);
+			$(this).val(str);
+		}else{
+			$("#rest").text('剩余字数' + rest);
+		}
+	})	
+
+	$('#request_tag_btn').click(function(){
+		var tag_name = $.trim($('#request_tag_name').val());
+		if(tag_name == ''){
+			alert('标签不能为空');
+			return false;
+		}
+	});
+
+
+	// 表单验证
+	$('#add_btn').click(function(){
+		var tag_name = $.trim($('#tag_name').val());
+		var description = $.trim($("textarea[name=description]").val());
+		if(!tag_name){
+			alert('标签名不能为空');
+			return false;
+		}
+		if(description.length > 100){
+			alert('描述不能超过100字');
+			return false;
+		}
+		$(this).parent('form').submit();
+	});
+
+	// 新增 '查看' 模态框
+	$('#view').click(function(){
+		var url = '<?php echo $site_url . "bbs_tag/view_tag/$cur_tag[tag_id]"; ?>';
+		$('#view_tag').modal();	
+		$('#view_tag .modal-content').load(url);
+	});
+
+	// 点击 相关标签，进行查询操作
+	$('.request_tag').click(function(){
+		var tag_name = $(this).children('a').text();
+		$('#request_tag_name').val(tag_name);
+		$('#request_tag_btn').click();
+	});
+
+
+	// 增加子关系
+	$('#add_child').click(function(){
+		var url = '<?php echo $site_url . "bbs_tag/add_child"; ?>';
+		var cur_tag_id = <?php echo $cur_tag['tag_id']; ?>;
+		var child_name = $.trim($('input[name=new_child]').val());	
+		if(!child_name){
+			alert('请输入新增的子标签');
+			return false;
+		}
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				cur_tag_id : cur_tag_id,
+				child_name : child_name
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -6:
+					case -5:
+					case -4:
+					case -3:
+					case -2:
+					case -1:
+					case 0:
+						alert(return_data.content);
+						break;
+					default:
+						alert(return_data.content);
+						$('#child_tags').append('<span class="label label-primary" title="删除该标签">' + child_name + '  </span><a href="javascript:;" class="del_tag" url="' + '<?php echo $site_url; ?>' + 'bbs_tag/del_tag" data="' + return_data + '" tagname="'+child_name+'" type="child"><span aria-hidden="true" >&times;</span></a>');
+						break;
+				}
+			}
+		});
+	});
+
+	// 增加父关系
+	$('#add_parent').click(function(){
+		var url = '<?php echo $site_url . "bbs_tag/add_parent"; ?>';
+		var cur_tag_id = <?php echo $cur_tag['tag_id']; ?>;
+		var parent_name = $.trim($('input[name=new_parent]').val());	
+		if(!parent_name){
+			alert('请输入新增的父标签');
+			return false;
+		}
+		$.ajax({
+			url : url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				cur_tag_id : cur_tag_id,
+				parent_name : parent_name
+			},
+			async : false,
+			success : function(return_data){
+				switch(return_data.status){
+					case -6:
+					case -5:
+					case -4:
+					case -3:
+					case -2:
+					case -1:
+					case 0:
+						alert(return_data.content);
+						break;
+					default:
+						alert('添加成功');
+						$('#parent_tags').append('<span class="label label-primary" title="删除该标签">' + parent_name + '  </span><a href="javascript:;" class="del_tag" url="' + '<?php echo $site_url; ?>' + 'bbs_tag/del_tag" data="' + return_data + '" tagname="'+parent_num+'" type="parent"><span aria-hidden="true" >&times;</span></a>');
+						break;
+				}
+			}
+		});
+	});
+
+	var del_url = '<?php echo $site_url; ?>' + 'bbs_tag/del_map';
+	$(document).on('click', '.del_tag', function(){
+		var obj = $(this);
+		var type = obj.attr('type');
+		var del_id = obj.attr('data');
+		var del_tagname = obj.attr('tagname');
+		if(type == 'child'){
+			var tag_id = obj.attr('data');
+			var parent_id = '<?php echo $cur_tag["tag_id"]; ?>';
+		}else if(type == 'parent'){
+			var tag_id = '<?php echo $cur_tag["tag_id"]; ?>';
+			var parent_id = obj.attr('data');
+		}
+
+		var confirm_str = '慎重哦！执行此操作将删除“'+'<?php echo $cur_tag["tag_name"]; ?>'+'”与“'+del_tagname+'”的关联关系，贴子显示也将消失';
+		$('#confirm').text(confirm_str);
+		$('#del_all_modal').modal();
+		$('#del_all_data').attr({tag_id : tag_id, parent_id : parent_id, del_id : del_id});
+	});
+
+	$('#del_all_button').click(function(){
+		var del_id = $('#del_all_data').attr('del_id');
+		var obj = $('[data='+del_id+']');
+		var tag_id = $('#del_all_data').attr('tag_id');
+		var parent_id = $('#del_all_data').attr('parent_id');
+		$.ajax({
+			url : del_url,
+			type : 'post',
+			dataType : 'json',
+			data : {
+				tag_id : tag_id,
+				parent_id : parent_id
+			},
+			async : false,
+			success : function(return_data){
+				if(return_data.status == 1){
+					alert(return_data.content);
+					obj.prev().remove();
+					obj.remove();
+					$('#del_all_modal').modal('hide')
+				}else{
+					alert(return_data.content);
+					$('#del_all_modal').modal('hide')
+				}
+			}
+		});
+	});
+</script>
+<?php $this->load->view('ckad/footer'); ?>

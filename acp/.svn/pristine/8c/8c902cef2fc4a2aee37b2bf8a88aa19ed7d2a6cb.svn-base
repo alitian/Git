@@ -1,0 +1,651 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+    .insert{
+        float: left;
+        z-index: 10000;
+        position: relative;
+    }
+    .face {
+        margin-top: 5px;
+        margin-left: 5px;
+        z-index: 10000;
+        display: block;
+        float: left;
+        height: 16px;
+        line-height: 16px;
+        padding-left: 26px;
+        margin-right: 20px;
+        background: url(http://huangjianquan.s.modianinc.com/moxi/img/insert.png) left top no-repeat;
+        opacity: 0.6;
+        background-position: 0 0;
+        color: #424c50;
+    }
+    #face {
+        position: absolute;
+        top: 35px;
+        left: -10px;
+    }
+    .panel-mdbq {
+        display: block;
+        width: 400px;
+        margin: 0;
+        padding: 0;
+        margin-top: -1px;
+        border: 0px solid #ddd;
+        background: #fff;
+        font-size: 14px;
+        position: absolute;
+        top: 40px;
+        left: -58px;
+        z-index: 8888;
+        -moz-box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+        -webkit-box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+    }
+    .pointerout {
+        height: 20px;
+        overflow: hidden;
+        position: absolute;
+        top: -20px;
+        width: 60px;
+    }
+    .pointer {
+        -webkit-box-shadow: 0 0 1px 0 #AAAAAA;
+        -webkit-transform: rotate(45deg);
+        background: none repeat scroll 0 0 #FFFFFF;
+        height: 40px;
+        left: 15px;
+        position: absolute;
+        top: 16px;
+        width: 40px;
+    }
+    .panel-mdbq ul {
+        padding: 0px;
+        margin: 10px 10px 0 10px;
+    }
+    .mdbqtab {
+        background-color: #fff;
+        color: #222222;
+        font-weight: bold;
+        display: block;
+        height: 28px;
+        padding: 0;
+        margin: 0;
+        padding-left: 100px;
+    }
+    .mdbqtab li.current {
+        padding-bottom: 3px;
+        color: #424c50;
+        margin-bottom: -1px;
+    }
+    .panel-mdbq ul li {
+        display: inline-block;
+    }
+    .responds li {
+        position: relative;
+    }
+    .mdbqtab li {
+        -moz-border-radius-topleft: 4px;
+        -moz-border-radius-topright: 4px;
+        float: left;
+        list-style: none;
+        margin: 0 -1px 1px 0;
+        padding: 0;
+        position: relative;
+        top: 1px;
+        white-space: nowrap;
+        color: #8e9496;
+        font-weight: bold;
+        border: 1px solid #ebebeb;
+        background: #fff;
+        display: block;
+        padding: 5px 8px 2px 8px;
+        border-bottom: 0 none !important;
+        height: 19px;
+        cursor: pointer;
+    }
+    .mdbqtabcon {
+        border: 1px solid #ebebeb;
+        margin: 0 10px 10px 10px;
+        padding: 10px;
+    }
+    .panel-mdbq .icon {
+        margin: 5px;
+    }
+    .icon {
+        width: 20px;
+        height: 20px;
+        display: inline-block;
+        text-decoration: inherit;
+        font-weight: normal;
+        font-style: normal;
+        vertical-align: middle;
+        cursor: pointer;
+        opacity: 0.7;
+        filter: Alpha(opacity=70);
+    }
+    #mdbqtab_1_cont .icon i {
+        display: none;
+    }
+    i {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        font-size: 100%;
+        font-weight: normal;
+        vertical-align: baseline;
+        background: transparent;
+    }
+</style>
+<link type="text/css" rel="stylesheet" href="<?= static_url() ?>css/emoji.css?v=20160418a">
+<div class="container">
+    <div class="row">
+        <div>
+            <h1>微信关键字管理</h1>
+            <hr>
+            <div class="form-container">
+                <form action="/main/add_keyword" method="post" enctype="multipart/form-data" role="form" id="keyword-form">
+                    <div class="form-group">
+                        <label for="name">规则名:</label>
+                        <input type="text" class="form-control" id="name" placeholder="15个汉字" name="rule_name" value="<?=$keyword_info["rule_name"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="keyword">关键字:(多个关键字请用|隔开)</label>
+                        <input type="text" class="form-control" id="keyword" data-id="<?=$keyword_info["id"]?>" placeholder="请输入名称" name="keyword" value="<?=$keyword_info["keyword"]?>"><br>
+                       <?php if(!empty($keyword_list)){
+                            foreach($keyword_list as $keyword){
+                                echo '<span class="label label-primary" title="删除该关键字" style="widht:20px">'.$keyword.'</span><a href="javascript:;" class="del_tag" data-kw="'.$keyword.'"  data-id="'.$keyword_info['id'].'"><span aria-hidden="true"   style="width:15px;margin-right:5px;">&times;</span></a>';
+                            }
+                        }?>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reply_content">回复内容:</label>
+                    </div>
+                    <div style="height:40px;"></div>
+                    <input type="hidden" name="id" value="<?=$keyword_info["id"]?>">
+                    <input type="hidden" name="is_new" value="1">
+<!--                    <input type="hidden" name="pic" id="pro_img" value="--><?//= $keyword_info['pic']?><!--">-->
+<!--                    <div class="form-group">-->
+<!--                        <label for="pic_link">图片链接:</label>-->
+<!--                        <input type="text" class="form-control" id="pic_link" placeholder="请输入图片链接" name="pic_link" value="--><?//=$keyword_info["pic_link"]?><!--">-->
+<!--                    </div>-->
+<!--                    <button type="submit" class="btn btn-primary btn-lg" id="do_submit">保存</button>-->
+<!--                    <button type="reset" class="btn btn- btn-lg">取消</button>-->
+                    <div class="container">
+                        <div class="row">
+                            <div class="col-md-4" style="width: 40%;float: left;">
+                                <span style=" float: left;margin-top: -30px;"><input type="radio" name="type" value="1" <?=$keyword_info['type']==1?"checked":""?>>文字消息</span>
+                                <div class="insert">
+                                    <a class="face" href="javascript:;">表情</a>
+                                </div>
+                                <div class="">
+                                </div>
+                                <div class="form-group">
+                                    <textarea id="reply_content" name="reply_content" readonly><?=$keyword_info["reply_content"]?></textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-4" style="width: 33%; float: left;">
+                                <input type="radio" name="type" value="2" <?=$keyword_info['type']==2?"checked":""?>>图文消息
+                                <?php if($keyword_info['type']==2):?>
+                                    <?php $i=0;$num=count($keyword_array);?>
+                                    <?php foreach($keyword_array as $keyword):?>
+                                        <?php $i++;?>
+                                    <div class="do_clone">
+                                        <div class="form-group">
+                                            <label for="name">标题:</label>
+                                            <input type="text" class="form-control type2 title" id="title"  name="title[]" value="<?=$keyword["title"]?>" required>
+                                        </div>
+                                        <?php if($i==1):?>
+                                        <div class="form-group">
+                                            <label for="keyword">描述:</label>
+                                            <textarea name="description[]"  cols="30" rows="10" class="des type2"><?=$keyword["reply_content"]?></textarea>
+<!--                                            <input type="text" class="form-control domain first_domain" name="description[]" value="--><?//=$keyword["reply_content"]?><!--">-->
+                                        </div>
+                                        <?php endif;?>
+                                        <div class="form-group">
+                                            <label for="keyword">图片:</label>
+                                            <input type="hidden" id="pic" name="pic[]" value="<?=$keyword["pic"]?>" class="pic_pre">
+                                            <input type="file" class="form-control type2 pic" name="pic[]">
+                                            <img style="vertical-align:middle;max-width:100%;" class="img_preview" src="<?= cdn_url($keyword['pic'])?>">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="keyword">链接:</label>
+                                            <input type="text" class="form-control type2 link" name="pic_link[]" value="<?=$keyword["pic_link"]?>">
+                                            <?php if($i==$num):?>
+                                            <button class="btn-danger" type="button" id="add_rule">+ 新增</button>
+                                            <?php endif;?>
+                                        </div>
+                                        <hr>
+                                    </div>
+                                    <?php endforeach;?>
+                                <?php else:?>
+                                    <div class="form-group">
+                                        <label for="name">标题:</label>
+                                        <input type="text" class="form-control type2 title" id="title" placeholder="15个汉字"  name="title[]" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="keyword">描述:</label>
+                                        <textarea name="description[]"  cols="30" rows="10" placeholder="40个汉字" class="des type2"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="keyword">图片:</label>
+                                        <input type="hidden" id="pic" name="pic[]" >
+                                        <input type="file" class="form-control type2 pic" name="pic[]" >
+                                         <img style="vertical-align:middle;max-width:100%;" class="img_preview">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="keyword">链接:</label>
+                                        <input type="text" placeholder="http://" class="form-control type2 link" name="pic_link[]" >
+                                    </div>
+                                    <div class="do_clone">
+                                        <hr>
+                                        <div class="form-group">
+                                            <label for="name">标题:</label>
+                                            <input type="text" class="form-control title2 type2 title" id="title" placeholder="15个汉字"  name="title[]">
+                                        </div>
+<!--                                        <div class="form-group">-->
+<!--                                            <label for="keyword">描述:</label>-->
+<!--                                            <textarea name="description[]"  cols="30" rows="10" placeholder="40个汉字" class="des type2"></textarea>-->
+<!--                                        </div>-->
+                                        <div class="form-group">
+                                            <label for="keyword">图片:</label>
+                                            <input type="hidden" id="pic" name="pic[]" class="pic_pre">
+                                            <input type="file" class="form-control type2 pic" name="pic[]">
+                                            <img style="vertical-align:middle;max-width:100%;" class="img_preview">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="keyword">链接:</label>
+                                            <input type="text" placeholder="http://" class="form-control type2 link" name="pic_link[]">
+                                            <button class="btn-danger" type="button" id="add_rule">+ 新增</button>
+                                        </div>
+                                    </div>
+                                <?php endif;?>
+                            </div>
+                            <div class="col-md-4" style="width: 27%; float: left;">
+                                <input type="radio" name="type" value="3" <?=$keyword_info['type']==3?"checked":""?>>图片消息
+                                <!--区分一下-->
+                                <?php if(!$keyword_info['id']||$keyword_info['type']==3):?>
+                                    <input type="hidden" name="cover" value="<?=$keyword_info["pic"]?>">
+                                    <input type="file" class="form-control type3 pic">
+                                    <img style="vertical-align:middle;max-width:100%;" id="img_preview" src="<?= cdn_url($keyword_info['pic'])?>">
+                                <?php else: ?>
+                                    <input type="hidden" name="cover" value="<?=$keyword_info["pic"]?>">
+                                    <input type="file" class="form-control type3 pic">
+                                <?php endif;?>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                <button type="button" class="btn btn-primary btn-lg" id="do_submit">保存</button>
+                <button type="reset" class="btn btn- btn-lg">取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 表情隐藏DIV -->
+<div id="face-home" style="display:none">
+    <div id="face" class="panel-mdbq">
+        <span class="pointerout"><i class="pointer"></i></span>
+        <ul class="mdbqtab">
+            <li id="mdbqtab_1" class="current">emoji</li>
+        </ul>
+        <div id="mdbqtab_1_cont">
+            <div class="mdbqtabcon">
+                <?php foreach($emojis as $key => $emoji): ?>
+                    <a class="icon"><span class="emoji emoji<?= $emoji ?>"><i>[e:<?= $emoji ?>]</i></span></a>
+                <?php endforeach;?>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 表情隐藏DIV -->
+<!-- 引入百度编辑器替换 -->
+<script>
+    $('#upfile').change(function(){
+        $('#up_form').submit();
+    });
+    var do_submit="";
+    // 定义公共的静态文件路径，用于编辑器中的路径引入(我们在ukeyword.all.js中使用到了)
+    $(function() {
+        var ue = UE.getEditor('reply_content', {
+            // 服务器统一请求接口路径
+            toolbars: [
+                ['link']
+            ],
+            initialFrameWidth:300
+        });
+
+        //提交操作
+        $('#do_submit').click(function(){
+            if(! $.trim($("#keyword").val())){
+                alert("关键字不能为空");
+                return false;
+            }
+            if(! $.trim($("#name").val())){
+                alert("规则名不能为空");
+                return false;
+            }
+            if(do_submit){
+                alert("关键字已经存在");
+                return false;
+            }
+            //规则名
+            var rule_name = $.trim($("#name").val());
+            if(rule_name.length>15){
+                alert("规则名15字以内");
+                $("#name").focus();
+                return false;
+            }
+            var type = $("input[name='type']:checked").val();
+
+            if(isNaN(type)){
+                alert("请选择一个消息的种类");
+                return false;
+            }
+            //title description etc..not empty
+
+            var check = $("input[name='type']:checked").val();
+            switch (check){
+                case "1":
+                    var content = $.trim(ue.getContentTxt());
+                    if(!content){
+                        alert("回复内容不能为空");
+                        return false;
+                    }
+                    break;
+                case "2":
+                    var num = $(".title").length;
+                    var title2 = $(".title2").val();
+                    var pic2 = $(".pic").eq(1).val();
+                    var link2 = $(".link").eq(1).val();
+                    if(title2||pic2||link2){//第二个标题有值时才检测所有
+                        for(var i=0;i<num;i++){
+                            var title = $(".title").eq(i).val();
+                            var pic = $(".pic").eq(i).val();
+                            var link = $(".link").eq(i).val();
+                            if(title||pic||link){
+                                if(!title){
+                                    alert("标题不能为空");
+                                    return false;
+                                }
+                                var pic = $(".pic").eq(i).prev().val();
+                                if(!pic){
+                                    alert("图片不能为空");
+                                    return false;
+                                }
+                                var link = $(".link").eq(i).val();
+                                if(!link){
+                                    alert("链接不能为空");
+                                    return false;
+                                }
+                            }
+
+                        }
+                    }else{//否则检测第一个
+                        var title = $(".title").eq(0).val();
+                        if(!title){
+                            alert("标题不能为空");
+                            $(".title").eq(0).focus();
+                            return false;
+                        }
+                        var pic = $(".pic").eq(0).prev().val();
+                        if(!pic){
+                            alert("图片不能为空");
+                            return false;
+                        }
+                        var link = $(".link").eq(0).val();
+                        if(!link){
+                            alert("链接不能为空");
+                            return false;
+                        }
+                    }
+//                    var des = $("des").eq(0).text();
+//                    if(!des){
+//                        alert("描述不能为空");
+//                        return false;
+//                    }
+                    break;
+                case '3':
+                    if(!$("input[name='cover']").val()){
+                        alert("图片不能为空");
+                        return false;
+                    }
+                    break;
+            }
+
+            $('#keyword-form').submit();
+        });
+
+        //检测关键字是否重复
+        $("#keyword").blur(function(){
+            var that = $(this);
+            var kw = $.trim($(this).val());
+            var id = that.data('id');
+            if(kw.length){
+                $.ajax({
+                    type:"post",
+                    url :"/main/check_keyword",
+                    dataType:"json",
+                    data:{kw:kw,id:id},
+                    async:false,
+                    success:function(return_data){
+                        if(return_data.status){
+                            alert(return_data.msg);
+                            that.focus();
+                            do_submit=1;
+                        }else{
+                            do_submit="";
+                        }
+                    }
+                });
+            }
+        })
+
+        // 点击表情，添加到对应的文本框中
+        $('#face a').click(function(){
+            var face_str = $(this).text();
+            var textarea = $.trim(ue.getContentTxt());
+            var content = textarea + face_str;
+            ue.setContent(content);
+        });
+        //禁用其他文本
+        //编辑时
+//        ue.setContent("22");
+//                            ue.setHide();
+
+        $(document).ready(function(){
+            var check = $("input[name='type']:checked").val();
+            switch(check){
+                case '1':
+                    $(".type2").each(function(){
+                        $(this).attr("disabled","disabled");
+                    });
+                    $(".type3").each(function() {
+                        $(this).attr("disabled", "disabled");
+                    });
+                    $("#reply_content").show();
+                    break;
+                case '2':
+                    $(".type2").each(function(){
+                        $(this).removeAttr("disabled");
+                    });
+
+                    $(".type3").each(function() {
+                        $(this).attr("disabled", "disabled");
+                    });
+                    $("#reply_content").hide();
+                    break;
+                case '3':
+                    $(".type2").each(function(){
+                        $(this).attr("disabled", "disabled");
+                    });
+                    $(".type3").each(function() {
+                        $(this).removeAttr("disabled");
+                    });
+                    $("#reply_content").hide();
+                    break;
+            }
+        });
+
+        //添加时
+        $("input[name='type']").on('click',function(){
+            var type = $("input[name='type']:checked").val();
+            switch(type){
+                case '1':
+                    $("#reply_content").show();
+                    $(".type2").each(function(){
+                        $(this).attr("disabled","disabled");
+                    });
+                    $(".type3").each(function() {
+                        $(this).attr("disabled", "disabled");
+                    });
+                    break;
+                case '2':
+                    $("#reply_content").hide();
+//                    $(".insert").hide();
+                    $(".type2").each(function(){
+                        $(this).removeAttr("disabled");
+                    });
+
+                    $(".type3").each(function() {
+                        $(this).attr("disabled", "disabled");
+                    });
+                    break;
+                case '3':
+                    $("#reply_content").hide();
+                    $(".type2").each(function(){
+                        $(this).attr("disabled", "disabled");
+                    });
+                    $(".type3").each(function() {
+                        $(this).removeAttr("disabled");
+                    });
+                    break;
+            }
+
+        });
+
+
+    });
+//    // emoji 和 颜文字 切换
+//    $('.mdbqtab li').click(function(){
+//        $(this).attr('class', 'current').siblings().removeClass('current');
+//        var cont = $(this).attr('id')+'_cont';
+//        $('#'+cont).show().siblings('div').hide();
+//    });
+
+    // 禁止向上冒泡
+    $('#face').click(function(event){
+        event.stopPropagation();
+    });
+
+    // 表情DOM追加
+    $(document).on('click', '.face', function(event){
+        var face_div = document.getElementById('face');
+        if(this.parentNode.lastChild.nodeName == 'DIV'){
+            document.getElementById('face-home').appendChild(face_div);
+            $('#mdbqtab_1').attr('class', 'current');
+            $('#mdbqtab_2').attr('class', '');
+            $(this).removeClass('no-opacity');
+        }else{
+            this.parentNode.appendChild(face_div);
+            $('#mdbqtab_1').attr('class', 'current');
+            $('#mdbqtab_2').attr('class', '');
+            $(this).addClass('no-opacity');
+        }
+        event.stopPropagation();
+    });
+
+
+    $(document).click(function(){
+        // 表情收回
+        if($('#face-home').find('#face').length < 1){
+            $('#face').prev().removeClass('no-opacity');		// 标签按钮的颜色恢复
+            $('#face-home').append($('#face'));
+            $('#mdbqtab_1').attr('class', 'current');
+            $('#mdbqtab_2').attr('class', '');
+        }
+    });
+//    $("#reply_content").select(function(){
+//        var tt = $(this).val();
+//        alert(tt);
+//    });
+    $(document).on('click','#add_rule',function(){
+        if($(".do_clone").length>=9){
+            alert("最多添加10条");
+            return false;
+        }
+        var append_html = $(".do_clone").last().clone();
+        $(this).remove();
+        $(".do_clone").last().after(append_html);
+        $(".do_clone").last().find(".type2").each(function(){
+           $(this).val('');
+
+        });
+        $(".do_clone").last().find(".pic_pre").val('');
+        $(".do_clone").last().find(".des").parent("div").remove();
+        $(".do_clone").last().find(".img_preview").attr('src','');
+    });
+    $(document).on('change',".pic",function(){
+        var formdata = new FormData();
+        var v_this = $(this);
+        var fileObj = v_this.get(0).files;
+        url = "main/upload_kw_attachment";
+        //var fileObj=document.getElementById("fileToUpload").files;
+        formdata.append("imgFile", fileObj[0]);
+        jQuery.ajax({
+            url : url,
+            type : 'post',
+            data : formdata,
+            cache : false,
+            contentType : false,
+            processData : false,
+            dataType : "json",
+            success : function(return_data) {
+//                var str = "<img style='vertical-align:middle;max-width:100%;' src="+return_data.pic+">";
+                v_this.next().attr({src:return_data.pic});
+                if($("input[name='type']:checked").val()==3){
+                    v_this.prev().val(return_data.root_path);
+                }else{
+                    v_this.prev().val(return_data.db_path);
+                }
+
+//                alert(333);
+//                return false;
+//                if (data.error == 0) {
+//                    v_this.parent().children(".img_upload").attr("src", data.url);
+                    //$("#img").attr("src",data.url);
+//                }
+            }
+        });
+    });
+    $(".del_tag").click(function(){
+        if(!confirm("你确定要删除此关键字吗？")){
+            return false;
+        }
+
+        var that = $(this);
+        var id = that.data("id");
+        var kw = that.data("kw");
+        $.ajax({
+            type :"post",
+            url  :"main/update_keyword",
+            dataType:"json",
+            data:{id:id,kw:kw},
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.prev().remove();
+                    that.remove();
+                    $("#keyword").val(return_data.new_key);
+                }
+            }
+        });
+    });
+
+
+</script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.config.js?t=20150918"></script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.all.js?t=20150421"></script>
+<?php $this->load->view('ckad/footer'); ?>

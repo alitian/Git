@@ -1,0 +1,384 @@
+<?php
+/**
+ * 统计项目的状态 排行
+ * 项目的状态 state 1创意 2预热 3众筹中 4众筹成功 5众筹结束
+ * 榜单的分类 cate 1为日筹款榜，2为周筹款榜，3为总榜，4为日人气榜，5为周人气榜,6位总人气榜
+ * Created by PhpStorm.
+ * User: modian
+ * Date: 2016/5/6
+ * Time: 9:34
+ */
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Product_statistics_cron extends Deamon_Controller {
+
+//    const PRO_STATUS_IDEA = 1;         //'创意阶段';
+//    const PRO_STATUS_PREHEAT =2;      //'预热中';
+//    const PRO_STATUS_GOING =3;        //'进行中';
+//    const PRO_STATUS_SUCCESS =4;     // '众筹成功';
+//    const PRO_STATUS_END =5;         //'众筹结束';
+
+    const MD_DAY_AMOUNT_RANK   = 1;    //日筹款榜
+    const MD_WEEK_AMOUNT_RANK  = 2;    //周筹款榜
+    const MD_TOTAL_AMOUNT_RANK = 3;    //总筹款榜
+    const MD_DAY_FAVOR_RANK    = 4;    //日人气榜
+    const MD_WEEK_FAVOR_RANK   = 5;    //周人气榜
+    const MD_TOTAL_FAVOR_RANK  = 6;    //总人气榜
+
+    private $state_status = array(
+        'ideas' =>1,        //'创意阶段'
+        'preheat'=>2,       //'预热中'
+        'going' =>3,        //'进行中'
+        'success'=>4,       // '众筹成功'
+        'finish'=>5,        //'众筹结束'
+    );
+
+    //海燕需求 取SNH48相关项目
+    private $snh48_pro_ids = array(1718,1854,1974,2066,2960,3010,3000,2208,2074,3035,3045,3056,3037,3065,3066,3071,3094,3060,3115,3154,3158,3123,3106,3025,3759,3106,3215,3201,3180,3123,3158);
+
+    public function __construct(){
+        parent::__construct();
+        $this->load->model('product_model');
+        $this->load->model("product_m");
+    }
+    /*
+     * 1h 刷一次
+     * 24小时筹款和人气榜
+     */
+    public function product_statistics_day(){
+        $start_time = microtime();
+
+        //众筹中或者众筹成功项目
+        $sql = "SELECT `id` FROM md_product WHERE category<>'摩点测试专用' AND if_show = 1 AND pro_type <> 3 AND (`end_time` > NOW() OR `backer_money` >= `goal` )  ORDER BY `id`";
+        $running_project = $this->db->query($sql)->result_array();
+        $pro_ids = array_map("array_shift",$running_project);
+        $snh48_ids = $this->snh48_pro_ids;
+        $pro_ids = implode(',',array_diff($pro_ids,$snh48_ids));
+//        $pro_ids = implode(',',array_map("array_shift",$running_project));
+
+        //更新日筹款榜
+        $amount_sql = "SELECT `pro_id`,SUM(`amount`) as amount FROM `md_product_back` WHERE `if_pay`=1 AND `wds_id`=0 AND `ctime` < NOW() AND `ctime` > '". date("Y-m-d H:i:s",strtotime("-1 day")) ."' AND `pro_id` IN ({$pro_ids}) GROUP BY `pro_id` ORDER BY `amount` LIMIT 100";
+
+        $result = $this->db->query($amount_sql)->result_array();
+        if(!empty($result)){
+            $this->set_rank_status(self::MD_DAY_AMOUNT_RANK);
+            foreach($result as &$item){
+                $item['cate']=self::MD_DAY_AMOUNT_RANK;
+            }
+            $this->db->insert_batch("md_product_statistics",$result);
+        }
+
+        //日人气榜
+        $favor_sql = "SELECT `pro_id`,COUNT(`pro_id`) as amount FROM `md_product_favors` WHERE `type`=1 AND `ctime` > '". date("Y-m-d H:i:s",strtotime("-1 day")) ."' GROUP BY `pro_id` ORDER BY `amount` DESC";
+
+        $favor_result = $this->db->query($favor_sql)->result_array();
+
+        $pro_ids = $this->db->query("SELECT `pro_id` FROM `md_product_statistics` WHERE  `cate`=4 AND `status`=1")->result_array();
+        $pro_ids = array_map("array_shift",$pro_ids);
+        if(!empty($favor_result)) {
+//            $this->set_rank_status(self::MD_DAY_FAVOR_RANK);
+            foreach ($favor_result as $k => &$item) {
+                if (in_array($item['pro_id'], $pro_ids)) { //判断update还是insert
+                    $update_sql = "UPDATE `md_product_statistics` SET `amount`={$item['amount']} WHERE `pro_id`={$item['pro_id']} AND `cate`=4";
+                    $this->db->query($update_sql);
+                } else {
+                    $insert_data[$k]['pro_id'] = $item['pro_id'];
+                    $insert_data[$k]['amount'] = $item['amount'];
+                    $insert_data[$k]['cate'] = self::MD_DAY_FAVOR_RANK;
+                }
+//                $item['cate'] = self::MD_DAY_FAVOR_RANK;
+            }
+            if (!empty($insert_data)) {
+                $this->db->insert_batch("md_product_statistics", $insert_data);
+            }
+        }
+        if (!file_exists("/ROOT/log/php/statistics")) {
+            mkdir("/ROOT/log/php/statistics" ,0755,true);
+        }
+        $end_time = microtime();
+        $run_time = $end_time-$start_time;
+        error_log(date("Y-m-d H:i:s",time())."-- product_statistics_day--".var_export($run_time,true)."\r\n",3,'/ROOT/log/php/statistics/md_statistics.log');
+
+        $this->sync_product_comment();
+    }
+
+    /*
+     * 1 day 刷一次
+     * 周筹款and人气榜
+     */
+    public function  product_statistics_week(){
+        $start_time = microtime();
+
+        //众筹中或者众筹成功项目
+        $sql = "SELECT `id` FROM md_product WHERE category<>'摩点测试专用' AND if_show = 1 AND pro_type <> 3 AND (`end_time` > NOW() OR `backer_money` >= `goal` )  ORDER BY `id`";
+        $running_project = $this->db->query($sql)->result_array();
+        $pro_ids = array_map("array_shift",$running_project);
+        $snh48_ids = $this->snh48_pro_ids;
+        $pro_ids = implode(',',array_diff($pro_ids,$snh48_ids));
+
+
+        //更新周筹款榜
+        $amount_sql = "SELECT `pro_id`,SUM(`amount`) as amount FROM `md_product_back` WHERE `if_pay`=1 AND `wds_id`=0 AND `ctime` < NOW() AND `ctime` > '". date("Y-m-d H:i:s",strtotime("-7 day")) ."' AND `pro_id` IN ({$pro_ids}) GROUP BY `pro_id` ORDER BY `amount` LIMIT 100";
+
+        $result = $this->db->query($amount_sql)->result_array();
+        if(!empty($result)){
+            $this->set_rank_status(self::MD_WEEK_AMOUNT_RANK);
+            foreach($result as &$item){
+                $item['cate']=self::MD_WEEK_AMOUNT_RANK;
+            }
+            $this->db->insert_batch("md_product_statistics",$result);
+        }
+
+        //周人气榜
+        $favor_sql = "SELECT `pro_id`,COUNT(`pro_id`) as amount FROM `md_product_favors` WHERE `type`=1 AND `ctime` > '". date("Y-m-d H:i:s",strtotime("-7 day")) ."' GROUP BY `pro_id` ORDER BY `amount` DESC";
+
+        $favor_result = $this->db->query($favor_sql)->result_array();
+
+        $pro_ids = $this->db->query("SELECT `pro_id` FROM `md_product_statistics` WHERE  `cate`=5 AND `status`=1")->result_array();
+        $pro_ids = array_map("array_shift",$pro_ids);
+        if(!empty($favor_result)){
+//            $this->set_rank_status(self::MD_WEEK_FAVOR_RANK);
+            foreach($favor_result as $k=>&$item){
+                if(in_array($item['pro_id'],$pro_ids)){ //判断update还是insert
+                    $update_sql = "UPDATE `md_product_statistics` SET `amount`={$item['amount']} WHERE `pro_id`={$item['pro_id']} AND `cate`=5";
+                    $this->db->query($update_sql);
+                }else{
+                    $insert_data[$k]['pro_id'] = $item['pro_id'];
+                    $insert_data[$k]['amount'] = $item['amount'];
+                    $insert_data[$k]['cate']   = self::MD_WEEK_FAVOR_RANK;
+                }
+//                $item['cate']=6;
+            }
+            if(!empty($insert_data)){
+                $this->db->insert_batch("md_product_statistics",$insert_data);
+            }
+        }
+        if (!file_exists("/ROOT/log/php/statistics")) {
+            mkdir("/ROOT/log/php/statistics" ,0755,true);
+        }
+        $end_time = microtime();
+        $run_time = $end_time-$start_time;
+        error_log(date("Y-m-d H:i:s",time())."-- product_statistics_total--".var_export($run_time,true)."\r\n",3,'/ROOT/log/php/statistics/md_statistics.log');
+    }
+
+    /*
+     * 1 day 刷一次
+     * 筹款and人气总榜
+     */
+    public function product_statistics_total(){
+        $start_time = microtime();
+
+        //众筹中或者众筹成功项目
+        $sql = "SELECT `id` FROM md_product WHERE category<>'摩点测试专用' AND if_show = 1 AND pro_type <> 3 AND (`end_time` > NOW() OR `backer_money` >= `goal` )  ORDER BY `id`";
+        $running_project = $this->db->query($sql)->result_array();
+        $pro_ids = array_map("array_shift",$running_project);
+        $snh48_ids = $this->snh48_pro_ids;
+        $pro_ids = implode(',',array_diff($pro_ids,$snh48_ids));
+
+        //更新总筹款榜
+        $amount_sql = "SELECT `pro_id`,SUM(`amount`) as amount FROM `md_product_back` WHERE `if_pay`=1 AND `wds_id`=0 AND `pro_id` IN ({$pro_ids}) GROUP BY `pro_id` ORDER BY `amount`";
+
+        $result = $this->db->query($amount_sql)->result_array();
+
+        if(!empty($result)){
+            $this->set_rank_status(self::MD_TOTAL_AMOUNT_RANK);
+            foreach($result as &$item){
+                $item['cate']=self::MD_TOTAL_AMOUNT_RANK;
+            }
+            $this->db->insert_batch("md_product_statistics",$result);
+        }
+
+        //总人气榜
+        $favor_sql = "SELECT `pro_id`,COUNT(`pro_id`) as amount FROM `md_product_favors` WHERE `type`=1 GROUP BY `pro_id` ORDER BY `amount` DESC";
+
+        $favor_result = $this->db->query($favor_sql)->result_array();
+
+        $pro_id_list = $this->db->query("SELECT `pro_id` FROM `md_product_statistics` WHERE  `cate`=6 AND `status`=1")->result_array();  //已经存在的
+        $pro_id_list = array_map("array_shift",$pro_id_list);
+        if(!empty($favor_result)){
+//            $this->set_rank_status(self::MD_TOTAL_FAVOR_RANK);
+            foreach($favor_result as $k=>&$item){
+                if(in_array($item['pro_id'],$pro_id_list)){ //判断update还是insert
+                    $update_sql = "UPDATE `md_product_statistics` SET `amount`={$item['amount']} WHERE `pro_id`={$item['pro_id']} AND `cate`=6";
+                    $this->db->query($update_sql);
+                }else{
+                    $insert_data[$k]['pro_id'] = $item['pro_id'];
+                    $insert_data[$k]['amount'] = $item['amount'];
+                    $insert_data[$k]['cate']   = self::MD_TOTAL_FAVOR_RANK;
+                }
+//                $item['cate']=6;
+            }
+            if(!empty($insert_data)){
+                $this->db->insert_batch("md_product_statistics",$insert_data);
+            }
+        }
+        if (!file_exists("/ROOT/log/php/statistics")) {
+            mkdir("/ROOT/log/php/statistics" ,0755,true);
+        }
+        $end_time = microtime();
+        $run_time = $end_time-$start_time;
+        error_log(date("Y-m-d H:i:s",time())."-- product_statistics_total--".var_export($run_time,true)."\r\n",3,'/ROOT/log/php/statistics/md_statistics.log');
+
+        $this->product_statistics_week();
+    }
+
+
+    /**
+     * 1h 刷一次
+     * //更新md_product comment_count字段
+     */
+    public function sync_product_comment()
+    {
+        $start_time = microtime();
+        $sql = "SELECT `id` FROM md_product WHERE category<>'摩点测试专用' AND if_show = 1  ORDER BY `id`";
+        $running_project = $this->db->query($sql)->result_array();
+        $pro_ids = array_map("array_shift",$running_project);
+
+        foreach($pro_ids as $pro_id){
+            $comment_count = (int)$this->product_model->get_comment_count($pro_id);
+            $update_sql = "UPDATE `md_product` SET `comment_count` = {$comment_count} WHERE `id`={$pro_id}";
+            $this->db->query($update_sql);
+        }
+        if (!file_exists("/ROOT/log/php/statistics")) {
+            mkdir("/ROOT/log/php/statistics" ,0755,true);
+        }
+        $end_time = microtime();
+        $run_time = $end_time-$start_time;
+        error_log(date("Y-m-d H:i:s",time())."-- sync product_comment--".var_export($run_time,true)."\r\n",3,'/ROOT/log/php/statistics/sync_product_comment.log');
+    }
+
+    public function get_product_status($pro_id){
+        $pro_info = $this->product_model->get_product_info($pro_id);
+        $state    = $this->product_model->get_product_status($pro_info,$pro_info['backer_money']);
+        if($state == "征集意见中"){
+            $state = 1;                //创意
+        }else if($state == "预热中"){
+            $state = 2;                 //预热
+        }else if($state == "进行中"){
+            $state = 3;                 //众筹中
+        }else if($state == "众筹成功"){
+            $state = 4;                 //众筹成功
+        }else if($state == "众筹结束"){
+            $state = 5;                 //众筹结束
+        }else{
+            $state = 0 ;  //其他
+        }
+        return $state;
+    }
+
+    /**
+     * 这里我先把所有项目的各个状态一次性查出来,大量数据就减少select次数
+     * 调用时直接用pro_id取下标就行
+     * @return array  key--pro_id value--state(1,2,3,4,5)
+     */
+    public function get_product_state(){
+        $preheat_condition= " start_time >'" . date("Y-m-d H:i:s") . "'";                                       //预热
+        $going_condition = " end_time >'" . date("Y-m-d H:i:s") . "' AND start_time<'" . date("Y-m-d H:i:s") . "'";  //进行中
+        $success_condition = " end_time <'" . date("Y-m-d H:i:s") . "' AND NOT ISNULL(backer_money) AND backer_money >= goal "; //众筹成功
+        $finish_condition = " end_time <'" . date("Y-m-d H:i:s") . "'  AND backer_money < goal ";  //众筹结束(失败)
+        $ideas_condition = " pro_type=4 ";  //创意
+
+        $sql ="SELECT id,
+CASE WHEN {$preheat_condition} THEN 1 ELSE 0 END AS preheat,
+CASE WHEN {$going_condition} THEN 1 ELSE 0 END AS going,
+CASE WHEN {$success_condition} THEN 1 ELSE 0 END AS success,
+CASE WHEN {$ideas_condition} THEN 1 ELSE 0 END AS ideas,
+CASE WHEN {$finish_condition} THEN 1 ELSE 0 END AS finish
+FROM md_product WHERE category<>'摩点测试专用' AND if_show=1 AND pro_type<>3";
+        $res = $this->db->query($sql)->result_array();
+
+        $state_v = $this->state_status;
+        $state = array_keys($res[0]);  //取二维数组下的键
+        array_shift($state);            //去掉id
+
+        foreach($res as &$item){
+            foreach($state as $v){
+                if($item[$v]){
+                    $result[$item['id']] = $state_v[$v];
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * 查单个项目的状态(少量数据循环使用)
+     * 调用时判断pro_id是否在各个状态的数组中就行
+     * @return array  key--pro_id value--state(1,2,3,4,5)
+     */
+    public function get_product_state_by_pro_id($pro_id){
+        $pro_id = intval($pro_id);
+        $preheat_condition= " start_time >'" . date("Y-m-d H:i:s") . "'";                                       //预热
+        $going_condition = " end_time >'" . date("Y-m-d H:i:s") . "' AND start_time<'" . date("Y-m-d H:i:s") . "'";  //进行中
+        $success_condition = " end_time <'" . date("Y-m-d H:i:s") . "' AND NOT ISNULL(backer_money) AND backer_money >= goal "; //众筹成功
+        $finish_condition = " end_time <'" . date("Y-m-d H:i:s") . "'  AND backer_money < goal ";  //众筹结束(失败)
+        $ideas_condition = " pro_type=4 ";  //创意
+
+        $sql ="SELECT id,
+CASE WHEN {$preheat_condition} THEN 1 ELSE 0 END AS preheat,
+CASE WHEN {$going_condition} THEN 1 ELSE 0 END AS going,
+CASE WHEN {$success_condition} THEN 1 ELSE 0 END AS success,
+CASE WHEN {$ideas_condition} THEN 1 ELSE 0 END AS ideas,
+CASE WHEN {$finish_condition} THEN 1 ELSE 0 END AS finish
+FROM md_product WHERE category<>'摩点测试专用' AND if_show=1 AND pro_type<>3 AND id = {$pro_id} ";
+        $res = $this->db->query($sql)->row_array();
+
+        $state_v = $this->state_status;
+        $state = array_keys($res);  //取数组的键
+        array_shift($state);            //去掉id
+        foreach($state as $v){
+            if($res[$v]){
+                $result = $state_v[$v];
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @param $cate 根据cate来设置status状态,
+     * 设为0,保留上一次的数据
+     */
+    private function set_rank_status($cate){
+        $cate = intval($cate);
+        $update_data = array("status"=>0);
+        $this->db->where('cate',$cate);
+        $this->db->update("md_product_statistics",$update_data);
+    }
+
+    /**
+     * 根据项目ID取项目类别和审核通过时间
+     * @param $pro_id 项目id
+     * @return mixed
+     */
+//    private function get_product_category_and_time($pro_id){
+//        $pro_id = intval($pro_id);
+//        $this->db->select("category,examine_modify_time,examine_modify_time_idea,pro_type");
+//        $this->db->from("md_product");
+//        $this->db->where("id",$pro_id);
+//        $result = $this->db->get()->row_array();
+//        if(!empty($result)){
+//            if($result['pro_type'] == 4){  //创意类项目
+//                $result['examine_modify_time'] = $result['examine_modify_time_idea'];
+//            }
+//            $result['category'] = $this->get_category_en($result['category']);
+//            return $result;
+//        }else{
+//            return '';
+//        }
+//    }
+
+//    //分类 中文名变英文名
+//    private function get_category_en($category){
+//        $this->db->select("catename_en");
+//        $this->db->from("md_product_category");
+//        $this->db->where("catename_ch",$category);
+//        $result = $this->db->get()->row_array();
+//        if(!empty($result))
+//            return $result['catename_en'];
+//        else
+//            return '';
+//    }
+
+}

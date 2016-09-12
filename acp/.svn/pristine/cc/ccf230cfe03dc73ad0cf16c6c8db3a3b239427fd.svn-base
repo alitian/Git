@@ -1,0 +1,134 @@
+<?php $this->load->view('special_subj/ssubj_editor_head'); ?>
+
+<link rel="stylesheet" href="css/module.css">
+<script src="js/respond.min.js"></script>
+<style>
+    /** 模块条幅 */
+    .module-item .module-banner {
+        margin-bottom: 21px;
+    }
+    .module-item .module-banner h4 {
+        padding: 10px 15px;
+        border-top: 1px solid #dfdfdf;
+        border-bottom: 1px solid #dfdfdf;
+        background-color: #f0f0f0;
+        color: #000;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    /** 导航模块 */
+    .module-nav {margin: 10px 70px;}
+    .module-nav .navbar {position:relative;height:60px;background:#eee;clear:both;}
+    .module-nav .logo {position:absolute;top:10px;left:40px;width:140px;height:40px;text-align:center;line-height:40px;background:#dcdcdc;}
+    .module-nav .menu {position:absolute;left:50%;height:60px;margin-left:-220px;}
+    .module-nav .menu li {display:block;float:left;height:60px;line-height:60px;padding:0 20px;}
+    .module-nav .menuleft {height:60px;padding-left:20px;}
+    .module-nav .menuleft li {display:block;float:left;height:60px;line-height:60px;padding:0 20px;}
+    .module-nav .menuright {position:absolute;right:20px;top:0;height:60px;}
+    .module-nav .menuright li {display:block;float:left;height:60px;line-height:60px;padding:0 20px;}
+    .module-nav .share {position:absolute;right:20px;top:14px;}
+    .module-nav .share a {display:block;float:left;width:32px;height:32px;margin-right:20px;background:#dcdcdc;text-indent:-9999px;}
+    .module-nav .share a.weibo {background:#dcdcdc url(../img/weibo.png) center center no-repeat;}
+    .module-nav .share a.weixin {background:#dcdcdc url(../img/weixin.png) center center no-repeat;}
+    .module-nav .share a.qzone {background:#dcdcdc url(../img/qzone.png) center center no-repeat;}
+
+    @media screen and (max-width:780px) {
+        .module-nav .navbar {height:auto;}
+        .module-nav .menu {position:relative;height:auto;margin:0;left:auto;padding:60px 0 0 40px;}
+        .module-nav .menu li {float:none;padding:0;}
+        .module-nav .menuleft {height:auto;padding-left:40px;}
+        .module-nav .menuleft li {float:none;padding:0;}
+        .module-nav .menuright {position:relative;height:auto;margin:0;right:auto;padding:60px 0 0 40px;}
+        .module-nav .menuright li {float:none;padding:0;}
+    }
+
+    .module-nav .module-setting .item-inline {
+        display: inline-block;
+        margin: 2px 7px;
+    }
+    .module-nav .module-setting .item-block {
+        display: block;
+        margin: 2px 0;
+    }
+
+</style>
+
+<div id="module-nav" class="module-item module-nav">
+    <div class="module-banner">
+        <h4>导航模块</h4>
+    </div>
+    <div class="module-preview">
+        <div class="navbar">
+            <div class="logo">logo</div>
+            <ul class="menu">
+                <li>标签一</li>
+                <li>标签二</li>
+                <li>标签三</li>
+                <li>标签四</li>
+                <li>标签五</li>
+            </ul>
+            <div class="share">
+                <a href="" class="weibo">新浪微博</a>
+                <a href="" class="weixin">微信</a>
+                <a href="" class="qzone">QQ空间</a>
+            </div>
+        </div>
+        <div class="navbar">
+            <ul class="menuleft">
+                <li>标签一</li>
+                <li>标签二</li>
+                <li>标签三</li>
+                <li>标签四</li>
+                <li>标签五</li>
+            </ul>
+        </div>
+        <div class="navbar">
+            <div class="logo">logo</div>
+            <ul class="menuright">
+                <li>标签一</li>
+                <li>标签二</li>
+                <li>标签三</li>
+                <li>标签四</li>
+                <li>标签五</li>
+            </ul>
+        </div>
+    </div>
+    <div class="module-setting">
+        <form class="form-inline" action="">
+            <div class="item-inline">
+                <a href="javascript:;">预览</a>
+            </div>
+            <div class="item-inline">
+                <input type="text" class="input-small" name="bgcolor" placeholder="#efefef">
+            </div>
+            <div class="item-inline">
+                <input type="text" class="input-small" name="logo" placeholder="logo">
+                <a href="javascript:;">上传logo</a>
+            </div>
+            <div class="item-inline">
+                <select name="menu_pos">
+                    <option value="0"></option>
+                    <option value="left">标签居左</option>
+                    <option value="center">标签居中</option>
+                    <option value="right">标签居右</option>
+                </select>
+                <a href="javascript:;">增加标签</a>
+            </div>
+            <div class="item-block">
+                <div class="item-inline">
+                    <input type="text" class="input-small item-block" name="menu_title[]">
+                    <input type="text" class="input-small item-block" name="menu_url[]">
+                </div>
+                <div class="item-inline">
+                    <input type="text" class="input-small item-block" name="menu_title[]">
+                    <input type="text" class="input-small item-block" name="menu_url[]">
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+<?php $this->load->view('special_subj/ssubj_editor_foot'); ?>

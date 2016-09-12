@@ -1,0 +1,53 @@
+<div id="module-billboard" class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">榜单</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="4">
+  </div>
+  <p></p>
+  <div class="module-detail">
+  <form action="" method="POST">
+    <div class="row-fluid" style="display:none;">
+        <input class="input-large" name="billboard_id" type="text" value='<?=$SSM_4['billboard_info']['id']?>' placeholder="榜单ID" readonly>
+        <input class="input-large" name="ssubj_id" type="text" value='<?=$SSM_4['billboard_info']['ssubj_id']?>' placeholder="专题ID" readonly>
+    </div>
+    <div class="row-fluid">
+        <div class="span3"><label>榜单算法</label></div>
+        <div class="span9">
+            <label class="radio">
+              <input type="radio" name="billboard_algo" value="1" <?php echo $SSM_4['billboard_info']['algo']==1 ? 'checked' : ''; ?>>
+              默认按照支持人数从高到低
+            </label>
+            <label class="radio">
+              <input type="radio" name="billboard_algo" value="2" <?php echo $SSM_4['billboard_info']['algo']==2 ? 'checked' : ''; ?>>
+              默认按照融资金额从高到低
+            </label>
+            <label class="radio">
+              <input type="radio" name="billboard_algo" value="3" <?php echo $SSM_4['billboard_info']['algo']==3 ? 'checked' : ''; ?>>
+              默认按照评论条数从高到低
+            </label>
+            <label class="radio">
+              <input type="radio" name="billboard_algo" value="4" <?php echo $SSM_4['billboard_info']['algo']==4 ? 'checked' : ''; ?>>
+              默认按照投票结果从高到低
+            </label>
+            <label class="radio">
+              <input type="radio" name="billboard_algo" value="5" <?php echo $SSM_4['billboard_info']['algo']==5 ? 'checked' : ''; ?>>
+              默认按照金额和支持人数综合结果从高到低（金额*70%+支持人数*30%)
+            </label>
+        </div>
+    </div>
+    <div class="row-fluid">
+      <div class="span3"><label>项目ID</label></div>
+      <div class="span9 input-append">
+          <input class="input-large" name="billboard_pro_id" value='<?=$SSM_4['billboard_info']['priority_pro']?>' type="text" placeholder="项目ID" readonly>
+          <a href="#add-billboard-pro-modal" role="button" data-toggle="modal">添加项目</a>
+      </div>
+    </div>
+    <p></p>
+    <div class="row-fluid">
+      <button type="button" class="btn">取消</button>
+      <button name="sure" type="button" class="btn btn-primary">保存</button>
+    </div>
+  </form>
+  </div>
+</div>

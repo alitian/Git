@@ -1,0 +1,66 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript">
+    $(function() {
+<?php if (isset($data['type']) && $data['type'] == 2): ?>
+            showModule('admin');
+<?php endif; ?>
+    });
+    function showModule(id)
+    {
+        if (id == 'super_admin')
+            $('#permission').hide();
+        else
+            $('#permission').show();
+    }
+</script>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div class="box-header well" data-original-title>
+            <h2><i class="icon-picture"></i>系统管理员</h2>
+
+        </div>
+        <div class="box-content">   
+            <div class="row-fluid">
+                <div class="well span5 center login-box">
+                    <div>		  
+                        <form class="form-horizontal" action="admin_user/save_action/<?php echo $action; ?>/<?php echo $id; ?>" method="post"  onSubmit="return Validator.Validate(this, 3)">
+                            <table class="table table-striped table-bordered bootstrap-datatable datatable">								
+                                <tr>
+                                    <td>用户名：<input type="text" name="name" id="name" value="<?php echo $data['name']; ?>" dataType="Require" msg="请填写用户名"/><span style="color:#FF0000"><?php echo $error['name']; ?></span></td>
+                                </tr>
+                                <tr>
+                                    <td>邮箱：<input type="text" name="email" id="email" value="<?php echo $data['email']; ?>" dataType="Email" msg="邮箱格式有误"/><span style="color:#FF0000"><?php echo $error['email']; ?></span></td>
+                                </tr>
+                                <tr>
+                                    <td>密码：<input type="password" name="password" id="password" value="" /><span style="color:#FF0000"><?php echo $error['password']; ?></span></td>
+                                </tr>
+                                <tr>
+                                    <td>权限组：
+                                        <select name="admin_group" id="admin_group">
+                                            <?php foreach ($group_list as $group): ?>
+                                                <option value="<?= $group['id']; ?>" <?php if (isset($data['admin_group']) && $data['admin_group'] == $group['id']): ?> selected="selected"<?php endif; ?>><?= $group['group_name']; ?></option>
+                                            <?php endforeach; ?>
+                                        </select>								
+                                        </div>								
+                                    </td>
+                                </tr>														
+                                <tr>
+                                    <td><p><input class="btn btn-primary" type="submit" name="btnSubmit" id="btnSubmit" value="保存"/>&nbsp;&nbsp;<a href="admin_user/users" class="btn btn-primary" >取消</a></p></td>
+                                </tr>
+                            </table>
+
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+
+        </div>
+    </div><!--/span-->
+
+</div><!--/row-->
+
+<!-- content ends -->
+
+<?php
+$this->load->view('ckad/footer')?>

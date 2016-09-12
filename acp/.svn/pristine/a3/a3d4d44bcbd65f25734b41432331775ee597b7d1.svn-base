@@ -1,0 +1,70 @@
+<?php $this->load->view('ckad/header'); ?>
+<link id="bs-css" href="<?= static_url(); ?>css/bootstrap-cerulean.css" rel="stylesheet">
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<style>
+    .display-none {
+        display: none;
+    }
+</style>
+
+
+<h2>统计信息接口</h2>
+
+<hr><p></p>
+<h3>用户留存</h3>
+<p></p>
+
+<form action="" method="POST">
+    <input type="input" class="display-none" name="type" value="99" readonly>
+    <select name="acc_type">
+        <option value="2">登陸后</option>
+        <option value="1">訪問</option>
+    </select>
+    <select name="date_type">
+        <option value="1">日(最近14天)</option>
+        <option value="2">周(最近12周)</option>
+        <!-- <option value="3">月</option> -->
+    </select>
+    <input type="submit" value="获取用户留存信息">
+</form>
+
+<hr><p></p>
+<h3>漏斗图</h3>
+<p></p>
+
+<form action="" method="POST">
+    <div class="input-append date form_datetime">
+        <input type="text" name='start_t' placeholder="开始时间">
+        <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+    </div>
+    <div class="input-append date form_datetime">
+        <input type="text" name='end_t' placeholder="结束时间">
+        <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+    </div>
+    <input type="input" class="display-none" name="type" value="98" readonly>
+    <input type="text" name="pro_id" placeholder="项目id">
+    <input type="text" name="mdsf" placeholder="渠道来源">
+    <input type="submit" value="获取漏斗图信息">
+</form>
+
+
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd hh:mm:ss",
+            pickTime: true
+        });
+        $('.form_datetime_day').datetimepicker({
+            language: 'zh-CN',
+            format: "hh:mm:ss",
+            pickTime: true,
+            pickDate: false
+        });
+    });
+</script>
+
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,39 @@
+<?php $this->load->view('ckad/header') ?>
+<?php if (isset($error) && $error): ?>
+    <div class="alert alert-error">
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+        <strong>Warning!</strong> <?= $error; ?>
+    </div>
+<?php endif; ?>
+<?php if (isset($ok) && $ok): ?>
+<div class="alert alert-success">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <strong>Well done!</strong> <?= $ok; ?>
+</div>
+<?php endif; ?>
+<form class="form-horizontal" method="POST">
+    <div class="control-group">
+        <label class="control-label" for="inputPassword">老密碼</label>
+        <div class="controls">
+            <input type="password" id="old_pwd" name="old_pwd" placeholder="老密碼">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label" for="inputPassword">新密碼</label>
+        <div class="controls">
+            <input type="password" id="new_pwd" name="new_pwd" placeholder="新密碼">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label" for="inputPassword">確認密碼</label>
+        <div class="controls">
+            <input type="password" id="cnew_pwd" name="cnew_pwd" placeholder="確認密碼">
+        </div>
+    </div>
+    <div class="control-group">
+        <div class="controls">
+            <button type="submit" class="btn">修改</button>
+        </div>
+    </div>
+</form>
+<?php $this->load->view('ckad/footer') ?>

@@ -1,0 +1,297 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_report extends Acp_Controller {
+
+		public $site_url;
+		public $base_url;
+		public $uid;
+		public $perpage = 20;
+		public $pass_reason = array(
+								'广告营销',
+								'淫秽色情',
+								'不实信息',
+								'人身攻击',
+								'违法信息',
+								'泄漏隐私',
+								'虚假冒名',
+								'骚扰',
+								'其他'
+							);
+
+		public function __construct(){
+			parent::__construct();
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+			$this->load->helper('url');
+			$this->base_url = base_url();
+			$this->site_url = site_url();
+			$this->load->model('bbs_report_model');
+			$vars = array(
+						'base_url' => $this->base_url,
+						'site_url' => $this->site_url,
+						'pass_reason' => $this->pass_reason,
+						'uid' => $this->uid
+					);
+			$this->load->vars($vars);
+		}
+
+		/**
+		 *
+		 * 	帖子举报页面
+		 * 	@param 			int 			$nextpage
+		 *
+		 */
+		public function post($tag_id = 0, $time = 1, $nextpage = 1)
+		{
+			$submit = $this->input->post('submit');
+			$toptag_list = $this->bbs_report_model->get_toptag_list();
+
+			if($submit){
+				$tag_id = $this->input->post('tag_id') ? $this->input->post('tag_id') : $tag_id;
+				$time = $this->input->post('time') ? $this->input->post('time') : $time;
+			}
+			$report_list = $this->bbs_report_model->get_report_post_list($nextpage, $this->perpage, $tag_id, $time);
+
+			$total_num = $this->bbs_report_model->get_total_post_num($tag_id);
+
+			// 开始分页
+			$this->load->library('pagination');
+			$config = array(
+							'uri_segment' => 5,
+							'base_url' => $this->site_url . "bbs_report/report/$tag_id/$time",
+							'total_rows' => $total_num,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$vars = array(
+						'toptag_list' => $toptag_list,
+						'time' => $time,
+						'tag_id' => $tag_id,
+						'report_list' => $report_list,
+						'pagination' => $pagination
+					);
+			$this->load->vars($vars);
+			$this->load->view('bbs_report/post');
+		}
+
+		/**
+		 *
+		 * 	回复举报页面
+		 * 	@param 			int 			$nextpage
+		 *
+		 */
+		public function reply($time = 1, $nextpage = 1)
+		{
+			$submit = $this->input->post('submit');
+
+			$post_id = 0;
+
+			if($submit){
+				$post_id = $this->input->post('post_id') ? $this->input->post('post_id') : $post_id;
+				$time = $this->input->post('time') ? $this->input->post('time') : $time;
+			}
+			$report_list = $this->bbs_report_model->get_report_reply_list($nextpage, $this->perpage, $post_id, $time);
+			$total_num = $this->bbs_report_model->get_total_reply_num($post_id);
+
+			// 开始分页
+			$this->load->library('pagination');
+			$config = array(
+							'uri_segment' => 4,
+							'base_url' => $this->site_url . "bbs_report/report/$time",
+							'total_rows' => $total_num,
+							'per_page' => $this->perpage,
+							'use_page_numbers' => TRUE,
+							'num_links' => 3,
+							'first_link' => '&laquo;',
+							'prev_link' => '&lt;',
+							'next_link' => '&gt;',
+							'last_link' => '&raquo;',
+							'full_tag_open' => '<nav><ul class="pagination">',
+							'full_tag_close' => '</ul></nav>',
+							'first_tag_open' => '<li>',
+							'first_tag_close' => '</li> &nbsp;&nbsp;',
+							'last_tag_open' => '<li>',
+							'last_tag_close' => '</li> &nbsp;&nbsp;',
+							'prev_tag_open' => '<li>',
+							'prev_tag_close' => '</li> &nbsp;&nbsp;',
+							'next_tag_open' => '<li>',
+							'next_tag_close' => '</li> &nbsp;&nbsp;',
+							'num_tag_open' => '<li>',
+							'num_tag_close' => '</li> &nbsp;&nbsp;',
+							'cur_tag_open' => '<strong>',
+							'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+						);
+			$this->pagination->initialize($config);
+			$pagination = $this->pagination->create_links();
+			$vars = array(
+						'post_id' => $post_id,
+						'time' => $time,
+						'report_list' => $report_list,
+						'pagination' => $pagination
+					);
+			$this->load->vars($vars);
+			$this->load->view('bbs_report/reply');
+		}
+
+		/**
+		 *
+		 * 	处理举报
+		 *
+		 */
+		public function report_transact()
+		{
+			$report_id = $this->input->post('report_id');
+			$reason = '忽略举报';
+			$return = $this->bbs_report_model->report_transact($report_id, $this->uid, $reason);
+			switch($return){
+				case -1:
+					$return_data = array(
+										'status' => -1,
+										'content' => '添加管理操作异常'
+									);
+					break;
+				case 0:
+					$return_data = array(
+										'status' => 0,
+										'content' => '忽略举报异常'
+									);
+					break;
+				case 1:
+					$return_data = array(
+										'status' => 1,
+										'content' => '忽略举报'
+									);
+					break;
+			}
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *
+		 * 	删除举报
+		 *
+		 */
+		public function report_del()
+		{
+			$report_id = $this->input->post('report_id');
+			$reason = trim($this->input->post('reason'));
+			$reason = $reason ? $reason : '删除举报'; 		// 默认操作原因
+			$return = $this->bbs_report_model->report_del($report_id, $this->uid, $reason);
+			switch($return){
+				case 1:
+					$return_data = array(
+										'status' => 1,
+										'content' => '被举报项已删除!'
+									);
+					break;
+				case 0:
+					$return_data = array(
+										'status' => 0,
+										'content' => '删除举报异常'
+									);
+					break;
+				case -1:
+					$return_data = array(
+										'status' => -1,
+										'content' => '删除帖子异常'
+									);
+					break;
+				case -2:
+					$return_data = array(
+										'status' => -2,
+										'content' => '删除回复异常'
+									);
+					break;
+				case -3:
+					$return_data = array(
+										'status' => -3,
+										'content' => '添加操作记录异常'
+									);
+					break;
+				case -4:
+					$return_data = array(
+										'status' => -4,
+										'content' => '标签的帖子数更新失败'
+									);
+					break;
+				case -5:
+					$return_data = array(
+										'status' => -5,
+										'content' => '帖子的回复数更新失败'
+									);
+					break;
+				case -6:
+					$return_data = array(
+										'status' => -6,
+										'content' => '回复的二级回复数更新失败'
+									);
+					break;
+			}
+			echo json_encode($return_data);
+			exit;
+		}
+
+
+		public function export_comment()
+		{
+			$post_id = isset($_POST['post_id'])?(int)$_POST['post_id']:'';
+
+			if(!empty($post_id)){
+				$arr_title = array(
+					"post_id" => "帖子ID",
+					"nickname" => "用户昵称",
+					"content" => "评论内容",
+					"ctime" => "评论时间",
+				);
+				$this->load->helper("excel");
+				$this->load->model("bbs/bbs_m");
+				$this->load->model("user_model");
+				$reply_table = $this->bbs_m-> get_reply_table($post_id);
+				$reply_content_table = $this->bbs_m-> get_reply_content_table($post_id);
+				$sql = "SELECT br.reply_fuid ,br.ctime ,br.post_id ,bc.content FROM {$reply_table} br LEFT JOIN {$reply_content_table} bc ON br.reply_id = bc.reply_id WHERE br.isshow=1 AND `post_id`={$post_id}";
+//				$comment_list = $this->bbs_reply_m->get_reply_list($post_id);
+				$comment_list = $this->moxi_db->query($sql)->result_array();
+//				echo "<pre>";
+
+				foreach($comment_list as $k=>$comment_info) {
+					$return_data[$k]['post_id'] = $comment_info['post_id'];
+					$userinfo = $this->user_model->get_base_info($comment_info['reply_fuid']);
+					$return_data[$k]['nickname'] = $userinfo['nickname'];
+					$return_data[$k]['content'] = htmlspecialchars_decode($comment_info['content']);
+					$return_data[$k]['ctime'] = date("Y-m-d H:i:s", $comment_info['ctime']);
+					unset($userinfo);
+				}
+				unset($comment_list);
+				if(empty($return_data)){
+					md_common::display_javascript("没有数据");
+				}else{
+					$path_file = date("Y-m-d H:i:s", time()) . '.xls';
+					export_to_excel($arr_title, $return_data, $path_file, 0);
+				}
+			}
+			$this->load->view("bbs_report/export_comment");
+		}
+
+}

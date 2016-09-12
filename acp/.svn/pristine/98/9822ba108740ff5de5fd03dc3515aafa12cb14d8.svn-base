@@ -1,0 +1,181 @@
+<?php
+//error_reporting(E_ALL);
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Notify_cron extends CI_Controller {
+
+    /**
+     * 发送需求：
+     * 有APP;微信;QQ公众号的统发；三者之间无先后判定
+     * 无以上三者的发送 短信（用户手机号）
+     * 以上四者均没有的 发送 邮件（用户email）
+     * 
+     */
+    public function notify_send() {
+        ignore_user_abort();
+        $interval = 1;
+        $this->load->library('rmq');
+        $this->load->model('Common');
+        $i = 1;
+        do {
+            try {
+                ##从email队列中依次取数据
+                $email_mess = Rmq::get('send_email_data');
+                error_log(var_export('rmq_email:'.$email_mess."\n", true), 3, "/tmp/notify_api.log");
+                if (!empty($email_mess)) {
+                    $res = $this->Common->send_email($email_mess['to'], $email_mess['edm_title'], $email_mess['email']);
+                    if($res['status']!=3){
+                        $email_inner['send_id'] = $res['email_id'];
+                        $email_inner['to_user'] = $email_mess['user_id'];
+                        $email_inner['obj_id'] = $email_mess['obj_id'];
+                        $email_inner['platform'] = 'email';
+                        $email_inner['send_name'] = $email_mess['config_name'];
+                        $email_inner['content'] = $email_mess['email'];
+                        $email_inner['status'] = 0;
+                        $email_inner['ctime'] = date("Y-m-d H:i:s");
+                        $this->Common->add('md_notify_log', $email_inner);
+                    }                  
+                }
+            } catch (Exception $ex) {
+                $errmsg = $ex->getMessage();
+                error_log(var_export('email_error:'.$errmsg."\n", true), 3, "/tmp/notify_api.log");
+               
+            }
+            try {
+                ##从sms队列中依次取数据
+                $sms_mess = Rmq::get('send_sms_data');
+                error_log(var_export('rmq_sms:'.$sms_mess."\n", true), 3, "/tmp/notify_api.log");
+                if (!empty($sms_mess)) {
+                    if (mb_strlen($sms_mess['sms']) > 59) {
+                        $res = $this->Common->send_long_sms($sms_mess['mobile'], $sms_mess['sms'], '', '', $sms_mess['dealers'], $sms_mess['smstype']);
+                    } else {
+                        $res = $this->Common->send_message($sms_mess['mobile'], $sms_mess['sms'], '', '', '', $sms_mess['dealers'], $sms_mess['smstype']);
+                    }
+                    if ($res['status'] != 2) {
+                        $sms_inner['send_id'] = $res['sms_id'];
+                        $sms_inner['to_user'] = $sms_mess['user_id'];
+                        $sms_inner['obj_id'] = $sms_mess['obj_id'];
+                        $sms_inner['platform'] = 'sms';
+                        $sms_inner['send_name'] = $sms_mess['config_name'];
+                        $sms_inner['content'] = $sms_mess['sms'];
+                        if ($res['result'] == true || stripos($res['result'], ",0\n") !== false) {
+                            $sms_inner['status'] = 1;
+                        } else {
+                            $sms_inner['status'] = -1;
+                        }
+                        $sms_inner['ctime'] = date("Y-m-d H:i:s");
+                        $this->Common->add('md_notify_log', $sms_inner);
+                    }
+                }
+            } catch (Exception $ex) {
+                $errmsg = $ex->getMessage();
+                error_log(var_export('sms_error:'.$errmsg."\n", true), 3, "/tmp/notify_api.log");             
+            }
+            try {
+                ##从qq队列中依次取数据
+                $qq_mess = Rmq::get('send_qq_data');
+                error_log(var_export('rmq_qq:'.$qq_mess."\n", true), 3, "/tmp/notify_api.log");
+                if (!empty($qq_mess)) {
+                    require_once BASEPATH . 'libraries/notify_push/notify_factory.php';
+                    $obj = new Notify_factory("Md_notify");
+                    $push = $obj->instance();
+                    $qq_back = $push->qq_send_tpl($qq_mess);
+                    $qq_send = $push->qq_get_tpl($qq_back, $qq_mess ['tpl_id']);
+                    if ($qq_back!=0) {
+                        $qq_inner['send_id'] = $qq_back;
+                        $qq_inner['to_user'] = $qq_mess['user_id'];
+                        $qq_inner['obj_id'] = $qq_mess['obj_id'];
+                        $qq_inner['platform'] = 'qq';
+                        $qq_inner['send_name'] = $qq_mess['config_name'];
+                        $qq_inner['content'] = serialize($qq_mess['msg_json']);
+                        if ($qq_send['errcode'] == 0) {
+                            $qq_inner['status'] = 1;
+                        } else {
+                            $qq_inner['status'] = -1;
+                        }
+                        $qq_inner['error'] = $qq_send['errmsg'];
+                        $qq_inner['ctime'] = date("Y-m-d H:i:s");
+                        $this->Common->add('md_notify_log', $qq_inner);
+                    }
+                }
+            } catch (Exception $ex) {
+                $errmsg = $ex->getMessage();
+                error_log(var_export('qq_error:'.$errmsg."\n", true), 3, "/tmp/notify_api.log");
+                
+            }
+            try {
+                ##从weixin队列中依次取数据
+                $wx_mess = Rmq::get('send_wx_data');
+                error_log(var_export('rmq_wx:'.$wx_mess."\n", true), 3, "/tmp/notify_api.log");
+                if (!empty($wx_mess)) {
+                    require_once BASEPATH . 'libraries/notify_push/notify_factory.php';
+                    $obj = new Notify_factory("Md_notify");
+                    $push = $obj->instance();
+                    $wx_back = $push->wx_send_tpl($wx_mess);
+                    $wx_send = $push->wx_get_tpl($wx_back, $wx_mess ['tpl_id']);
+                    if ($wx_back!=0) {
+                        $wx_inner['send_id'] = $wx_back;
+                        $wx_inner['to_user'] = $wx_mess['user_id'];
+                        $wx_inner['obj_id'] = $wx_mess['obj_id'];
+                        $wx_inner['platform'] = 'weixin';
+                        $wx_inner['send_name'] = $wx_mess['config_name'];
+                        $wx_inner['content'] = serialize($wx_mess['msg_json']);
+                        if ($wx_send['errcode'] == 0) {
+                            $wx_inner['status'] = 1;
+                        } else {
+                            $wx_inner['status'] = -1;
+                        }
+                        $wx_inner['error'] = $wx_send['errmsg'];
+                        $wx_inner['ctime'] = date("Y-m-d H:i:s");
+                        $this->Common->add('md_notify_log', $wx_inner);
+                    }
+                }
+            } catch (Exception $ex) {
+                $errmsg = $ex->getMessage();
+               error_log(var_export('wx_error:'.$errmsg."\n", true), 3, "/tmp/notify_api.log");
+              
+            }
+            try {
+                ##从app队列中依次取数据
+                $app_mess = Rmq::get('send_app_data');
+                error_log(var_export('rmq_app:'.$app_mess."\n", true), 3, "/tmp/notify_api.log");
+                $this->load->library("app_push/Jpush");
+                if (!empty($app_mess)) {
+                    $android_trans_data = $ios_trans_data = $this->jpush->get_trans_struct($app_mess['jump_page'], $app_mess['obj_id']);
+                    $insert_data = array(
+                        "user_id" => $app_mess['user_id'],
+                        "title" => "摩点网",
+                        "content" => $app_mess['content'],
+                        "android_trans_data" => $android_trans_data,
+                        "ios_trans_data" => $ios_trans_data
+                    );
+                    //入库
+                    $push_status = $this->jpush->get_push_status($app_mess['user_id'], $app_mess['push_type']);
+                    if ($push_status > 0) {
+                        $res = $this->jpush->add_push_log($insert_data);
+                        if ($res != 0) {
+                            $app_inner['send_id'] = $res;
+                            $app_inner['to_user'] = $app_mess['user_id'];
+                            $app_inner['obj_id'] = $app_mess['obj_id'];
+                            $app_inner['platform'] = 'app';
+                            $app_inner['send_name'] = $app_mess['config_name'];
+                            $app_inner['content'] = $app_mess['content'];
+                            $app_inner['status'] = 0;
+                            $app_inner['ctime'] = date("Y-m-d H:i:s");
+                            $this->Common->add('md_notify_log', $app_inner);
+                        }
+                    }
+                }
+            } catch (Exception $ex) {
+                $errmsg = $ex->getMessage();
+                error_log(var_export('app_error:'.$errmsg."\n", true), 3, "/tmp/notify_api.log");
+               
+            }
+            echo '-----'.$i.'---';
+            $i++;
+            // sleep($interval); // 等待*秒钟
+        } while ($i <= 10);
+    }
+
+}

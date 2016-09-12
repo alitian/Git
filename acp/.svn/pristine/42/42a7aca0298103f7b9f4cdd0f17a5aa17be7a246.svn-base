@@ -1,0 +1,67 @@
+<?php
+
+if (!function_exists('md_admin_menu')) {
+
+    /**
+     * 根据Pid获取菜单列表
+     * @param type $pid
+     * @param type $ids
+     * @return type
+     */
+    function md_admin_menu($pid = 0, $ids = array()) {
+        $ci = &get_instance();
+        $sql = "SELECT * FROM md_admin_power_item WHERE pid={$pid} ORDER BY sort DESC";
+        $list = $ci->db->query($sql)->result_array();
+        $res = array();
+        foreach ($list as $item) {
+            $tmp = array(
+                'id' => $item['id'],
+                'if_show' => $item['if_show'],
+                'text' => $item['name'],
+                'uri' => $item['controller'] . "/" . $item['action'],
+                'operation' => '<a href="/admin_user?edit=' . $item['id'] . '">修改</a> <a href="/admin_user?del=' . $item['id'] . '">删除</a>',
+            );
+            if (in_array($item['id'], $ids)) {
+                $tmp['checked'] = true;
+            } else {
+                $tmp['checked'] = false;
+            }
+            $tmp['children'] = md_admin_menu($tmp['id'], $ids);
+            $res[] = $tmp;
+        }
+        return $res;
+    }
+
+}
+
+
+if (!function_exists('md_admin_get_uri')) {
+
+    /**
+     * 获取用户能够访问的uri列表
+     */
+    function md_admin_get_uid($pw_ids) {
+        $result = array();
+        if ($pw_ids) {
+            $ci = &get_instance();
+            $sql = "SELECT * FROM md_admin_power_item WHERE id IN ({$pw_ids})";
+            $res = $ci->db->query($sql)->result_array();
+            foreach ($res as $item) {
+                if ($item['controller']) {
+                    if ($item['action'] == '') {
+                        $item['action'] = 'index';
+                    }
+                    $result[] = $item['controller'] . ":" . $item['action'];
+                }
+                if ($item['plus_uri']) {
+                    $item['plus_uri'] = explode(',', $item['plus_uri']);
+                    foreach ($item['plus_uri'] as $v) {
+                        $result[] = $v;
+                    }
+                }
+            }
+        }
+        return $result;
+    }
+
+}

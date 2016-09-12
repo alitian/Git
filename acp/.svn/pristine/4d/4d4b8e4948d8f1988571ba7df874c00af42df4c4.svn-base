@@ -1,0 +1,21 @@
+<div id="module-lottery" class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">抽奖模块</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="1">
+  </div>
+  <p></p>
+  <div class="module-detail">
+  <form action="">
+    <div style="display:none;">
+      <input type="text" name="ssubj_id" value='<?=$ssubj_id?>' placeholder="专题ID">
+    </div>
+    <div class="input-prepend input-append">
+      <span class="add-on" style="margin-right: -5px;">抽奖活动ID</span>
+      <input type="text" name="act_id" value='<?=$ssubj_info['act_id']?>' style="margin-right: -5px;" placeholder="输入抽奖活动ID">
+      <button name="sure" class="btn btn-success" style="margin-right: 11px;">好 <i class="icon-hdd"></i></button>
+      <a href="/activity/addnew" class="btn btn-link" target="_blank">去新建抽奖活动 <i class="icon-chevron-right"></i></a>
+    </div>
+  </form>
+  </div>
+</div>

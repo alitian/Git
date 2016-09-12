@@ -1,0 +1,3444 @@
+<?php
+if (!defined('BASEPATH'))
+	exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class User extends Acp_Controller {
+	
+	public function __construct() {
+		parent::__construct();
+		$this->load->helper('url');
+		$this->load->model('User_m');
+		$this->load->model('Edm_user_m');
+		$this->load->model('Edm_product_m');
+		$this->load->model('Common');
+		$this->load->library('md_imagick');
+		$this->load->config('plan');
+	}
+	
+    public function index($type="inside"){
+        $data = array();
+        $data["type"]= $type;
+        if($type == "inside"){
+        	$this->load->view('site_user/user_inside', $data);
+        }elseif ($type == "outside"){
+        	$this->load->view('site_user/user_outside', $data);
+        }elseif ($type == "tag"){
+        	$this->load->view('site_user/user_tag', $data);
+        }
+        
+    }
+    //获取单项目的最终用户信息
+    public function final_one_project_user(){
+    	$data = array();
+    	
+    	//$pro_id = isset($_POST["product"])?intval($_POST["product"]):""; 	 
+		$pro_id = isset($_POST["product"])?$_POST["product"]:""; 	 
+    	$all_user = isset($_POST["single_user"])?intval($_POST["single_user"]):"";
+    	$favors_user = isset($_POST["single_favors_user"])?intval($_POST["single_favors_user"]):"";
+    	$comments_user = isset($_POST["single_comments_user"])?intval($_POST["single_comments_user"]):"";
+    	$support_one = isset($_POST["single_support_user_one"])?intval($_POST["single_support_user_one"]):"";
+    	$support_many = isset($_POST["single_support_user_many"])?intval($_POST["single_support_user_many"]):"";
+    	
+    	$data["user_pro_id"] = $pro_id;
+    	$data["all_user"] = $all_user;
+    	$data["favors_user"] = $favors_user;
+    	$data["comments_user"] = $comments_user;
+    	$data["support_one"] = $support_one;
+    	$data["support_more"] = $support_many;
+    	$data["total_num"] = isset($_POST["single_total"])?intval($_POST["single_total"]):"";
+    	$data["send_num"] = $data["total_num"];
+    	
+    	$data["user_type"] = $this->final_user_type();
+    	$data["user_property"] = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+
+    	if(!empty($all_user)){
+    		$res = $this->Edm_user_m->get_all_user_product($pro_id,$all_user);
+    	}else{
+    		$res = $this->Edm_user_m->get_final_single_user($pro_id,$favors_user,$comments_user,$support_one,$support_many);
+    	}
+    	if(false !== $res){
+    		if(!empty($res)){
+    			$user_email_arr = $this->Edm_user_m->get_new_array($res,"email");
+    			$user_email = implode(",", $user_email_arr);
+    			 
+    			$user_id_arr = $this->Edm_user_m->get_new_array($res,"user_id");
+    			$user_id = implode(",", $user_id_arr);
+    			 
+    			$data["send_user_id"] =$user_id;
+    			$data["send_user"] =$user_email;
+    			return $data;
+    		}else{
+    			return $data;
+    		}
+    	}else {
+    		return $data;
+    	}
+    }
+    
+    //获取多项目的最终用户信息
+    public function final_more_project_user(){
+    	$data = array();
+    	$alluser_num = isset($_POST['all_user']) ? intval($_POST['all_user']) : '';
+    	$register_num = isset($_POST['register_user']) ? intval($_POST['register_user']) : '';
+    	$favors_num = isset($_POST['favors_user']) ? intval($_POST['favors_user']) : '';
+    	$comments_num = isset($_POST['comments_user']) ? intval($_POST['comments_user']) : '';
+    	$support_one_num = isset($_POST['support_user_one']) ? intval($_POST['support_user_one']) : '';
+    	$support_many_num = isset($_POST['support_user_many']) ? intval($_POST['support_user_many']) : '';
+    	
+    	$data["all_user"] = $alluser_num;
+    	$data["register_user"] = $register_num;
+    	$data["favors_user"] = $favors_num;
+    	$data["comments_user"] = $comments_num;
+    	$data["support_one"] = $support_one_num;
+    	$data["support_more"] = $support_many_num;
+    	$data["total_num"] = isset($_POST["totalnum"])?intval($_POST["totalnum"]):"";
+    	$data["send_num"] = $data["total_num"];
+    	
+    	$data["user_type"] = $this->final_user_type();
+    	$data["user_property"] = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    	
+    	if(!empty($alluser_num)){
+    		$res = $this->Edm_user_m->get_all_user($alluser_num);
+    	}else{
+    		$res = $this->Edm_user_m->get_final_user_info($register_num,$favors_num,$comments_num,$support_one_num,$support_many_num);
+    	}
+    	if(false !== $res){
+    		if(!empty($res)){
+    			$user_email_arr = $this->Edm_user_m->get_new_array($res,"email");
+    			$user_email = implode(",", $user_email_arr);
+    			
+    			$user_id_arr = $this->Edm_user_m->get_new_array($res,"user_id");
+    			$user_id = implode(",", $user_id_arr);
+    			
+    			$data["send_user_id"] =$user_id;
+    			$data["send_user"] =$user_email;
+    			
+    			return $data;
+    		}else{
+    			return $data;
+    		}
+    	}else {
+    		return $data;
+    	}
+    }
+    
+    //获取用户关联属性
+    public function final_user_type(){
+    	$usertype="";
+    	$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    	if($project_select == 1){
+    		if(isset($_POST["single_all"])){
+    			$usertype = "全部用户";
+    		}else{
+    			$favors = isset($_POST["single_favors"])?"关注用户":"";
+    			$comments = isset($_POST["single_comments"])?"评论用户":"";
+    			$support_user = isset($_POST["single_support"])?$_POST["single_support"]:"";
+    			if($support_user == 1){
+    				$support ="支持过一个项目";
+    			}elseif ($support_user == 2){
+    				$support ="支持过多个项目";
+    			}
+    			$new_usertype = trim($favors."/".$comments."/".$support);
+    			$user_type = array_filter(explode("/",$new_usertype));
+    			$usertype = implode("/",$user_type);
+    		}
+    	}elseif ($project_select == 2){
+    		if(isset($_POST["all"])){
+    			$usertype = "全部用户";
+    		}else{
+    			$register = isset($_POST["register"])?"仅注册用户":"";
+    			$favors = isset($_POST["favors"])?"关注用户":"";
+    			$comments = isset($_POST["comments"])?"评论用户":"";
+    			$support_user = isset($_POST["support"])?$_POST["support"]:"";
+    			if($support_user == 1){
+    				$support ="支持过一个项目";
+    			}elseif ($support_user == 2){
+    				$support ="支持过多个项目";
+    			}
+    			$new_usertype = trim($register."/".$favors."/".$comments."/".$support);
+    			$user_type = array_filter(explode("/",$new_usertype));
+    			$usertype = implode("/",$user_type);
+    		}
+    	}else{
+    		$usertype = "未选择用户属性";
+    	}
+    	return $usertype;
+    }
+    
+    //获取用户的email邮箱
+    public function get_user_email($user_side="inside"){
+    	$send_user = "";
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$send_user = $data["send_user"];
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$send_user_arr = $this->read_excel();
+    				$send_user = $send_user_arr["email"];
+    			}elseif ($exten == ".txt"){
+    				$send_user_arr = $this->read_txt();
+    				$send_user = $send_user_arr["email"];
+    			}
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$send_user = implode(",",$user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	//return array("email"=>$send_user,"tag"=>$send_user_tag);
+    	return array("email"=>$send_user);
+    }
+    //获取退订邮件信息
+    public function get_refund_email(){
+    	$email_info = array();
+    	$email = $this->Edm_user_m->get_refund_email();
+    	if(!empty($email)){
+    		foreach ($email as $key=>$val){
+    			$email_info[] = $val;
+    		}
+    	}
+    	return $email_info;
+    }
+    
+    //获取标签用户总数
+    public function get_tag_user(){
+    	$send_num = 0;
+    	$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    	$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    	$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    	
+    	$tag_arr = explode(",",trim($tag_str,","));
+    	$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    	$send_user = $user_info["email"];
+    	//print_r($send_user);
+    	if (!empty($send_user)){
+    		$send_num = count($send_user);
+    	}
+    	
+    	echo json_encode(array("num"=>$send_num));
+    }         
+
+    //POST自定义活动-单项目
+    public function custom_single_info(){
+    	$pro_id = isset($_POST["single_id"])?intval($_POST["single_id"]):"";
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	//获取最终选择的用户
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$data["user_side"] = 1;
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$excel_info = $this->read_excel();
+    				$data["send_user"] = $excel_info["email"];
+    				//$data["tag"] = $excel_info["tag"];
+    			}elseif ($exten == ".txt"){
+    				$txt_info = $this->read_txt();
+    				$data["send_user"] = $txt_info["email"];
+    				//$data["tag"] = $txt_info["tag"];
+    			}
+    			$data["send_num"] = count(explode(",",$data["send_user"]));
+    			$data["total_num"] = count(explode(",",$data["send_user"]));
+    			$data["user_side"] = 2;
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$data["send_user"] = implode(",",$user_info["email"]);
+    			//$data["tag"] = implode(";",$user_info["tag"]);
+    			$data["user_side"] = 3;
+    			$data["send_num"] = count($user_info["email"]);
+    			$data["total_num"] = count($user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	 
+    	$data["pro_id"] = $pro_id;
+    	$data["pro_name"] = $_POST["single_name"]; 	 
+    	$data["email_title"] = htmlspecialchars($_POST["custom_email_title"]);
+    	$email_content = htmlspecialchars($_POST["custom_email_content"]);
+    	$data["email_contents"] = isset($email_content)?$email_content:"";
+    	$data["tag"] = str_replace(",",";",trim($_POST["single_tag"],","));
+    	$data["content_template"] = $_POST["active_temeplate"];
+    	$data["ctime"] = date("Y-m-d H:i:s");
+    	$data["status"] = 1;
+		$data["serial_num"] = 1;
+    	$data["item_num"] = $_POST["single_ui"];
+    	$pro_source = $this->Edm_user_m->get_pro($pro_id);
+    	$pro_des = htmlspecialchars($_POST["custom_single_content"]);
+    	$data["pro_picture"] = $pro_source['logo'];
+    	$data["item_content"] = isset($pro_des)?$pro_des:"";;
+    	return $data;    	
+    }
+    //保存自定义活动-单项目
+    public function save_custom_single(){   	
+        $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->custom_single_info();
+    	//发送用户为空时不保存数据
+    	if(empty($data["send_user"])){
+    		echo "<script type='text/javascript'>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+				echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+				exit();
+    			//redirect("user/edm_list/".$user_side."");
+    		}else{
+    			$result = $this->Edm_user_m->insert_inside_more($data);
+    			if($result){
+    				redirect("user/edm_list/".$user_side."");
+    			}else{
+    				redirect("user/index/".$user_side."");
+    			}
+    		}
+    	}    	
+    }
+    public function view_custom_single(){
+        $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->custom_single_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+				echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+				exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			redirect("user/custom_single_template/".$info_id."");
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}    	
+    }
+    public function send_custom_single(){
+
+        $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$data = $this->custom_single_info();
+    	$title = $data["email_title"];
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');</script>";
+    		echo "<script>history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id=$this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			$this->Edm_user_m->update_edm_statue($info_id);
+    		}
+    		    		
+    		$send_user_info = $this->get_user_email($user_side);//获取的发送用户邮箱
+    		$send_user_arr = explode(",",$send_user_info["email"]);  
+    		$tags_arr = "自定义单项目";
+//    		if(!empty($data["tag"])){
+//    			$tags_str = str_replace(";",",",$data["tag"]);
+//    			$tags_arr = explode(",",$tags_str);
+//    		}  		    		
+//    		$refund_email = $this->get_refund_email();
+//    		$effect_user_arr = array();
+//    		foreach($send_user_arr as $key=>$val){
+//    			//退订邮件不再发送  
+//    			if(!in_array($val,$refund_email) && valid_email($val)){
+//    				$effect_user_arr[] =  $val;
+//    			}
+//    		}
+//    		
+//    		foreach ($effect_user_arr as $k=>$v){
+//    			$sub_content = $this->custom_single_template($info_id,$v);
+//    			$ci->Common->edm_send_email($v,$title,$sub_content,1,$info_id);
+//    		}
+//    		foreach ($effect_user_arr as $x=>$y){
+//    			if(!empty($tags_arr)){
+////    				foreach ($tags_arr as $m=>$n){
+//    					$temp["email"] = $val;
+//    					$temp["subject"] = $title;
+//    					$temp["tag"] = $tags_arr;
+//    					$temp["state"] = 1;
+//    					$temp["edm_id"] = $info_id;
+//    					$temp["ctime"] = date("Y-m-d H:i:s");
+//    			
+//    					$effect_state = $this->Edm_user_m->check_effect_user($tags_arr,$y,$title);
+//    					if($effect_state){
+//    						$this->Edm_user_m->insert_effect_user($temp);//111
+//    					}
+////    				}
+//    			}
+//    		}
+			$this->Edm_user_m->update_edm_statue($info_id,3);
+
+    		redirect("user/edm_list/".$user_side."");
+    	}    	
+    }
+    public function custom_single_template($info_id,$user){
+    	$data = array();
+		$info_id = isset($info_id)?intval($info_id):"";
+		//$email_info = $this->Edm_user_m->get_edm_info($info_id);
+		
+		$cache_key = sprintf('%s', "modiancustomsingle".$info_id."info");
+		if(md_memcache::get($cache_key)){
+			$email_info = md_memcache::get($cache_key);
+		}else{
+			$email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+			md_memcache::set($cache_key, $email_info_arr, 3600*2);
+			$email_info = md_memcache::get($cache_key);
+		}
+		$pro_id=intval($email_info["pro_id"]);
+		$pro_name=$email_info["pro_name"];
+		$pro_content =$email_info["item_content"];
+		$pro_des = mb_strimwidth($pro_content,0,230,'...');	
+		$reward_id=$email_info["item_num"];//项目排版样式
+		$rewards_asc=$email_info["serial_num"];//项目排序
+		
+		$title =$email_info["email_title"];
+			
+		//$data = $this->Edm_product_m->get_product_rewards_by_product($pro_id,$reward_id,$rewards_asc);
+		
+		$cache_key = sprintf('%s', "modiancustomsingle".$pro_id."".$reward_id."edm");
+		if(md_memcache::get($cache_key)){
+			$data = md_memcache::get($cache_key);
+		}else{
+			$data_arr = $this->Edm_product_m->get_product_rewards_by_product($pro_id,"",$rewards_asc);
+			md_memcache::set($cache_key, $data_arr, 3600*2);
+			$data = md_memcache::get($cache_key);
+		}
+		
+		//预览邮件时默认不显示用户昵称,用XXX代替
+		if(isset($user)){
+			//站内用户调取用户昵称，站外用户直接用邮箱
+			$data["send_user_email"] = $user;
+			if($email_info["user_side"] == 1){
+				$user_temp = $this->Edm_user_m->get_username_email($user);
+				if($user_temp){
+					$data["send_user"] = $user_temp;
+				}
+			}else{
+				$data["send_user"] = $user;
+			}
+		}else{
+			$data["send_user"] = "XXX";
+		}
+		$mo_pass = "modianedm1234";
+		$unit_key = md5 ( $user . '_' . $mo_pass );
+		
+		$data["theme_id"] = $info_id;
+		$data["side"] = $email_info["user_side"];
+		$data["email_contents"] = $email_info["email_contents"];
+		$data["tag"] = isset($email_info["tag"])?$email_info["tag"]:"";
+		$tag = str_replace(";","-",$data["tag"]);
+		$pro_tag = str_replace(",","-",$tag);
+		$upload_url = _gc('cdn_url', 'config');
+		
+		$str_content ='<!DOCTYPE html>';
+		$str_content .='<html>';
+		$str_content .='<head>';
+		if(!empty($title)){
+			
+			$str_content .='<title>'.$title.'</title>';
+		}
+		$str_content .='</head>';
+		$str_content .='<body style="display: block;  margin: 8px;">';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url('.static_url().'new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+		$str_content .='<tr><td>';		
+		$str_content .='<div style="width: 100%;height:10px;background:url('.static_url().'new/images/edm_slider.png);repeat-x left top;"></div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+		$str_content .='<a href="'.config_item('main_site_url').'"><img src="'.static_url().'new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+		$str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+		$str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width: 700px;">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		if(!empty($data["email_contents"])){
+			$str_content .='<tr><td>';
+			$str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">'.$data["email_contents"].'</div>';
+			$str_content .='</tr></td>';
+			$str_content .='<tr><td>';
+			$str_content .='<div style="width: 100%;text-align: center;margin-top: 2px;">';
+			$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="width:700px">';
+			$str_content .='</div>';
+			$str_content .='</tr></td>';
+			
+		}
+    	
+		if(!empty($email_info)){
+			if($email_info["item_num"] == 1){
+				$str_content .='<tr>';
+				$str_content .='<th><a href="'.config_item('alipay_notify_site_url').'/project/'.$pro_id.'.html?utm_source=edm&utm_medium=single-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$pro_id.'"><img style="width:700px; height:500px;margin-top: 30;" src="'.cdn_url($data['logo']).'"></a></th>';
+				$str_content .='</tr>';
+				$str_content .='<tr><td>';
+				$str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">'.$pro_name.'</p>';
+				$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">'.$pro_des.'</p>';
+				$str_content .='<a href="'.config_item('alipay_notify_site_url').'/project/'.$pro_id.'.html?utm_source=edm&utm_medium=single-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$pro_id.'" style="height: 21px;width:81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding:8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+				$str_content .='</td></tr>';
+				
+			}elseif($email_info["item_num"] == 2){
+				$str_content .='<tr>';
+				$str_content .='<td>';
+				$str_content .='<div style="float:left;margin-top: 10px"><a href="'.config_item('alipay_notify_site_url').'/project/'.$pro_id.'.html?utm_source=edm&utm_medium=single-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$pro_id.'"><img style="width:330px; height:261px;margin-left: 123px; margin-top: 17px;" src="'.cdn_url($data['logo']).'"></a></div>';
+				$str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height:54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600;line-height: 1.5;margin-top:10px">'.$pro_name.'</p>';
+				$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top: 13px;line-height: 2;">'.$pro_des.'</p>';
+				$str_content .='<a href="'.config_item('alipay_notify_site_url').'/project/'.$pro_id.'.html?utm_source=edm&utm_medium=single-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$pro_id.'"  style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding:8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+				$str_content .='</td>';
+				$str_content .='</tr>';
+								
+			}
+		}
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+		$str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+		$str_content .='<img src="'.static_url().'new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+		$str_content .='<img src="'.static_url().'new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+		$str_content .='<footer style="margin-top: 0px;">';
+		$str_content .='<section class="container setOn">';
+		$str_content .='<div class="outher setOn">';
+		$str_content .='<p class="icp">拒收摩点网信息，请';
+		$str_content .='<a href="'.config_item('alipay_notify_site_url').'/user/email_refund?email='.$user.'&unit_key='.$unit_key.'" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+		$str_content .='</div>';
+		$str_content .='<div class="outher setOn" style="margin-top:30px">';
+		$str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+		$str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+		$str_content .='</div>';
+		$str_content .='</section>';
+		$str_content .='</footer>';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="margin-top:40px;width: 100%;height:10px;background:url('.static_url().'new/images/edm_slider.png);repeat-x left bottom;"></div>';
+		$str_content .='</tr></td>';
+		$str_content .='</table>';
+		$str_content .='</body>';
+		$str_content .='</html>';
+				
+		if(isset($user)){
+			return $str_content;
+		}else{
+			echo $str_content;
+		}    	
+    }
+    
+    public function custom_single_send($info_id){
+        $ci = &get_instance();
+    	$ci->load->model('Common');
+    	$edm_info = $this->Edm_user_m->get_edm_info($info_id);   	
+    	switch ($edm_info["user_side"]){
+    		case "1":
+    			$user_side ="inside";
+    			break;
+    		case "2":
+    			$user_side ="outside";
+    			break;
+    		case "3":
+    			$user_side ="tag";
+    			break;
+    		default:
+    			$user_side ="inside";
+    			break;
+    	}
+    	$send_user = $edm_info["send_user"];
+    	$title = $edm_info["email_title"];
+    	
+    	$refund_email = $this->get_refund_email();
+    	$send_user_arr = explode(",",$send_user);
+    	$tags_arr = "自定义单项目";
+//    	if(!empty($edm_info["tag"])){
+//    		$tags_str = str_replace(";",",",$edm_info["tag"]);
+//    		$tags_arr = explode(",",$tags_str);
+//    	}
+
+//    	foreach($send_user_arr as $key=>$val){
+//    		//退订邮件不再发送
+//    		if(!in_array($val,$refund_email) && valid_email($val)){
+//    			$effect_user_arr[] =  $val;
+//    		}
+//    	}
+//    	
+//    	foreach ($effect_user_arr as $k=>$v){
+//    		$sub_content = $this->custom_single_template($info_id,$v);
+//    		$ci->Common->edm_send_email($v,$title,$sub_content,1,$info_id);
+//    	}
+//    	foreach ($effect_user_arr as $x=>$y){
+//    		if(!empty($tags_arr)){
+////    			foreach ($tags_arr as $m=>$n){
+//    				$temp["email"] = $val;
+//    				$temp["subject"] = $title;
+//    				$temp["tag"] = $tags_arr;
+//    				$temp["state"] = 1;
+//    				$temp["edm_id"] = $info_id;
+//    				$temp["ctime"] = date("Y-m-d H:i:s");
+//    				 
+//    				$effect_state = $this->Edm_user_m->check_effect_user($tags_arr,$y,$title);
+//    				if($effect_state){
+//    					$this->Edm_user_m->insert_effect_user($temp);//111
+//    				}
+////    			}
+//    		}
+//    	}
+    	
+    	$this->Edm_user_m->update_edm_statue($info_id,3);
+    	
+    	redirect("user/edm_list/".$user_side."");
+    }
+    
+    
+    //POST自定义活动-多项目
+    public function custom_more_info(){
+    	$data =array();
+    	$res = false;
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	
+    	//获取最终选择的用户
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$data["user_side"] = 1;
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$excel_info = $this->read_excel();
+    				$data["send_user"] = $excel_info["email"];
+    				//$data["tag"] = $excel_info["tag"];
+    			}elseif ($exten == ".txt"){
+    				$txt_info = $this->read_txt();
+    				$data["send_user"] = $txt_info["email"];
+    				//$data["tag"] = $txt_info["tag"];
+    			}
+    			$data["send_num"] = count(explode(",",$data["send_user"]));
+    			$data["total_num"] = count(explode(",",$data["send_user"]));
+    			$data["user_side"] = 2;
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$data["send_user"] = implode(",",$user_info["email"]);
+    			//$data["tag"] = implode(";",$user_info["tag"]);
+    			$data["user_side"] = 3;
+    			$data["send_num"] = count($user_info["email"]);
+    			$data["total_num"] = count($user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	 
+    	$data["email_title"] = htmlspecialchars($_POST["custom_email_title"]);
+    	$email_content = htmlspecialchars($_POST["custom_email_content"]);
+    	$data["email_contents"] = isset($email_content)?$email_content:"";
+    	$data["content_template"] = $_POST["active_temeplate"];
+    	$data["ctime"] = date("Y-m-d H:i:s");
+    	$data["status"] = 1;
+    	 
+    	$proIdArr = $_POST["more_id"];//多项目id
+    	$proNameArr = $_POST["more_name"];//多项目名称
+    	$proAscArr = $_POST["more_asc"];//多项目排序
+    	$proUiArr = $_POST["more_ui"];//多项目排版样式
+    	$proPicArr = $_POST["more_pic"];//多项目图片
+    	$proTagArr = $_POST["more_tag"];
+    	$proDesArr = $_POST["custom_more_content"];
+    	foreach($proIdArr as $key=>$val){
+    		if(empty($val)){
+    			unset($proIdArr[$key]);
+    			unset($proNameArr[$key]);
+    			unset($proAscArr[$key]);
+    			unset($proUiArr[$key]);
+    			unset($proPicArr[$key]);
+    			unset($proTagArr[$key]);
+    			unset($proDesArr[$key]);
+    		}else{
+				$proUiArr[$key] = trim($proUiArr[$key],",");
+			}
+    	}
+    	$proTag_NewArr = array();
+    	foreach ($proTagArr as $key=>$val){
+    		if(!empty($val)){
+    			$proTag_NewArr[] = $val;
+    		}
+    	}
+    	$data["tag"] = !empty($proTag_NewArr)?implode(";",$proTag_NewArr):"";
+    	
+    	$data["pro_id"] = implode(",", $proIdArr);
+    	$data["pro_name"] = implode(",",$proNameArr);
+    	$data["serial_num"] = implode(",",$proAscArr);
+    	$data["item_num"] = implode(";",$proUiArr);    	
+    	$data["pro_picture"] = implode(";",$proPicArr); 
+    	$data["item_content"] = implode("||",$proDesArr);
+    	return $data;    	
+    }
+    public function save_custom_more(){
+    	
+        $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->custom_more_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+				echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+				exit();
+    			redirect("user/index/".$user_side."");
+    		}else{
+    			$res = $this->Edm_user_m->insert_inside_more($data);
+    		}
+    		if($res){
+    			redirect("user/edm_list/".$user_side."");
+    			//echo "<script type='text/javascript'>alert('保存成功');</script>";
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}   	
+    }
+	public function view_custom_more(){
+		
+	    $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->custom_more_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			redirect("user/custom_more_template/".$info_id."");
+    			//echo "<script type='text/javascript'>alert('保存成功');</script>";
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}		
+		
+	}
+	public function send_custom_more(){
+	    $ci = &get_instance();
+    	$ci->load->model('Common');
+    	$data = $this->custom_more_info();
+    
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"inside";
+    	$tags_arr = array();
+    	if(!empty($data["tag"])){
+    		$tags_str = str_replace(";",",",$data["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+				echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+				exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		/*
+    		
+    		if($info_id){
+    			$this->Edm_user_m->update_edm_statue($info_id);
+    		}
+    		 
+    		$title = htmlspecialchars($_POST["email_title"]);
+    		$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    		 
+    		$refund_email = $this->get_refund_email();
+    		$send_user_info = $this->get_user_email($user_side);//获取的发送用户邮箱
+    		$send_user_arr = explode(",",$send_user_info["email"]);
+    		//$send_user_tag_arr = explode(";",$send_user_info["tag"]);
+    		foreach($send_user_arr as $key=>$val){
+    			if(!in_array($val,$refund_email) && valid_email($val)){
+    				$effect_user_arr[] = $val;
+    			}
+    		}
+    		
+    		foreach ($effect_user_arr as $k=>$v){
+    			$content = $this->custom_more_template($info_id,$v);
+    			$ci->Common->edm_send_email($v,$title,$content,1,$info_id);
+    		}
+    		foreach ($effect_user_arr as $x=>$y){
+    			if(!empty($tags_arr)){
+    				foreach ($tags_arr as $m=>$n){
+    					$temp["email"] = $y;
+    					$temp["subject"] = $title;
+    					$temp["tag"] = $n;
+    					$temp["state"] = 1;
+    					$temp["edm_id"] = $info_id;
+    					$temp["ctime"] = date("Y-m-d H:i:s");
+    						
+    					$effect_state = $this->Edm_user_m->check_effect_user($n,$y,$title);
+    					if($effect_state){
+    						$this->Edm_user_m->insert_effect_user($temp);
+    					}
+    				}
+    			}
+    		}
+    		*/    		
+    		$this->Edm_user_m->update_edm_statue($info_id,3);
+    		redirect("user/edm_list/".$user_side."");
+    	}		
+	}
+	public function custom_more_template($info_id,$user){
+		$data = array();
+		$product_list =array();
+		//$email_info = $this->Edm_user_m->get_edm_info($info_id);
+		
+		$cache_key = sprintf('%s', "modiancustommore".$info_id."info");
+		if(md_memcache::get($cache_key)){
+			$email_info = md_memcache::get($cache_key);
+		}else{
+			$email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+			md_memcache::set($cache_key, $email_info_arr, 3600*2);
+			$email_info = md_memcache::get($cache_key);
+		}
+		
+		$proId_str=$email_info["pro_id"];
+		$proId_name=$email_info["pro_name"];
+		$proId_asc=$email_info["serial_num"];
+		$proId_ui=$email_info["item_num"];
+		$prId_des=$email_info["item_content"];
+		$side = $email_info["user_side"];
+					
+		$cache_key = sprintf('%s', "modiancustommore".$info_id."edm");
+		if(md_memcache::get($cache_key)){
+			$data["product_list"] = md_memcache::get($cache_key);
+		}else{
+			$product_list = $this->Edm_product_m->get_product_arr($proId_str,$proId_asc,$proId_ui,$prId_des,$proId_name);
+			md_memcache::set($cache_key, $product_list, 3600*2);
+			$data["product_list"] = md_memcache::get($cache_key);
+		}
+
+		//预览邮件时默认不显示用户昵称,用XXXX代替
+		if(isset($user)){
+			$data["send_user_email"] = $user;
+			if($side ==1){
+				$user_temp = $this->Edm_user_m->get_username_email($user);
+				if($user_temp){
+					$data["send_user"] = $user_temp;
+				}else{
+					$data["send_user"] = $user;
+				}
+			}elseif ($side == 2){
+				$data["send_user"] = $user;
+			}
+		}else{
+			$data["send_user"] = "XXXX";
+		}
+		$mo_pass = "modianedm1234";
+		$unit_key = md5 ( $user . '_' . $mo_pass );
+		
+		$data["email_title"] = $email_info["email_title"];
+		$data["email_contents"] = $email_info["email_contents"];
+		$data["theme_id"] = $info_id;
+		$data["side"] = $email_info["user_side"];
+		$data["tag"] = isset($email_info["tag"])?$email_info["tag"]:"";
+		$tag = str_replace(";","-",$data["tag"]);
+		$pro_tag = str_replace(",","-",$tag);
+		$upload_url = _gc('cdn_url', 'config');
+						
+		$str_content ='<!DOCTYPE html>';
+		$str_content .='<html>';
+		$str_content .='<head>';
+		
+		if(!empty($data["email_title"])){
+			
+			$str_content .='<title>'.$data["email_title"].'</title>';
+		}
+		
+		$str_content .='</head>';
+		$str_content .='<body style="display: block;  margin: 8px;">';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url('.static_url().'new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+		$str_content .='<tr><td>';		
+		$str_content .='<div style="width: 100%;height:10px;background:url('.static_url().'new/images/edm_slider.png);repeat-x left top;"></div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+		$str_content .='<a href="'.config_item('main_site_url').'"><img src="'.static_url().'new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+		$str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+		$str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px;">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		if(!empty($data["email_contents"])){
+			$str_content .='<tr><td>';
+			$str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">'.$data["email_contents"].'</div>';
+			$str_content .='</tr></td>';
+			$str_content .='<tr><td>';
+			$str_content .='<div style="width: 100%;text-align: center;margin-top: 2px;">';
+			$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="width:700px">';
+			$str_content .='</div>';
+			$str_content .='</tr></td>';
+			
+		}				
+		if(!empty($data["product_list"])){
+			foreach($data["product_list"] as $key=>$val){
+				if($key == 0){
+					if($val['product_ui'] == 1){
+						$str_content .='<tr>';
+						$str_content .='<th><a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'" ><img style="width:700px; height:500px;margin-top: 30;" src="'.cdn_url($val['product_logo']).'"></a></th>';
+						$str_content .='</tr>';
+						$str_content .='<tr><td>';
+						$str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">'.$val['product_name'].'</p>';
+						$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">'.$val['product_des'].'</p>';
+						$str_content .='<a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'" style="height: 21px;width: 81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+						$str_content .='</td></tr>';
+				
+					}elseif($val['product_ui'] == 2){
+						$str_content .='<tr>';
+						$str_content .='<td>';
+						$str_content .='<div style="float: left;margin-top: 10px"><a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'"><img style="width:330px; height:261px;margin-left: 123px;  margin-top: 17px;" src="'.cdn_url($val['product_logo']).'"></a></div>';
+						$str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height: 54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600;line-height: 1.5;margin-top: 10px;">'.$val['product_name'].'</p>';
+						$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top:13px;line-height: 2;">'.$val['product_des'].'</p>';
+						$str_content .='<a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'"  style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+						$str_content .='</td>';
+						$str_content .='</tr>';
+								
+						}					
+				}else{
+					$str_content .='<tr>';
+					$str_content .='<td style="text-align: center;">';
+					$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top:33px;width:700px">';
+					$str_content .='</td></tr>';					
+					if($val['product_ui'] == 1){
+						$str_content .='<tr>';
+						$str_content .='<th><a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'"><img style="margin-top:30px;width:700px; height:500px;" src="'.cdn_url($val['product_logo']).'"></a></th>';
+						$str_content .='</tr>';
+						$str_content .='<tr><td>';
+						$str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">'.$val['product_name'].'</p>';
+						$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">'.$val['product_des'].'</p>';
+						$str_content .='<a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'" style="height: 21px;width: 81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+						$str_content .='</td></tr>';
+						
+					}elseif($val['product_ui'] == 2){
+						$str_content .='<tr>';
+						$str_content .='<td>';
+						$str_content .='<div style="float:left;margin-top: 10px"><a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'"><img style="width:330px; height:261px;margin-left: 123px;  margin-top: 17px;" src="'.cdn_url($val['product_logo']).'"></a></div>';
+						$str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height: 54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600; width:360px;line-height: 1.5;margin-top: 10px;">'.$val['product_name'].'</p>';
+						$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top: 13px;line-height: 2;">'.$val['product_des'].'</p>';
+						$str_content .='<a href="'.config_item('alipay_notify_site_url').'/project/'.$val['pro_id'].'.html?utm_source=edm&utm_medium=more-'.$info_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'&tag='.$pro_tag.'&_mdsf=md_edm_'.$val['pro_id'].'" style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+						$str_content .='</td>';
+						$str_content .='</tr>';
+							
+					}
+				}
+			}
+		}
+		
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+		$str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+		$str_content .='<img src="'.static_url().'new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+		$str_content .='<img src="'.static_url().'new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+		$str_content .='<footer style="margin-top: 0px;">';
+		$str_content .='<section class="container setOn">';
+		$str_content .='<div class="outher setOn">';
+		$str_content .='<p class="icp">拒收摩点网信息，请';
+		$str_content .='<a href="'.config_item('alipay_notify_site_url').'/user/email_refund?email='.$user.'&unit_key='.$unit_key.'" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+		$str_content .='</div>';
+		$str_content .='<div class="outher setOn" style="margin-top:30px">';
+		$str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+		$str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+		$str_content .='</div>';
+		$str_content .='</section>';
+		$str_content .='</footer>';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="margin-top:40px;width: 100%;height:10px;background:url('.static_url().'new/images/edm_slider.png);repeat-x left bottom;"></div>';
+		$str_content .='</tr></td>';
+		$str_content .='</table>';
+		$str_content .='</body>';
+		$str_content .='</html>';
+						
+		if(isset($user)){
+			return $str_content;
+		}else{
+			echo $str_content;
+		}    			
+		
+	}
+	public function custom_more_send($info_id){
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	 
+    	$edm_info = $this->Edm_user_m->get_edm_info($info_id);
+    	
+    	switch ($edm_info["user_side"]){
+    		case "1":
+    			$user_side ="inside";
+    			break;
+    		case "2":
+    			$user_side ="outside";
+    			break;
+    		case "3":
+    			$user_side ="tag";
+    			break;
+    		default:
+    			$user_side ="inside";
+    			break;
+    	}
+    	/*
+    	$send_user = $edm_info["send_user"];
+    	$title = $edm_info["email_title"];
+    	 
+    	$refund_email = $this->get_refund_email();
+    	$send_user_arr = explode(",",$send_user);
+    	$tags_arr = array();
+    	if(!empty($edm_info["tag"])){
+    		$tags_str = str_replace(";",",",$edm_info["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	$effect_user_arr = array();
+    	foreach($send_user_arr as $key=>$val){
+    		//退订邮件不再发送
+    		if(!in_array($val,$refund_email) && valid_email($val)){
+    			$effect_user_arr[] = $val;
+    		}
+    	}
+    	
+    	foreach ($effect_user_arr as $k=>$v){
+    		$sub_content = $this->custom_more_template($info_id,$v);
+    		$ci->Common->edm_send_email($v,$title,$sub_content,1,$info_id);
+    	}
+    	
+    	foreach ($effect_user_arr as $x=>$y){
+    		if(!empty($tags_arr)){
+    			foreach ($tags_arr as $m=>$n){
+    				$temp["email"] = $y;
+    				$temp["subject"] = $title;
+    				$temp["tag"] = $n;
+    				$temp["state"] = 1;
+    				$temp["edm_id"] = $info_id;
+    				$temp["ctime"] = date("Y-m-d H:i:s");
+    		
+    				$effect_state = $this->Edm_user_m->check_effect_user($n,$y,$title);
+    				if($effect_state){
+    					$this->Edm_user_m->insert_effect_user($temp);
+    				}
+    			}
+    		}
+    	}
+    	*/
+    	$this->Edm_user_m->update_edm_statue($info_id,3);
+    	
+    	redirect("user/edm_list/".$user_side."");		
+	}
+	
+	//POST自定义-话题活动
+	public function custom_topic_info(){
+		
+    	$focus_pic = array();
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	//获取最终选择的用户
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$data["user_side"] = 1;
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$excel_info = $this->read_excel();
+    				$data["send_user"] = $excel_info["email"];
+    				//$data["tag"] = $excel_info["tag"];
+    			}elseif ($exten == ".txt"){
+    				$txt_info = $this->read_txt();
+    				$data["send_user"] = $txt_info["email"];
+    				//$data["tag"] = $txt_info["tag"];
+    			}
+    			$data["send_num"] = count(explode(",",$data["send_user"]));
+    			$data["total_num"] = count(explode(",",$data["send_user"]));
+    			$data["user_side"] = 2;
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$data["send_user"] = implode(",",$user_info["email"]);
+    			//$data["tag"] = implode(";",$user_info["tag"]);
+    			$data["user_side"] = 3;
+    			$data["send_num"] = count($user_info["email"]);
+    			$data["total_num"] = count($user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	$data["pro_id"] = "全部";
+    	$data["pro_name"] = "全部";
+    	 
+    	$data["email_title"] = htmlspecialchars($_POST["custom_email_title"]);
+    	$email_contents = htmlspecialchars($_POST["content"],ENT_QUOTES);
+    	$data["email_contents"] = str_replace("http://www.modian.com/../../uploads/", "http://i2.modian.com/", $email_contents);
+    	$data["content_template"] = $_POST["active_temeplate"];
+    	$data["ctime"] = date("Y-m-d H:i:s");
+    	$data["status"] = 1;
+    	
+    	return $data;        	
+	
+	}
+	public function save_custom_topic(){
+		
+	    $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->custom_topic_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			redirect("user/index/".$user_side."");
+    		}else{
+    			$res = $this->Edm_user_m->insert_inside_more($data);
+    		}
+    		if($res){
+    			redirect("user/edm_list/".$user_side."");
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}		
+	}
+	public function view_custom_topic(){
+	    $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->custom_topic_info();
+    	
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-2);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			redirect("user/custom_topic_template/".$info_id."");
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}		
+	}
+	public function send_custom_topic(){
+	    $user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$data = $this->custom_topic_info();
+    	$tags_arr = array();
+    	if(!empty($data["tag"])){
+    		$tags_str = str_replace(";",",",$data["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$edm_id = $status;
+    		}else{
+    			$edm_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+
+			$this->Edm_user_m->update_edm_statue($edm_id,3);
+    		redirect("user/edm_list/".$user_side."");
+    	}		
+	}
+	public function custom_topic_template($edm_id,$user){
+			$data = array();
+		//$edm_info = $this->Edm_user_m->get_edm_info($edm_id);
+
+		$cache_key = sprintf('%s', "modiancustomtopic".$edm_id."info");
+		if(md_memcache::get($cache_key)){
+			$edm_info = md_memcache::get($cache_key);
+		}else{
+			$edm_info_arr = $this->Edm_user_m->get_edm_info($edm_id);
+			md_memcache::set($cache_key, $edm_info_arr, 3600*2);
+			$edm_info = md_memcache::get($cache_key);
+		}
+		$topic_content=isset($edm_info["email_content"])?$edm_info["email_content"]:"";
+		
+		$side = $edm_info["user_side"];
+		$data = $edm_info;
+		$data["send_user_email"] = $user;
+		if($side ==1){
+			$user_temp = $this->Edm_user_m->get_username_email($user);
+			if($user_temp){
+				$data["send_user"] = $user_temp;
+			}else{
+				$data["send_user"] = $user;
+			}
+		}elseif ($side == 2){
+			$data["send_user"] = $user;
+		}
+		$mo_pass = "modianedm1234";
+		$unit_key = md5 ( $user . '_' . $mo_pass );
+		
+		$data["theme_id"] = $edm_id;
+		$data["side"] = $edm_info["user_side"];
+	
+		$upload_url = _gc('cdn_url', 'config');
+	
+		$str_content ='<!DOCTYPE html>';
+		$str_content .='<html>';
+		$str_content .='<head>';
+		
+		if(!empty($data["email_title"])){
+			
+			$str_content .='<title>'.$data["email_title"].'</title>';
+		}
+		
+		$str_content .='</head>';
+		$str_content .='<body style="display: block;  margin: 8px;">';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url('.static_url().'new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+		$str_content .='<tr><td>';		
+		$str_content .='<div style="width: 100%;height:10px;background:url('.static_url().'new/images/edm_slider.png);repeat-x left top;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+		$str_content .='<a href="'.config_item('main_site_url').'"><img src="'.static_url().'new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+		$str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+		$str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px;">';
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		if(!empty($data["email_contents"])){
+			$str_content .='<tr><td>';
+			$str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">'.html_entity_decode($data["email_contents"]).'</div>';
+			$str_content .='</tr></td>';
+			
+		}				
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+		$str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+		$str_content .='<img src="'.static_url().'new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+		$str_content .='<img src="'.static_url().'new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;">';
+		$str_content .='<img src="'.static_url().'new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+		$str_content .='<footer style="margin-top: 0px;">';
+		$str_content .='<section class="container setOn">';
+		$str_content .='<div class="outher setOn">';
+		$str_content .='<p class="icp">拒收摩点网信息，请';
+		$str_content .='<a href="'.config_item('alipay_notify_site_url').'/user/email_refund?email='.$user.'&unit_key='.$unit_key.'" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+		$str_content .='</div>';
+		$str_content .='<div class="outher setOn" style="margin-top:30px">';
+		$str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Right&nbsp;Reserved</p>';
+		$str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+		$str_content .='</div>';
+		$str_content .='</section>';
+		$str_content .='</footer>';
+		$str_content .='</div>';
+		$str_content .='</tr></td>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="margin-top:40px;width: 100%;height:10px;background:url('.static_url().'new/images/edm_slider.png);repeat-x left bottom;"></div>';
+		$str_content .='</tr></td>';
+		$str_content .='</table>';
+		$str_content .='</body>';
+		$str_content .='</html>';
+		
+	    if(isset($user)){
+			return $str_content;
+		}else{
+			echo $str_content;
+		}
+	}
+	public function custom_topic_send($info_id){
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$edm_info = $this->Edm_user_m->get_edm_info($info_id);
+    	switch ($edm_info["user_side"]){
+    		case "1":
+    			$user_side ="inside";
+    			break;
+    		case "2":
+    			$user_side ="outside";
+    			break;
+    		case "3":
+    			$user_side ="tag";
+    			break;
+    		default:
+    			$user_side ="inside";
+    			break;
+    	}
+    	$this->Edm_user_m->update_edm_statue($info_id,3);
+    	redirect("user/edm_list/".$user_side."");		
+	}	
+	//POST的单项目信息	
+    public function single_info(){
+    	$pro_id = isset($_POST["pro_id"])?intval($_POST["pro_id"]):"";
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	//获取最终选择的用户
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$data["user_side"] = 1;
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$excel_info = $this->read_excel();
+    				$data["send_user"] = $excel_info["email"];
+    				//$data["tag"] = $excel_info["tag"];
+    			}elseif ($exten == ".txt"){
+    				$txt_info = $this->read_txt();
+    				$data["send_user"] = $txt_info["email"];
+    				//$data["tag"] = $txt_info["tag"];
+    			}
+    			$data["send_num"] = count(explode(",",$data["send_user"]));
+    			$data["total_num"] = count(explode(",",$data["send_user"]));
+    			$data["user_side"] = 2;
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$data["send_user"] = implode(",",$user_info["email"]);
+    			//$data["tag"] = implode(";",$user_info["tag"]);
+    			$data["user_side"] = 3;
+    			$data["send_num"] = count($user_info["email"]);
+    			$data["total_num"] = count($user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	 
+    	$data["pro_id"] = $pro_id;
+    	$data["pro_name"] = $_POST["pro_name"];
+    	$data["tag"] = str_replace(",",";",trim($_POST["single_pro_tag"],","));
+    	 
+    	$data["email_title"] = htmlspecialchars($_POST["single_email_title"]);
+    	$data["email_des"] = htmlspecialchars($_POST["single_email_des"]);
+    	$data["email_contents"] = htmlspecialchars($_POST["single_email_content"]);
+    	
+    	$data["content_template"] = $_POST["active_temeplate"];
+    	$data["ctime"] = date("Y-m-d H:i:s");
+    	$data["status"] = 1;
+    	 
+    	$rewardsIdArr = $_POST["rewards_id"];
+    	$rewardsContentArr = $_POST["rewards_content"];
+    	$rewardsAscArr = $_POST["rewards_asc"];
+    	foreach($rewardsIdArr as $key=>$val){
+    		if(empty($val)){
+    			unset($rewardsIdArr[$key]);
+    			unset($rewardsContentArr[$key]);
+    			unset($rewardsAscArr[$key]);
+    		}
+    	}
+    	$data["item_num"] = implode(",", $rewardsIdArr);
+    	$data["item_content"] = implode(",",$rewardsContentArr);
+    	$data["serial_num"] = implode(",",$rewardsAscArr);
+    	return $data;
+    }
+    
+    //保存单项目 推广活动信息
+    public function save_single(){	
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->single_info();
+    	//发送用户为空时不保存数据
+    	if(empty($data["send_user"])){
+    		echo "<script type='text/javascript'>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			//redirect("user/edm_list/".$user_side."");
+    		}else{
+    			$result = $this->Edm_user_m->insert_inside_more($data);
+    			if($result){
+    				redirect("user/edm_list/".$user_side."");
+    			}else{
+    				redirect("user/index/".$user_side."");
+    			}
+    		}
+    	}
+    }
+    
+    //查看单项目 推广活动信息
+    public function view_single(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->single_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			redirect("user/single_template/".$info_id."");
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}
+    }
+    
+    //发送单项目 推广活动信息
+    public function send_single(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$data = $this->single_info();
+    	$title = $data["email_title"];
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');</script>";
+    		echo "<script>history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id=$this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			$this->Edm_user_m->update_edm_statue($info_id);
+    		}
+    		    		
+    		$send_user_info = $this->get_user_email($user_side);//获取的发送用户邮箱
+    		$send_user_arr = explode(",",$send_user_info["email"]);  
+    		$tags_arr = array();
+    		if(!empty($data["tag"])){
+    			$tags_str = str_replace(";",",",$data["tag"]);
+    			$tags_arr = explode(",",$tags_str);
+    		}  		    		
+    		$refund_email = $this->get_refund_email();
+    		foreach($send_user_arr as $key=>$val){
+    			//退订邮件不再发送  
+    			if(!in_array($val,$refund_email) && valid_email($val)){
+    				$sub_content = $this->single_template($info_id,$val);
+    				$ci->Common->edm_send_email($val,$title,$sub_content,1,$info_id);
+    				if(!empty($tags_arr)){
+    					foreach ($tags_arr as $m=>$n){
+    						$temp["email"] = $val;
+    						$temp["subject"] = $title;
+    						$temp["tag"] = $n;
+    						$temp["state"] = 1;
+    						$temp["edm_id"] = $info_id;
+    						$temp["ctime"] = date("Y-m-d H:i:s");
+    							
+    						$effect_state = $this->Edm_user_m->check_effect_user($n,$val,$title);
+    						if($effect_state){
+    							$this->Edm_user_m->insert_effect_user($temp);//111
+    						}
+    					}
+    				}
+    			}
+    		}
+			$this->Edm_user_m->update_edm_statue($info_id);
+    		redirect("user/edm_list/".$user_side."");
+    	}
+    }
+    
+    
+    //发送单项目 推广活动信息
+    public function single_send($info_id){
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$edm_info = $this->Edm_user_m->get_edm_info($info_id);   	
+    	switch ($edm_info["user_side"]){
+    		case "1":
+    			$user_side ="inside";
+    			break;
+    		case "2":
+    			$user_side ="outside";
+    			break;
+    		case "3":
+    			$user_side ="tag";
+    			break;
+    		default:
+    			$user_side ="inside";
+    			break;
+    	}
+    	$send_user = $edm_info["send_user"];
+    	$title = $edm_info["email_title"];
+    	
+    	$refund_email = $this->get_refund_email();
+    	$send_user_arr = explode(",",$send_user);
+    	$tags_arr = array();
+    	if(!empty($edm_info["tag"])){
+    		$tags_str = str_replace(";",",",$edm_info["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+
+    	foreach($send_user_arr as $key=>$val){
+    		//退订邮件不再发送
+    		if(!in_array($val,$refund_email) && valid_email($val)){
+    			$sub_content = $this->single_template($info_id,$val);
+    			$ci->Common->edm_send_email($val,$title,$sub_content,1,$info_id);
+    			if(!empty($tags_arr)){
+    				foreach ($tags_arr as $m=>$n){
+    					$temp["email"] = $val;
+    					$temp["subject"] = $title;
+    					$temp["tag"] = $n;
+    					$temp["state"] = 1;
+    					$temp["edm_id"] = $info_id;
+    					$temp["ctime"] = date("Y-m-d H:i:s");
+    						
+    					$effect_state = $this->Edm_user_m->check_effect_user($n,$val,$title);
+    					if($effect_state){
+    						$this->Edm_user_m->insert_effect_user($temp);
+    					}
+    				}	
+    			}
+    		}
+    	}
+    	$this->Edm_user_m->update_edm_statue($info_id);
+    	
+    	redirect("user/edm_list/".$user_side."");
+    }
+    
+    public function more_info(){
+    	$data =array();
+    	$res = false;
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	
+    	//获取最终选择的用户
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$data["user_side"] = 1;
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$excel_info = $this->read_excel();
+    				$data["send_user"] = $excel_info["email"];
+    				//$data["tag"] = $excel_info["tag"];
+    			}elseif ($exten == ".txt"){
+    				$txt_info = $this->read_txt();
+    				$data["send_user"] = $txt_info["email"];
+    				//$data["tag"] = $txt_info["tag"];
+    			}
+    			$data["send_num"] = count(explode(",",$data["send_user"]));
+    			$data["total_num"] = count(explode(",",$data["send_user"]));
+    			$data["user_side"] = 2;
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$data["send_user"] = implode(",",$user_info["email"]);
+    			//$data["tag"] = implode(";",$user_info["tag"]);
+    			$data["user_side"] = 3;
+    			$data["send_num"] = count($user_info["email"]);
+    			$data["total_num"] = count($user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	 
+    	$data["pro_id"] = "全部";
+    	$data["pro_name"] = "全部";
+    	$data["email_title"] = htmlspecialchars($_POST["email_title"]);
+    	$data["email_contents"] = htmlspecialchars($_POST["email_content"]);
+    	$data["content_template"] = $_POST["active_temeplate"];
+    	$data["ctime"] = date("Y-m-d H:i:s");
+    	$data["status"] = 1;
+    	 
+    	$proIdArr = $_POST["project_id"];
+    	$proNameArr = $_POST["project_name"];
+    	$proAscArr = $_POST["project_asc"];
+    	$proTagArr = $_POST["pro_tag"];
+    	foreach($proIdArr as $key=>$val){
+    		if(empty($val)){
+    			unset($proIdArr[$key]);
+    			unset($proNameArr[$key]);
+    			unset($proAscArr[$key]);
+    			unset($proTagArr[$key]);
+    		}else{
+				$proTagArr[$key] = trim($proTagArr[$key],",");
+			}
+    	}
+    	$data["item_num"] = implode(",", $proIdArr);
+    	$data["item_content"] = implode(",",$proNameArr);
+    	$data["serial_num"] = implode(",",$proAscArr);
+    	$data["tag"] = implode(";",$proTagArr);
+    	
+    	return $data;
+    }
+    
+    //保存多项目推广活动信息
+    public function save_more(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->more_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			redirect("user/index/".$user_side."");
+    		}else{
+    			$res = $this->Edm_user_m->insert_inside_more($data);
+    		}
+    		if($res){
+    			redirect("user/edm_list/".$user_side."");
+    			//echo "<script type='text/javascript'>alert('保存成功');</script>";
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}
+    	
+    }
+    
+    //保存多项目推广活动信息
+    public function view_more(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->more_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			redirect("user/more_template/".$info_id."");
+    			//echo "<script type='text/javascript'>alert('保存成功');</script>";
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}
+    }
+    
+    public function send_more(){
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$data = $this->more_info();
+    
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"inside";
+    	$tags_arr = array();
+    	if(!empty($data["tag"])){
+    		$tags_str = str_replace(";",",",$data["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		
+    		if($info_id){
+    			$this->Edm_user_m->update_edm_statue($info_id);
+    		}
+    		 
+    		$title = htmlspecialchars($_POST["email_title"]);
+    		$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    		 
+    		$refund_email = $this->get_refund_email();
+    		$send_user_info = $this->get_user_email($user_side);//获取的发送用户邮箱
+    		$send_user_arr = explode(",",$send_user_info["email"]);
+    		//$send_user_tag_arr = explode(";",$send_user_info["tag"]);
+    		foreach($send_user_arr as $key=>$val){
+    			if(!in_array($val,$refund_email) && valid_email($val)){
+    				$content = $this->more_template($info_id,$val);
+    				$ci->Common->edm_send_email($val,$title,$content,1,$info_id);
+    				if(!empty($tags_arr)){
+    					foreach ($tags_arr as $m=>$n){
+    						$temp["email"] = $val;
+    						$temp["subject"] = $title;
+    						$temp["tag"] = $n;
+    						$temp["state"] = 1;
+    						$temp["edm_id"] = $info_id;
+    						$temp["ctime"] = date("Y-m-d H:i:s");
+    							
+    						$effect_state = $this->Edm_user_m->check_effect_user($n,$val,$title);
+    						if($effect_state){
+    							$this->Edm_user_m->insert_effect_user($temp);
+    						}
+    					}
+    				}
+    			}
+    		}
+    		$this->Edm_user_m->update_edm_statue($info_id);
+    		redirect("user/edm_list/".$user_side."");
+    	}
+    }
+    
+    //发送单项目 推广活动信息
+    public function more_send($info_id){
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	 
+    	$edm_info = $this->Edm_user_m->get_edm_info($info_id);
+    	    	 
+    	//$user_side = ($edm_info["user_side"] == 2)?"outside":"inside";
+    	switch ($edm_info["user_side"]){
+    		case "1":
+    			$user_side ="inside";
+    			break;
+    		case "2":
+    			$user_side ="outside";
+    			break;
+    		case "3":
+    			$user_side ="tag";
+    			break;
+    		default:
+    			$user_side ="inside";
+    			break;
+    	}
+    	$send_user = $edm_info["send_user"];
+    	$title = $edm_info["email_title"];
+    	 
+    	$refund_email = $this->get_refund_email();
+    	$send_user_arr = explode(",",$send_user);
+    	$tags_arr = array();
+    	if(!empty($edm_info["tag"])){
+    		$tags_str = str_replace(";",",",$edm_info["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	foreach($send_user_arr as $key=>$val){
+    		//退订邮件不再发送
+    		if(!in_array($val,$refund_email) && valid_email($val)){
+    			$sub_content = $this->more_template($info_id,$val);
+    			$ci->Common->edm_send_email($val,$title,$sub_content,1,$info_id);
+    			if(!empty($tags_arr)){
+    				foreach ($tags_arr as $m=>$n){
+    					$temp["email"] = $val;
+    					$temp["subject"] = $title;
+    					$temp["tag"] = $n;
+    					$temp["state"] = 1;
+    					$temp["edm_id"] = $info_id;
+    					$temp["ctime"] = date("Y-m-d H:i:s");
+    						
+    					$effect_state = $this->Edm_user_m->check_effect_user($n,$val,$title);
+    					if($effect_state){
+    						$this->Edm_user_m->insert_effect_user($temp);
+    					}
+    				}
+    			}
+    			
+    		}
+    	}
+    	$this->Edm_user_m->update_edm_statue($info_id);
+    	
+    	redirect("user/edm_list/".$user_side."");
+    }
+    
+    public function topic_info(){
+    	$focus_pic = array();
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	//获取最终选择的用户
+    	switch ($user_side){
+    		case "inside"://站内用户
+    			$project_select = isset($_POST["project_select"])?intval($_POST["project_select"]):"";
+    			if($project_select == 1){
+    				$data = $this->final_one_project_user();
+    			}elseif ($project_select == 2){
+    				$data = $this->final_more_project_user();
+    			}
+    			$data["user_side"] = 1;
+    			break;
+    		case "outside"://站外用户
+    			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+    			if($exten == ".xls"){
+    				$excel_info = $this->read_excel();
+    				$data["send_user"] = $excel_info["email"];
+    				//$data["tag"] = $excel_info["tag"];
+    			}elseif ($exten == ".txt"){
+    				$txt_info = $this->read_txt();
+    				$data["send_user"] = $txt_info["email"];
+    				//$data["tag"] = $txt_info["tag"];
+    			}
+    			$data["send_num"] = count(explode(",",$data["send_user"]));
+    			$data["total_num"] = count(explode(",",$data["send_user"]));
+    			$data["user_side"] = 2;
+    			break;
+    		case "tag":
+    			$tag_str = isset($_POST["tag"])?$_POST["tag"]:"";
+    			$tag_arr = explode(",",trim($tag_str,","));
+    			$tag_start = isset($_POST["tag_start"])?$_POST["tag_start"]:"0";
+    			$tag_end = isset($_POST["tag_end"])?$_POST["tag_end"]:"";
+    			$user_info = $this->Edm_user_m->get_tag_email($tag_arr,$tag_start,$tag_end);
+    			$data["send_user"] = implode(",",$user_info["email"]);
+    			//$data["tag"] = implode(";",$user_info["tag"]);
+    			$data["user_side"] = 3;
+    			$data["send_num"] = count($user_info["email"]);
+    			$data["total_num"] = count($user_info["email"]);
+    			break;
+    		default:
+    			break;
+    	}
+    	$data["pro_id"] = "全部";
+    	$data["pro_name"] = "全部";
+    	 
+    	$data["email_title"] = htmlspecialchars($_POST["topic_email_title"]);
+    	$data["email_contents"] = htmlspecialchars($_POST["topic_rule"]);
+    	$data["content_template"] = $_POST["active_temeplate"];
+    	$data["ctime"] = date("Y-m-d H:i:s");
+    	$data["status"] = 1;
+    	$data["pro_picture"] = "uploads/".$_POST["topic_pic_hidden"];
+    	
+    	$data["pro_url"] = $_POST["top_link"];
+    	$data["tag"] = str_replace(",",";",trim($_POST["topic_tag_name"],","));
+    	
+    	$topic_pic_footer = $_POST["hidden_topic_pic"];
+    	$topic_pic_asc_footer = $_POST["topic_pic_asc"];
+    	$topic_pic_url_footer = $_POST["topic_pic_url"];
+    	
+    	foreach($topic_pic_footer as $m=>$n){
+    		if(!empty($n)){
+    			$focus_pic[] = "uploads/".$n;
+    			$pic_asc_arr[] = $topic_pic_asc_footer[$m];
+    			$pic_url_arr[] = $topic_pic_url_footer[$m];
+    		}else{
+    			unset($pic_asc_arr[$m]);
+    			unset($pic_url_arr[$m]);
+    		}
+    	}
+    	
+    	$data["item_num"] = implode(",", $focus_pic);
+    	$data["serial_num"] = implode(",",$pic_asc_arr);
+    	$data["item_content"] = implode(",",$pic_url_arr);
+    	
+    	return $data;
+    }
+    
+    //保存话题性推广活动信息 view_topic
+    public function save_topic(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->topic_info();
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			redirect("user/index/".$user_side."");
+    		}else{
+    			$res = $this->Edm_user_m->insert_inside_more($data);
+    		}
+    		if($res){
+    			redirect("user/edm_list/".$user_side."");
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}
+    }
+    
+    //保存话题性推广活动信息 view_topic
+    public function view_topic(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$data = $this->topic_info();
+    	
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-2);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$info_id = $status;
+    		}else{
+    			$info_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		if($info_id){
+    			redirect("user/topic_template/".$info_id."");
+    		}else{
+    			redirect("user/index/".$user_side."");
+    		}
+    	}
+    }
+    
+    public function send_topic(){
+    	$user_side = isset($_POST["user_side"])?$_POST["user_side"]:"";
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$data = $this->topic_info();
+    	$tags_arr = array();
+    	if(!empty($data["tag"])){
+    		$tags_str = str_replace(";",",",$data["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	if(empty($data["send_user"])){
+    		echo "<script>alert('发送的用户邮箱不能为空,请核对后重新提交');history.go(-1);</script>";
+    	}else{
+    		$status = $this->Edm_user_m->check_edm_userinfo($data);
+    		if($status){
+			echo "<script type='text/javascript'>alert('EDM已存在,不能重复提交');history.go(-1);window.open('','_parent','');window.close();</script>";
+			exit();
+    			$edm_id = $status;
+    		}else{
+    			$edm_id = $this->Edm_user_m->get_inside_id($data);
+    		}
+    		/*
+    		if($edm_id){
+    			$this->Edm_user_m->update_edm_statue($edm_id);
+    		}
+    		
+    		$title = htmlspecialchars($_POST["topic_email_title"]);
+    		$refund_email = $this->get_refund_email();
+    		if($edm_id){    			
+    			$send_user_info = $this->get_user_email($user_side);//获取的发送用户邮箱
+    			$send_user_arr = explode(",",$send_user_info["email"]);
+    			
+    			foreach($send_user_arr as $key=>$val){
+    				if(!in_array($val,$refund_email) && valid_email($val)){
+    					$content = $this->topic_template($edm_id,$val);
+    					$ci->Common->edm_send_email($val,$title,$content,1,$edm_id);
+    					if(!empty($tags_arr)){
+    						foreach ($tags_arr as $m=>$n){
+    							$temp["email"] = $val;
+    							$temp["subject"] = $title;
+    							$temp["tag"] = $n;
+    							$temp["state"] = 1;
+    							$temp["edm_id"] = $edm_id;
+    							$temp["ctime"] = date("Y-m-d H:i:s");
+    							$effect_state = $this->Edm_user_m->check_effect_user($n,$val,$title);
+    							if($effect_state){
+    								$this->Edm_user_m->insert_effect_user($temp);
+    							}
+    						}
+    					}
+    				}
+    			}
+    		}
+    		*/
+			$this->Edm_user_m->update_edm_statue($edm_id,3);
+    		redirect("user/edm_list/".$user_side."");
+    	}
+    }
+    
+    //发送单项目 推广活动信息
+    public function topic_send($info_id){
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$edm_info = $this->Edm_user_m->get_edm_info($info_id);
+    	switch ($edm_info["user_side"]){
+    		case "1":
+    			$user_side ="inside";
+    			break;
+    		case "2":
+    			$user_side ="outside";
+    			break;
+    		case "3":
+    			$user_side ="tag";
+    			break;
+    		default:
+    			$user_side ="inside";
+    			break;
+    	}
+    	/*
+    	$send_user = $edm_info["send_user"];
+    	$title = $edm_info["email_title"];
+    
+    	$refund_email = $this->get_refund_email();
+    	$send_user_arr = explode(",",$send_user);
+    	$tags_arr = array();
+    	if(!empty($edm_info["tag"])){
+    		$tags_str = str_replace(";",",",$edm_info["tag"]);
+    		$tags_arr = explode(",",$tags_str);
+    	}
+    	foreach($send_user_arr as $key=>$val){
+    		//退订邮件不再发送
+    		if(!in_array($val,$refund_email) && valid_email($val)){
+    			$sub_content = $this->topic_template($info_id,$val);
+    			$ci->Common->edm_send_email($val,$title,$sub_content,1,$info_id);
+    			if(!empty($tags_arr)){
+    				foreach ($tags_arr as $m=>$n){
+    					$temp["email"] = $val;
+    					$temp["subject"] = $title;
+    					$temp["tag"] = $n;
+    					$temp["state"] = 1;
+    					$temp["edm_id"] = $info_id;
+    					$temp["ctime"] = date("Y-m-d H:i:s");
+    					$effect_state = $this->Edm_user_m->check_effect_user($n,$val,$title);
+    					if($effect_state){
+    						$this->Edm_user_m->insert_effect_user($temp);
+    					}
+    				}
+    			}
+    		}
+    	}
+    	*/
+    	$this->Edm_user_m->update_edm_statue($info_id,3);
+    	redirect("user/edm_list/".$user_side."");
+    }
+
+    public function edm_list($type="inside"){
+    	$data['type'] = $type;
+    	$this->load->view('site_user/edm_list',$data);
+    }
+    
+    public function get_post_searchinfo($type){
+    	if($type == "inside"){
+    		$search_arr["user_side"] = 1;
+    	}elseif ($type == "outside"){
+    		$search_arr["user_side"] = 2;
+    	}elseif ($type == "tag"){
+    		$search_arr["user_side"] = 3;
+    	}
+    	$search_arr["email_title"] = isset($_POST['email_title']) ? $_POST['email_title'] : '';
+    	$search_arr["pro_id"] = isset($_POST['pro_id']) ? intval($_POST['pro_id']) : '';
+    	$search_arr["pro_name"] = isset($_POST['pro_name']) ? $_POST['pro_name'] : '';
+    	$search_arr["content_template"] = isset($_POST['content_template']) ? $_POST['content_template'] : '';
+    	$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+    	$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+    	$search_arr["area"] = isset($_POST['area']) ? $_POST['area'] : '';
+    	
+    	$search_arr["seach_type"] = "1";//edm 列表为1  edm查询为2
+    	
+    	$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '30';
+    	
+    	return $search_arr;
+    }
+    
+    public function list_info($type="inside"){
+    	$search_arr = array();
+    	$data['type'] = $type;
+    	
+    	$search_arr = $this->get_post_searchinfo($type);
+    	
+    	//$result = $this->Edm_user_m->search_edm($search_arr);
+    	$result = $this->Edm_user_m->search_edm_list($search_arr);
+    	
+    	$res = array();
+    	if(!empty($result)){
+    		foreach ($result as $key=>$val){
+    			if($val["send_time"] != "0000-00-00 00:00:00"){
+    				$temp["send_time"] = $val["send_time"];
+    			}else{
+    				$temp["send_time"] = $val["ctime"];
+    			}
+    			$temp["pro_id"] = $val["pro_id"];
+    			$temp["pro_name"] = $val["pro_name"];
+    			$temp["email_title"] = $val["email_title"];
+    			$temp["user_type"] = $val["user_type"];
+    			if($val["content_template"] == 1){
+    				$temp["content_template"] = "单项目推广";
+    				if($val["status"] == 1){
+    					$temp["operation"] = '<a href="javascript:void(0);" onclick="del_edm('.$val["id"].');">删除</a> | <a href="/user/single_template/'.$val["id"].'" target="_blank">预览</a> | <a href="/user/single_send/'.$val["id"].'">确认发送</a>';
+    				}else{
+    					$temp["operation"] = '<a href="/user/single_template/'.$val["id"].'" target="_blank">预览</a> | 已发送';
+    				}
+    				
+    			}elseif($val["content_template"] == 2){
+    				$temp["content_template"] = "多项目活动";
+    				if($val["status"] == 1){
+    					$temp["operation"] = '<a href="javascript:void(0);" onclick="del_edm('.$val["id"].');">删除</a> | <a href="/user/more_template/'.$val["id"].'" target="_blank">预览</a> | <a href="/user/more_send/'.$val["id"].'">确认发送</a>';
+    				}else{
+    					$temp["operation"] = '<a href="/user/more_template/'.$val["id"].'" target="_blank">预览</a> | 已发送';
+    				}
+    				
+    			}elseif($val["content_template"] == 3){
+    				$temp["content_template"] = "话题性活动";
+    				if($val["status"] == 1){
+    					$temp["operation"] = '<a href="javascript:void(0);" onclick="del_edm('.$val["id"].');">删除</a> | <a href="/user/topic_template/'.$val["id"].'" target="_blank">预览</a> | <a href="/user/topic_send/'.$val["id"].'">确认发送</a>';
+    				}else{
+    					$temp["operation"] = '<a href="/user/topic_template/'.$val["id"].'" target="_blank">预览</a> | 已发送';
+    				}
+    				
+    			}elseif($val["content_template"] == 4){
+    				$temp["content_template"] = "自定义活动";
+    				if($val["pro_id"] == '全部'){
+						if ($val ["status"] == 1) {
+							$temp ["operation"] = '<a href="javascript:void(0);" onclick="del_edm(' . $val ["id"] . ');">删除</a> | <a href="/user/custom_topic_template/' . $val ["id"] . '" target="_blank">预览</a> | <a href="/user/custom_topic_send/' . $val ["id"] . '">确认发送</a>';
+						} else {
+							$temp ["operation"] = '<a href="/user/custom_topic_template/' . $val ["id"] . '" target="_blank">预览</a> | 已发送';
+						}
+					
+					}else{
+						$pro_id_str = (! empty ( $val ["pro_id"] )) ? explode ( ",", $val ["pro_id"] ) : "";
+						if (count ( $pro_id_str ) == 1) {
+							if ($val ["status"] == 1) {
+								$temp ["operation"] = '<a href="javascript:void(0);" onclick="del_edm(' . $val ["id"] . ');">删除</a> | <a href="/user/custom_single_template/' . $val ["id"] . '" target="_blank">预览</a> | <a href="/user/custom_single_send/' . $val ["id"] . '">确认发送</a>';
+							} else {
+								$temp ["operation"] = '<a href="/user/custom_single_template/' . $val ["id"] . '" target="_blank">预览</a> | 已发送';
+							}
+						} elseif (count ( $pro_id_str ) > 1) {
+							if ($val ["status"] == 1) {
+								$temp ["operation"] = '<a href="javascript:void(0);" onclick="del_edm(' . $val ["id"] . ');">删除</a> | <a href="/user/custom_more_template/' . $val ["id"] . '" target="_blank">预览</a> | <a href="/user/custom_single_send/' . $val ["id"] . '">确认发送</a>';
+							} else {
+								$temp ["operation"] = '<a href="/user/custom_more_template/' . $val ["id"] . '" target="_blank">预览</a> | 已发送';
+							}
+						}
+					}
+
+    			}
+    			$temp["area"] = '';
+    			$temp["total_num"] = $val["total_num"];
+    			$temp["arrive_num"] = $val["arrive_num"];
+    			$temp["register_num"] = '';
+    			$temp["open_num"] = $val["open_num"];
+    			$temp["order_num"] = "";
+    			$temp["pay_order_num"] = "";
+    		
+    			$res[]=$temp;
+    		}
+    	}
+    	return $res;
+    }
+    
+    public function ajax_list($type="inside"){
+    	$res = $this->list_info($type);
+    	$search_arr = $this->get_post_searchinfo($type);
+    	$sum_info = $this->Edm_user_m->search_edm_sum($search_arr);
+    	
+    	if($type == "inside"){
+    		$footer = array(
+    				array('pro_id' => "发送用户数",
+    						'pro_name' => $sum_info["sum_total_num"],
+    				),
+    				array('pro_id' => "到达数",
+    						'pro_name' => $sum_info["sum_arrive_num"],
+    						'email_title' => "邮件打开数",
+    						'user_type' => $sum_info["sum_open_num"],
+    						'content_template' => "订单数",
+    						'area' => "",
+    						'total_num' => "支付数",
+    						'arrive_num' => "",
+    				),
+    				array('pro_id' => "到达率",
+    						'pro_name' => round($sum_info["sum_arrive_num"]/$sum_info["sum_total_num"]*100,4)."%",
+    						'email_title' => "邮件打开率",
+    						'user_type' => round($sum_info["sum_open_num"]/$sum_info["sum_total_num"]*100,4)."%",
+    						'content_template' => "订单转化率",
+    						'area' => "",
+    						'total_num' => "支付转化率",
+    						'arrive_num' => "",
+    				)
+    		);
+    	}elseif ($type == "outside"){
+    		$footer = array(
+    				array('pro_id' => "发送用户数",
+    						'pro_name' => $sum_info["sum_total_num"],
+    				),
+    				array('pro_id' => "到达数",
+    						'pro_name' => $sum_info["sum_arrive_num"],
+    						'email_title' => "邮件打开数",
+    						'content_template' => $sum_info["sum_open_num"],
+    						'area' => "订单数",
+    						'total_num' => "",
+    						'register_num' =>"支付数",
+    						'arrive_num' => "",
+    				),
+    				array('pro_id' => "到达率",
+    						'pro_name' => round($sum_info["sum_arrive_num"]/$sum_info["sum_total_num"]*100,4)."%",
+    						'email_title' => "邮件打开率",
+    						'content_template' => round($sum_info["sum_open_num"]/$sum_info["sum_total_num"]*100,4)."%",
+    						'area' => "订单转化率",
+    						'total_num' => "",
+    						'register_num' =>"支付转化率",
+    						'arrive_num' => "",
+    				)
+    		);
+    	}
+   
+    	$result = array('total' => count($res),
+    			'rows' => $res,
+    			'footer' => $footer);
+    	echo json_encode($result);
+    }
+    
+    public function edm_list_export($type="inside"){
+    	$data['type'] = $type;
+    	if($type == "inside"){
+    		$excel_title = array("send_time" => "发送时间",
+    				"pro_id" => "项目ID",
+    				"pro_name" => "项目名称",
+    				"email_title" => "邮箱标题",
+    				"user_type" => "用户关联属性",
+    				"content_template" => "内容模版",
+    				"area" => "地域",
+    				"total_num" => "发送数",
+    				"arrive_num" => "到达数",
+    				"open_num" => "打开数",
+    				"order_num" => "订单数",
+    				"pay_order_num" => "支付订单数"
+    		);
+    	}elseif ($type == "outside"){
+    		$excel_title = array("send_time" => "发送时间",
+    				"pro_id" => "项目ID",
+    				"pro_name" => "项目名称",
+    				"email_title" => "邮箱标题",
+    				"content_template" => "内容模版",
+    				"area" => "地域",
+    				"total_num" => "发送数",
+    				"register_num" => "注册数",
+    				"arrive_num" => "到达数",
+    				"open_num" => "打开数",
+    				"order_num" => "订单数",
+    				"pay_order_num" => "支付订单数"
+    		);
+    	}
+    	
+    	$search_arr = array();
+    	if($type == "inside"){
+    		$excel_name = "站内用户查询";
+    	}elseif ($type == "outside"){
+    		$excel_name = "站外用户查询";
+    	}
+    	$res = $this->list_info($type);
+    	$this->export_excel($excel_title,$res,$excel_name);
+    }
+    
+    public function edm_search($type="inside"){
+    	$data = array();
+    	$data['type'] = $type;
+    	$this->load->view('site_user/edm_search',$data);
+    }
+    
+    public function send_user($type="outside"){
+    	$data = array();
+    	$data["type"]= $type;
+    	    	
+    	$this->load->view('site_user/user_send', $data);
+    }
+    
+    public function ajax_marketinguser($type="outside"){
+    	$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+    	 
+    	$res = $this->Edm_user_m->get_marketing_email(1,1,$search_arr);
+    	    	
+    	foreach ($res as $key=>$val){    		
+    		$user_arr = explode(",",$val["send_user"]);
+    		$user_keys_arr = array_flip($user_arr);
+    		    		
+    		$user_tag_arr = explode(";",$val["tag"]);
+    		
+    		$tem_key = $user_keys_arr[$val["email"]];
+    		
+    		$temp["tag"] = $user_tag_arr[$tem_key];
+    		
+    		$temp["id"] = $val["id"];
+            $temp["email"] = $val["email"];
+            $temp["subject"] = $val["subject"];
+            $temp["send_time"] = $val["send_time"];
+            $temp["edm_id"] = $val["edm_id"];
+            $temp["status"] = $val["status"];
+            
+            $user_info[] = $temp;
+    	}
+    	
+    	$num_info = $this->Edm_user_m->get_marketing_count(1,1);
+    	
+    	$result = array('total' => $num_info,
+    			'rows' => $user_info,
+    			'footer' => '');
+    	echo json_encode($result);
+    }
+    
+    
+    public function effect_user($type="outside"){
+    	$data = array();
+    	$data["type"]= $type;
+    	$this->load->view('site_user/effect_user', $data);
+    }
+    
+    public function ajax_effectuser($type="outside"){
+    	$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+    	
+    	$search_arr["tag"] = isset($_POST["tag"])?$_POST["tag"]:"";
+    	$search_arr["email"] = isset($_POST["email"])?$_POST["email"]:"";
+    	$search_arr["start_time"] = isset($_POST["start_time"])?$_POST["start_time"]:"";
+    	$search_arr["end_time"] = isset($_POST["end_time"])?$_POST["end_time"]:"";
+    	$search_arr["state"] = isset($_POST["state"])?$_POST["state"]:"";
+    
+    	$res = $this->Edm_user_m->get_effect_user($search_arr);
+    	foreach ($res as $key=>$val){
+    		$info["id"] = $val["id"];
+    		$info["tag"] = $val["tag"];
+    		$info["email"] = $val["email"];
+    		if($val["open_time"] == "0000-00-00 00:00:00"){
+    			$info["open_time"] = "";
+    		}else{
+    			$info["open_time"] = $val["open_time"];
+    		}
+    		$info["open_num"] = $val["open_num"];
+    		$info["send_time"] = $val["send_time"];
+    		$info["subject"] = $val["subject"];
+    		
+    		$info_arr[] = $info;
+    	}
+    	
+    	$info_num = $this->Edm_user_m->get_effect_count($search_arr);
+    	$result = array('total' => $info_num,
+    			'rows' => $info_arr,
+    			'footer' => '');
+    	echo json_encode($result);
+    }
+        
+    public function search($type,$mode=1){
+    	if($type == "inside"){
+    		$search_arr["user_side"] = 1;
+    	}elseif ($type == "outside"){
+    		$search_arr["user_side"] = 2;
+    	}elseif ($type == "tag"){
+    		$search_arr["user_side"] = 3;
+    	}
+    	$search_arr["user_id"] = isset($_POST['user_id']) ? $_POST['user_id'] : '';
+    	$search_arr["email"] = isset($_POST['email']) ? $_POST['email'] : '';
+    	$search_arr["email_title"] = isset($_POST['email_title']) ? $_POST['email_title'] : '';
+    	$search_arr["pro_id"] = isset($_POST['pro_id']) ? intval($_POST['pro_id']) : '';
+    	$search_arr["pro_name"] = isset($_POST['pro_name']) ? htmlspecialchars($_POST['pro_name']): '';
+    	$search_arr["content_template"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+    	$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+    	$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+    	$search_arr["seach_type"] = "2";//edm 列表为1  edm查询为2
+
+		if($mode == 2){
+			$search_arr["page"] = "";
+    	    $search_arr["rows"] = "";  
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	    $search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';  
+		}
+    	
+    	$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';  	 
+
+    	$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+    	$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+    	
+    	//$result = $this->Edm_user_m->search_edm($search_arr);
+    	
+    	$num = $this->Edm_user_m->edm_usercount_serach($search_arr);
+
+    	$result = $this->Edm_user_m->edm_user_serach($search_arr);
+    	$list_info = array();
+    	if(!empty($result)){
+    		foreach ($result as $key=>$val){
+    			$res["send_user_id"] = $val["user_id"];
+    			$res["send_user"] = $val["email"];
+    			$res["pro_id"] = $val["pro_id"];
+    			$res["pro_name"] = $val["pro_name"];
+    			$res["email_title"] = $val["email_title"];
+    			$res["user_side"] = $val["user_side"];
+    			$res["user_property"] = $val["user_property"];
+    			$res["user_pro_id"] = $val["user_pro_id"];
+    			$res["user_type"] = $val["user_type"];
+    			$res["total_num"] = $val["total_num"];
+    			if($val["content_template"] == 1){
+    				$res["content_template"] = "单项目推广";
+    			}elseif($val["content_template"] == 2){
+    				$res["content_template"] = "多项目活动";
+    			}elseif($val["content_template"] == 3){
+    				$res["content_template"] = "话题性活动";
+    			}
+    			if($val["send_time"] == "0000-00-00 00:00:00"){
+    				$res["send_time"] ='';
+    			}else{
+    				$res["send_time"] =$val["send_time"];
+    			}
+    			//$send_info = $this->Edm_user_m->get_sendmail_info($y,$val["email_title"]);
+    			if($val["send_status"] == 1){
+    				$res["is_arrive"] = "是";
+    			}elseif ($val["send_status"] == 0){
+    				$res["is_arrive"] = "未发送";
+    			}else{
+    				$res["is_arrive"] = "否";
+    			}
+    			$res["is_open"] = "";
+    			$res["is_buy"] = "";
+    			$res["is_pay"] = "";
+    			 
+    			$list_info[] = $res;
+    		}
+    	}
+    
+    	$edm_list_info = array();
+    	
+    	$edm_list_info["num"]= $num;
+    	$edm_list_info["search"]= $list_info;
+    	    	
+    	return $edm_list_info;
+    
+    }
+    
+    public function ajax_search($type){	
+    	$res = array();
+    	$result = array();
+    	$res = $this->search($type,1);
+    	$footer = array(
+    			array('send_user_id' => "发送用户数",
+    			'user_type' => $res["num"],
+    	        ),
+    			array('send_user_id' => "到达数",
+    			'user_type' => "",
+    			'email_title' => "邮件打开数",
+    			'pro_id' => "",
+    			'pro_name' => "订单数",
+    			'content_template' => "",
+    			'send_user' => "支付数",
+    			'arrive_num' => "",
+    	        ),
+    			array('send_user_id' => "到达率",
+    					'user_type' => "",
+    					'email_title' => "邮件打开率",
+    					'pro_id' => "",
+    					'pro_name' => "订单转化率",
+    					'content_template' => "",
+    					'send_user' => "支付转化率",
+    					'arrive_num' => "",
+    			),
+    	);
+    	    	
+    	$result = array('total' =>$res["num"],
+    			'rows' =>$res["search"],
+    			'footer' => $footer,
+    	);
+    	
+    	echo json_encode($result);
+    }
+    
+    public function edm_export($type="inside"){
+    	if($type == "inside"){
+    		$excel_title = array("send_time" => "发送时间",
+    				"send_user_id" => "用户ID",
+    				"user_type" => "用户关联属性",
+    				"email_title" => "邮箱标题",
+    				"pro_id" => "项目ID",
+    				"pro_name" => "项目名称",
+    				"content_template" => "内容模版",
+    				"send_user" => "收件邮箱",
+    				"is_arrive" => "是否到达",
+    				"is_open" => "是否打开",
+    				"is_buy" => "是否下单",
+    				"is_pay" => "是否支付"
+    		);
+    	}elseif($type == "outside"){
+    		$excel_title = array("send_time" => "发送时间",
+    				"send_user" => "收件邮箱",
+    				"email_title" => "邮箱标题",
+    				"pro_id" => "项目ID",
+    				"pro_name" => "项目名称",
+    				"content_template" => "内容模版",
+    				"is_arrive" => "是否发送成功",
+    				"is_open" => "是否打开",
+    				"is_buy" => "是否下单",
+    				"is_pay" => "是否支付"
+    		);
+    	}
+    	
+    	if($type == "inside"){
+    		$excel_name="站内用户";
+    	}elseif ($type == "outside"){
+    		$excel_name="站外用户";
+    	}
+		$mode = 2;//不需要分页
+    	$excel_result = $this->search($type,$mode);
+    	$this->export_excel($excel_title,$excel_result["search"],$excel_name);
+    }
+    //删除元素内的值
+	function array_remove(&$arr,$offset){ 
+	    array_splice($arr, $offset,1); 
+	} 
+	//获取上传的excel文件内容
+	public function read_excel(){
+		$content_str = "";
+		$file_name = 'edm_email_' . date("y_m_d_H_i_s");
+		$file_path = realpath(BASEPATH . "../uploads/edm_file/");
+		if (isset($_FILES['import_file']) && $_FILES['import_file']['name'] != ''){
+			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+			$to_from = "{$file_name}{$exten}";
+			$file_path = $file_path . '/' . $to_from;
+			copy($_FILES['import_file']['tmp_name'], $file_path);
+			//$result = $this->md_imagick->upload($from, $from);
+			$this->load->library('PHPExcel');
+			if ($exten == '.xls') {
+				$PHPReader = new PHPExcel_Reader_Excel5();
+			} elseif ($exten == '.xlsx') {
+				$PHPReader = new PHPExcel_Reader_Excel2007();
+				$data['error'] = '暂时不支持xlsx格式，请转换成xls文件，辛苦了。';
+			} else {
+				$data['error'] = '不是合法的Excel(xls)';
+			}
+			if ($data['error'] == '') {
+				$objPHPExcel = $PHPReader->load($file_path);
+				$objWorksheet = $objPHPExcel->getActiveSheet();
+				$highestRow = $objWorksheet->getHighestRow(); //取得总行数
+				$highestColumn = $objWorksheet->getHighestColumn();
+				$highestColumnIndex = PHPExcel_Cell::columnIndexFromString($highestColumn); //取得总列数
+				$headtitle = array();
+				if ($highestRow) {
+					for ($i = 2; $i <= $highestRow; $i++) {
+						$num = $objWorksheet->getCellByColumnAndRow(0, $i)->getValue();
+						$email = $objWorksheet->getCellByColumnAndRow(1, $i)->getValue();
+						$tag = $objWorksheet->getCellByColumnAndRow(2, $i)->getValue();
+						$email = trim($email);
+						if (valid_email($email)) {
+							//$contents[] = array('num' => $num, 'email' => $email);
+							$contents[] = $email;
+							$tags[] = $tag;
+						}
+					}
+				}
+			}
+		}else{
+			$data['error'] = '没有选择Excel';
+		}
+		//array_shift($contents);//删除第一个元素
+		$contents = array_unique($contents);
+		array_shift($tags);//删除第一个元素
+		$content_str = implode(",",$contents);
+		$content_str = trim($content_str,",");
+		
+		$tag_str = implode(";",$tags);
+		$tag_str = trim($tag_str,";");
+		
+		return array("email"=>$content_str,"tag"=>$tag_str);
+		//return $content_str;
+	}
+	
+	//获取上传的txt文件内容
+	public function read_txt(){
+		$file_name = 'edm_email_' . date("y_m_d_H_i_s");
+		$file_path = realpath(BASEPATH . "../uploads/edm_file/");
+		if (isset($_FILES['import_file']) && $_FILES['import_file']['name'] != ''){
+			$exten = $this->Common->get_extension($_FILES['import_file']['name']);
+			$to_from = "{$file_name}{$exten}";
+			$file_path = $file_path . '/' . $to_from;
+			copy($_FILES['import_file']['tmp_name'], $file_path);
+			//$result = $this->md_imagick->upload($from, $from);
+			$data = array();
+			if ($exten == '.txt') {
+				$data['error'] == '';
+			}else{
+				$data['error'] = '上传的文件格式不正确,文件格式仅支持txt和xls';
+			}
+			if ($data['error'] == '') {
+				$file_handle = fopen($file_path, "r");
+				while (!feof($file_handle)){
+					$line = fgets($file_handle);
+					$temp = explode(",",$line);
+					$email = trim($temp[1]);
+					if (valid_email($email)){
+						$content[] = $email;
+						$tags[] = trim($temp[2]);
+					}
+				}
+				fclose($file_handle);
+				$content = array_unique($content);
+				$contentstr = implode(",",$content);
+				$content_str = trim($contentstr,",");
+				
+				$tag_str = implode(";",$tags);
+				$tag_str = trim($tag_str,";");
+				
+				return array("email"=>$content_str,"tag"=>$tag_str);
+			}
+		}else{
+			$data['error'] = '没有上传文件';
+		}
+	}
+	
+	/*
+	 * $arr_title excel抬头, $rows 内容, $filename 文件名
+	 * */
+	function export_excel($arr_title, $rows, $filename) {
+		$this->load->library('PHPExcel');
+		$objPHPExcel = new PHPExcel();
+		$objPHPExcel->getProperties()->setTitle('export')->setDescription('none');
+	
+		$objPHPExcel->setActiveSheetIndex(0);
+	
+		$row_no = 1;
+		$col = 0;
+		foreach ($arr_title as $k => $title) {
+			$objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row_no, $title);
+			$col++;
+		}
+		$row_no++;
+		foreach ($rows as $row) {
+			$col = 0;
+			foreach ($arr_title as $k => $title) {
+				$objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row_no, $row[$k]);
+				$col++;
+			}
+			$row_no++;
+		}
+	
+		$objPHPExcel->setActiveSheetIndex(0);
+		$objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+		ob_end_clean();
+		// Sending headers to force the user to download the file
+		header('Content-Type: application/vnd.ms-excel');
+		header('Content-Disposition: attachment;filename="'.$filename.'_'.date('Ymd').'_'.date('His').'.xls"');
+		header('Cache-Control: max-age=0');
+	
+		$objWriter->save('php://output');
+	}
+	
+	/**
+	 * 中英文混杂字符串截取
+	 */
+	public static function substr_cn($string, $length = 80, $charset = 'UTF-8', $etc = '......') {
+		if(mb_strwidth($string,'UTF-8')<$length) return $string;
+		return mb_strimwidth($string,0,$length,$etc,$charset);
+	}
+	
+	public function single_template($info_id,$user){
+		$data = array();
+		$info_id = isset($info_id)?intval($info_id):"";
+		//$email_info = $this->Edm_user_m->get_edm_info($info_id);
+		
+		$cache_key = sprintf('%s', "modiansingle".$info_id."info");
+		if(md_memcache::get($cache_key)){
+			$email_info = md_memcache::get($cache_key);
+		}else{
+			$email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+			md_memcache::set($cache_key, $email_info_arr, 3600*2);
+			$email_info = md_memcache::get($cache_key);
+		}
+	
+		$pro_id=intval($email_info["pro_id"]);
+		$reward_id=$email_info["item_num"];
+		$rewards_asc=$email_info["serial_num"];
+		
+		$title =$email_info["email_title"];
+			
+		//$data = $this->Edm_product_m->get_product_rewards_by_product($pro_id,$reward_id,$rewards_asc);
+		
+		$cache_key = sprintf('%s', "modiansingle".$pro_id."".$reward_id."edm");
+		if(md_memcache::get($cache_key)){
+			$data = md_memcache::get($cache_key);
+		}else{
+			$data_arr = $this->Edm_product_m->get_product_rewards_by_product($pro_id,$reward_id,$rewards_asc);
+			md_memcache::set($cache_key, $data_arr, 3600*2);
+			$data = md_memcache::get($cache_key);
+		}
+		
+		//预览邮件时默认不显示用户昵称,用XXX代替
+		if(isset($user)){
+			//站内用户调取用户昵称，站外用户直接用邮箱
+			$data["send_user_email"] = $user;
+			if($email_info["user_side"] == 1){
+				$user_temp = $this->Edm_user_m->get_username_email($user);
+				if($user_temp){
+					$data["send_user"] = $user_temp;
+				}
+			}else{
+				$data["send_user"] = $user;
+			}
+		}else{
+			$data["send_user"] = "XXX";
+		}
+
+		$data["theme_id"] = $info_id;
+		$data["side"] = $email_info["user_side"];
+		$data["email_des"] = $email_info["email_des"];
+		$data["email_contents"] = $email_info["email_contents"];
+		
+		$upload_url = _gc('cdn_url', 'config');
+				
+		$str_content .='<!DOCTYPE html>';
+		$str_content .='<html lang="zh">';
+		$str_content .='<head>';
+		$str_content .='<meta charset="UTF-8">';
+		$str_content .='<title>'.$title.'</title>';
+		$str_content .='</head>';
+		$str_content .='<body>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="560" align="center" style="font-family: Tahoma, Arial,Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.8; color: #445472; border: 1px solid #e3e2e2; box-shadow: 0 0 20px rgba(0, 0, 0, .1); background: url(http://i1.modian.com/images/edm/edm-signet.png) no-repeat right 95% #f8fcfd;">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="background:url(http://i1.modian.com/images/edm/edm-striation.png) no-repeat center 0; height:15px;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<input type="hidden" id="theme_id" name="theme_id" value="'.$data["theme_id"].'">';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="520" align="center">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="text-align: center; margin: 20px 0;">';
+		$str_content .='<h1 style="font-size: 24px; margin: 0;">来摩点 找新奇</h1>';
+		$str_content .='<p style="margin: 0;"><a style="color: #445472; text-decoration: none;" href="http://www.modian.com/project/'.$data["pro_id"].'.html?utm_source=edm&utm_medium='.$data["pro_id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank">'.$title.'</a></p>';
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td align="center">';
+		$str_content .='<a href="http://www.modian.com/project/'.$data["pro_id"].'.html?utm_source=edm&utm_medium='.$data["pro_id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank"><img src="'.$upload_url.''.$data["logo"].'" width="520" height="405"></a>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<p style="margin: 0;">'.strip_tags(htmlspecialchars_decode($data["email_des"])).'</p>';
+		$str_content .='</td></tr>';
+		if(!empty($data["rewards_content"])){
+			foreach ($data["rewards_content"] as $key=>$val){
+				$str_content .='<tr><td>';
+				$str_content .='<div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e3e2e2;">';
+				$str_content .='<h2 style="margin: 0;"><a href="http://www.modian.com/project/'.$data["pro_id"].'.html?&utm_source=edm&utm_medium='.$data["pro_id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].' " target="_blank" style="font-size: 18px; color: #01c4fd; text-decoration: none;">支持&yen;'.$val["money"].'或更多</a></h2>';
+				$str_content .='<p style="margin: 8px 0;">'.strip_tags($val["rew_content"]).'</p>';
+				$str_content .='<a href="http://www.modian.com/project/'.$data["pro_id"].'.html?utm_source=edm&utm_medium='.$data["pro_id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank" style="display: block; height: 46px; width: 150px; line-height: 46px; text-align: center; font-size: 18px; border-radius: 3px; text-decoration: none; background-color: #22ceff; color: #fff; margin-top: 8px;">去支持</a>';
+				$str_content .='</div>';
+				$str_content .='</td></tr>';
+			}
+		}
+		
+		$str_content .='<tr><td>';
+		$str_content .='<div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e3e2e2;">';
+		$str_content .='<p style="margin-bottom: 0;">亲爱的玩家'.$data["send_user"].'您好：</p>';
+		$str_content .='<p style="margin: 0;text-indent:2em;"> '.str_replace("XXX",$data["pro_name"],$data["email_contents"]).'</p>';
+		//$str_content .='<p style="margin: 0;"> 《'.$data["pro_name"].'》 今日正式登陆摩点网众筹，想抢先玩么？我们已将您的邮箱账号设为尊贵用户，使用本邮箱账号即可登陆。</p>';
+		$str_content .='<a href="http://www.modian.com/user/login?utm_source=edm&utm_medium='.$data["pro_id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank" style="display: block; height: 46px; width: 150px; line-height: 46px; text-align: center; font-size: 18px; border-radius: 3px; text-decoration: none; background-color: #22ceff; color: #fff; margin: 40px auto 0;">立即登录</a>';
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="background:url(http://i1.modian.com/images/edm/edm-striation.png) no-repeat center 0; height: 15px; margin-top: 40px;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="500" align="center" style="font-family: Tahoma, Arial,Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.8; color: #445472;">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td align="center">';
+		$str_content .='<p style="margin: 35px 0;">© www.modian.com 版权所有 北京摩点众筹科技有限公司</p>';
+		$str_content .='<p style="text-align: center; font-size: 12px; color: #999;  margin: 20px 0; padding: 0;">如果不想再收到此邮件，<a href="http://www.modian.com/user/email_refund?email='.$user.'" target="_blank" style="color:#95bddc;">取消订阅</a></p>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='</body>';
+		$str_content .='</html>';
+		
+		if(isset($user)){
+			return $str_content;
+		}else{
+			echo $str_content;
+		}
+	}
+	
+	public function more_template($info_id,$user){
+		$data = array();
+		$product_list =array();
+		//$email_info = $this->Edm_user_m->get_edm_info($info_id);
+		
+		$cache_key = sprintf('%s', "modianmore".$info_id."info");
+		if(md_memcache::get($cache_key)){
+			$email_info = md_memcache::get($cache_key);
+		}else{
+			$email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+			md_memcache::set($cache_key, $email_info_arr, 3600*2);
+			$email_info = md_memcache::get($cache_key);
+		}
+		
+		$proId_str=$email_info["item_num"];
+		$proId_asc=$email_info["serial_num"];
+			
+		$side = $email_info["user_side"];
+			
+// 		$product_list = $this->Edm_product_m->get_product_arr($proId_str,$proId_asc);
+// 		$data["product_list"] = $product_list;
+		
+		$cache_key = sprintf('%s', "modianmore".$info_id."edm");
+		if(md_memcache::get($cache_key)){
+			$data["product_list"] = md_memcache::get($cache_key);
+		}else{
+			$product_list = $this->Edm_product_m->get_product_arr($proId_str,$proId_asc);
+			md_memcache::set($cache_key, $product_list, 3600*2);
+			$data["product_list"] = md_memcache::get($cache_key);
+		}
+		
+		//预览邮件时默认不显示用户昵称,用XXXX代替
+		if(isset($user)){
+			$data["send_user_email"] = $user;
+			if($side ==1){
+				$user_temp = $this->Edm_user_m->get_username_email($user);
+				if($user_temp){
+					$data["send_user"] = $user_temp;
+				}else{
+					$data["send_user"] = $user;
+				}
+			}elseif ($side == 2){
+				$data["send_user"] = $user;
+			}
+		}else{
+			$data["send_user"] = "XXXX";
+		}
+		
+		$data["email_title"] = $email_info["email_title"];
+		$data["email_contents"] = $email_info["email_contents"];
+		$data["product_total_num"] = count($data["product_list"]);
+		$data["theme_id"] = $info_id;
+		$data["side"] = $email_info["user_side"];
+		
+		$upload_url = _gc('cdn_url', 'config');
+	
+	
+		$str_content ='<!DOCTYPE html>';
+		$str_content .='<html lang="zh">';
+		$str_content .='<head>';
+		$str_content .='<meta charset="UTF-8">';
+		$str_content .='<title>'.$data["email_title"].'</title>';
+		$str_content .='</head>';
+		$str_content .='<body>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="560" align="center" style="font-family: Tahoma, Arial,Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.8; color: #445472; border: 1px solid #e3e2e2; box-shadow: 0 0 20px rgba(0, 0, 0, .1); background: url(http://i1.modian.com/images/edm/edm-signet.png) no-repeat right 95% #f8fcfd;">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="background: url(http://i1.modian.com/images/edm/edm-striation.png) no-repeat center 0; height: 15px;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="520" align="center">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="text-align: center; margin: 20px 0;">';
+		$str_content .='<h1 style="font-size: 24px; margin: 0;">'.$data["email_title"].'</h1>';
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<p style="margin: 0;">亲爱的'.$data["send_user"].'玩家您好：</p>';
+		//$str_content .='<p style="margin: 0;">摩点网 为您推荐了'.$data["product_total_num"].'个精品游戏，游戏抢先玩哦！</p>';
+		$str_content .='<p style="margin: 0;text-indent:2em;">'.str_replace("XXX",$data["product_total_num"],$data["email_contents"]).'</p>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		
+		if(!empty($data["product_list"])){
+			foreach($data["product_list"] as $key=>$val){
+				$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="100%" style="border-top: 1px solid #e3e2e2; padding-top: 20px; margin-top: 20px;">';
+				$str_content .='<tbody>';
+				$str_content .='<tr>';
+				$str_content .='<td width="230"><a href="http://www.modian.com/project/'.$val["id"].'.html?utm_source=edm&utm_medium='.$val["id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank">';
+				$str_content .='<img src="'.$upload_url.''.str_replace("uploads/","",$val["logo"]).'" width="230" height="173"></a></td>';
+				$str_content .='<td valign="top" style="padding-left: 20px;">';
+				$str_content .='<p style="margin: 0; overflow: hidden; height: 20px; line-height: 20px; margin-bottom: 5px;"><a style="color: #445472;" href="http://www.modian.com/project/'.$val["id"].'.html?utm_source=edm&utm_medium='.$val["id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank">'.$val["name"].'</a></p>';
+				
+				$des = $this->substr_cn($val["des"],110,"UTF-8");
+				$str_content .='<div style="margin: 0 0 5px 0; height: 75px; overflow: hidden;">'.$des.'</div>';
+				
+				$str_content .='<div style="height: 10px; background-color: #e3e1e2; overflow: hidden;">';				
+				$str_content .='<div style="height: 100%; background-color: #26ccff; width:'.$val["product_percent"].'"></div>';
+				$str_content .='</div>';
+				$str_content .='<div style="margin-top: 5px;">';
+				$str_content .='<p style="display: inline-block; margin: 0; width: 70px; color: #959ead; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">';
+				$str_content .='<b style="display: block; color: #445472;">'.$val["product_percent"].'</b>';
+				$str_content .='已达到</p>';
+				$str_content .='<p style="display: inline-block; margin: 0; width: 100px; text-align: center; color: #959ead; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">';
+				$str_content .='<b style="display: block; color: #445472;">&yen;'.$val["product_support_money"].'</b>';
+				$str_content .='已众筹</p>';
+				$str_content .='<p style="display: inline-block; margin: 0; width: 90px; text-align: right; color: #959ead; text-overflow: ellipsis; white-space: nowrap; overflow: hidden;">';
+				$str_content .='<b style="display: block; color: #445472;">'.$val["product_left_time"].'</b>';
+				$str_content .='剩余时间</p>';
+				$str_content .='</div>';
+				$str_content .='</td>';
+				$str_content .='</tr>';
+				$str_content .='</tbody>';
+				$str_content .='</table>';
+			}
+		}
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e3e2e2;">';
+		$str_content .='<h2 style="margin: 25px 0; text-align: center">想做个有情怀的玩家？</h2>';
+		$str_content .='<a href="http://www.modian.com/user/login?utm_source=edm&utm_medium='.$data["pro_id"].'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank" style="display: block; height: 46px; width: 150px; line-height: 46px; text-align: center; font-size: 18px; border-radius: 3px; text-decoration: none; background-color: #22ceff; color: #fff; margin: 40px auto 0;">立即加入</a>';
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="background: url(http://i1.modian.com/images/edm/edm-striation.png) no-repeat center 0; height: 15px; margin-top: 40px;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="500" align="center" style="font-family: Tahoma, Arial,Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.8; color: #445472;">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td align="center">';
+		$str_content .='<p style="margin: 35px 0;">© www.modian.com 版权所有 北京摩点众筹科技有限公司</p>';
+		$str_content .='<p style="text-align: center; font-size: 12px; color: #999;  margin: 20px 0; padding: 0;">如果不想再收到此邮件，<a href="http://www.modian.com/user/email_refund?email='.$user.'" target="_blank" style="color:#95bddc;">取消订阅</a></p>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='</body>';
+		$str_content .='</html>';
+	
+	    if(isset($user)){
+			return $str_content;
+		}else{
+			echo $str_content;
+		}
+	}
+	
+	public function topic_template($edm_id,$user){
+		$data = array();
+		//$edm_info = $this->Edm_user_m->get_edm_info($edm_id);
+
+		$cache_key = sprintf('%s', "modiantopic".$edm_id."info");
+		if(md_memcache::get($cache_key)){
+			$edm_info = md_memcache::get($cache_key);
+		}else{
+			$edm_info_arr = $this->Edm_user_m->get_edm_info($edm_id);
+			md_memcache::set($cache_key, $edm_info_arr, 3600*2);
+			$edm_info = md_memcache::get($cache_key);
+		}
+				
+		$topic_pic=isset($edm_info["item_num"])?$edm_info["item_num"]:"";
+		$topic_url=isset($edm_info["item_content"])?$edm_info["item_content"]:"";
+		$topic_asc=isset($edm_info["serial_num"])?$edm_info["serial_num"]:"";
+		
+		$topic_pic_arr = (!empty($topic_pic))?explode(",",$topic_pic):array();
+		$topic_url_arr = (!empty($topic_pic))?explode(",",$topic_url):array();
+		$topic_asc_arr = (!empty($topic_pic))?explode(",",$topic_asc):array();
+		$pic_info = array();
+		if(!empty($topic_pic_arr)){
+			foreach ($topic_pic_arr as $key=>$val){
+				$topic["footer_pic"] = str_replace("uploads/","",$val);
+				$topic["footer_pic_asc"] = $topic_asc_arr[$key];
+				$topic["footer_pic_url"] = $topic_url_arr[$key];
+				$pic_info[] = $topic;
+			}
+			$pic_info = $this->Edm_product_m->array_sort($pic_info,"footer_pic_asc","asc");
+		}
+		$side = $edm_info["user_side"];
+		$data = $edm_info;
+		$data["send_user_email"] = $user;
+		if($side ==1){
+			$user_temp = $this->Edm_user_m->get_username_email($user);
+			if($user_temp){
+				$data["send_user"] = $user_temp;
+			}else{
+				$data["send_user"] = $user;
+			}
+		}elseif ($side == 2){
+			$data["send_user"] = $user;
+		}
+		$data["theme_id"] = $edm_id;
+		$data["side"] = $edm_info["user_side"];
+	
+		$data["pic_list"] = $pic_info;
+		$data["pro_picture"] = str_replace("uploads/","",$data["pro_picture"]);
+		
+		$upload_url = _gc('cdn_url', 'config');
+	
+		$str_content .='<!DOCTYPE html>';
+		$str_content .='<html lang="zh">';
+		$str_content .='<head>';
+		$str_content .='<meta charset="UTF-8">';
+		$str_content .='<title>'.$data["email_title"].'</title>';
+		$str_content .='</head>';
+		$str_content .='<body>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="560" align="center" style="font-family: Tahoma, Arial,Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.8; color: #445472; border: 1px solid #e3e2e2; box-shadow: 0 0 20px rgba(0, 0, 0, .1); background: url(http://i1.modian.com/images/edm/edm-signet.png) no-repeat right 95% #f8fcfd;">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="background:url(http://i1.modian.com/images/edm/edm-striation.png) no-repeat center 0; height: 15px;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="520" align="center">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="text-align: center; margin: 20px 0;">';
+		$str_content .='<h1 style="font-size: 24px; margin: 0;">圆梦第一季：1分钱赢Apple Watch!</h1>';
+		if(!empty($data["pro_url"])){
+			$str_content .='<p style="margin: 0;"><a style="color: #445472; text-decoration: none;" href="http://'.$data["pro_url"].'?utm_source=edm&utm_medium=topic-'.$edm_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'">'.$data["email_title"].'</a></p>';
+		}else{
+			$str_content .='<p style="margin: 0;">'.$data["email_title"].'</p>';
+		}
+		
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td align="center">';
+		if(!empty($data["pro_url"])){
+			$str_content .='<a href="http://'.$data["pro_url"].'?utm_source=edm&utm_medium=topic-'.$edm_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'"><img src="'.$upload_url.''.$data["pro_picture"].'" width="520" height="293"></a>';
+		}else{
+			$str_content .='<img src="'.$upload_url.''.$data["pro_picture"].'" width="520" height="293">';
+		}
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<h3 style="margin: 0; font-size: 14px;">活动规则：</h3>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<p style="margin: 10px 0 10px 0;">'.htmlspecialchars_decode($data["email_contents"]).'</p>';
+		$str_content .='</td></tr>';
+		if(!empty($data["pic_list"])){
+			foreach($data["pic_list"] as $key=>$val){
+				$str_content .='<tr><td>';
+				if(!empty($val["footer_pic_url"])){
+					$str_content .='<a href="http://'.$val["footer_pic_url"].'?utm_source=edm&utm_medium=topic-'.$edm_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank"><img src="'.$upload_url.''.$val["footer_pic"].'" width="520" height="293"></a>';
+				}else{
+					$str_content .='<img src="'.$upload_url.''.$val["footer_pic"].'" width="520" height="293">';
+				}
+				$str_content .='</td></tr>';
+			}
+		}
+		$str_content .='<tr><td>';
+		$str_content .='<div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #e3e2e2;">';
+		if($data["email_title"] == "点点手机就能赢钻戒？"){
+			$str_content .='<a href="http://zixun.modian.com/content/6142" target="_blank" style="display: block; height: 46px; width: 150px; line-height: 46px; text-align: center; font-size: 18px; border-radius: 3px; text-decoration: none; background-color: #22ceff; color: #fff; margin: 30px auto 0;">了解详情</a>';
+		}else if($data["email_title"] == "Apple Watch只要1分钱！"){
+			$str_content .='<a href="http://www.modian.com/extension/register?utm_source=edm&utm_medium=topic-'.$edm_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank" style="display: block; height: 46px; width: 150px; line-height: 46px; text-align: center; font-size: 18px; border-radius: 3px; text-decoration: none; background-color: #22ceff; color: #fff; margin: 30px auto 0;">注册抽奖</a>';
+		}else{
+			$str_content .='<a href="http://www.modian.com/user/login?utm_source=edm&utm_medium=topic-'.$edm_id.'&user='.$user.'&theme='.$data["theme_id"].'&side='.$data["side"].'" target="_blank" style="display: block; height: 46px; width: 150px; line-height: 46px; text-align: center; font-size: 18px; border-radius: 3px; text-decoration: none; background-color: #22ceff; color: #fff; margin: 30px auto 0;">立即加入</a>';
+		}
+		
+		$str_content .='</div>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='</td></tr>';
+		$str_content .='<tr><td>';
+		$str_content .='<div style="background: url(http://i1.modian.com/images/edm/edm-striation.png) no-repeat center 0; height: 15px; margin-top: 40px;"></div>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="500" align="center" style="font-family: Tahoma, Arial,Helvetica Neue, Helvetica, sans-serif; font-size: 14px; line-height: 1.8; color: #445472;">';
+		$str_content .='<tbody>';
+		$str_content .='<tr><td align="center">';
+		$str_content .='<p style="margin: 35px 0;">© www.modian.com 版权所有 北京摩点众筹科技有限公司</p>';
+		$str_content .='<p style="text-align: center; font-size: 12px; color: #999;  margin: 20px 0; padding: 0;">如果不想再收到此邮件，<a href="http://www.modian.com/user/email_refund?email='.$user.'" target="_blank" style="color:#95bddc;">取消订阅</a></p>';
+		$str_content .='</td></tr>';
+		$str_content .='</tbody>';
+		$str_content .='</table>';
+		$str_content .='</body>';
+		$str_content .='</html>';	
+		
+	    if(isset($user)){
+			return $str_content;
+		}else{
+			echo $str_content;
+		}
+	}
+	
+	public function tag_search(){
+		$data = array();
+		$this->load->view('site_user/tag_search', $data);
+	}
+	function array_sort($arr,$keys,$type = 'asc'){
+		$keysvalue = $new_array = array();
+		foreach ($arr as $k => $v){
+			$keysvalue[$k] = $v[$keys];
+		}
+		if ($type == 'asc'){
+			asort($keysvalue);
+		}else{
+			arsort($keysvalue);
+		}
+		reset($keysvalue);
+		foreach ($keysvalue as $k => $v){
+			$new_array[] = $arr[$k];
+		}
+		return $new_array;
+	}
+	public function ajax_tag_info(){
+		$search_arr['tag'] = htmlspecialchars($_POST["tag"]);
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '30';
+		
+		$tage_info = $this->Edm_user_m->get_tag_list($search_arr);
+		$res = array();
+		foreach ($tage_info as $key=>$val){
+			$temp["tag"]=$val["tag"];
+			$temp["email_num"]=$val["num"];
+			$temp["open_num"]=$this->Edm_user_m->get_tag_count($val["tag"],2);
+			$temp["close_num"]=$this->Edm_user_m->get_tag_count($val["tag"],1);
+			$temp["ctime"]=$val["ctime"];
+			
+			$res[] = $temp;
+		}
+		$info_arr = $this->array_sort($res,"open_num","desc");
+		$result = array('total' => count($info_arr),
+				'rows' => $info_arr,
+				'footer' => '');
+		echo json_encode($result);
+	}
+	
+	//编辑
+	public function del(){
+		$emd_id = isset($_POST["id"])?intval($_POST["id"]):"";
+		$res = $this->Edm_user_m->del_edm_info($emd_id);
+		if($res){
+			echo json_encode(array("num"=>"1"));
+		}else{
+			echo json_encode(array("num"=>"2"));
+		}
+	}
+	
+	//用户积分
+	public function user_score(){
+		$data = array();
+		$source_type = $this->user_score_m->get_source_type();
+		$data['source_type'] = $source_type;
+		$this->load->view('site_user/user_score', $data);		
+	}
+	public function ajax_user_score(){
+    	$res = array();
+    	$result = array();    	       
+    	$res = $this->score_search(1); 
+
+    	$footer = array(
+    			array(
+    				'send_user_id' => "用户ID",
+    				'user_name' => $res["user_id"],
+    				'time' => "",
+    				'oper_behavior' => "总积分",
+    				'user_score' => $res["all_score"],
+    	        ),
+    	);
+
+    	$result = array('total' =>$res["num"],
+    			'rows' =>$res["search"],
+    			'footer' => $footer,
+    	);
+    	
+    	echo json_encode($result);		
+	}
+	public function score_search($mode=1){
+		$all_score = array();
+		$all_type = array();
+    	$search_arr["user_id"] = isset($_POST['user_id']) ? $_POST['user_id'] : '';
+    	$search_arr["content_template"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+    	$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+    	$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+
+		if($mode == 2){
+			$search_arr["page"] = "";
+    	    $search_arr["rows"] = "";  
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	    $search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';  
+		}
+    	
+    	$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+    	$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';  	 
+
+    	$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+    	$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+    	
+    	if(!empty($search_arr["content_template"])){
+    		
+			$type_text = $this->user_score_m->get_type_text ($search_arr["content_template"]);
+			$all_type = $this->user_score_m->get_type_all ( $type_text['type_text'] );
+		
+		}
+		
+    	$num = $this->user_score_m->source_usercount_serach($search_arr,$all_type);
+    	$result = $this->user_score_m->user_source_serach($search_arr,$all_type);
+    	
+        $this->load->library('md_model_cache');
+        $this->load->model("score_model");
+        if(!empty($search_arr["user_id"])){
+        	$all_score = $this->score_model->get_user_score($search_arr["user_id"]);
+        }
+  		$score = isset($all_score) ? $all_score : '';
+    	$list_info = array();
+    	if(!empty($result)){
+    		foreach ($result as $key=>$val){
+    			$res["send_user_id"] = $val["user_id"];				
+    			if($val["ctime"] == "0000-00-00 00:00:00"){
+    				$res["time"] ='';
+    			}else{
+    				$res["time"] =$val["ctime"];
+    			}
+    			$user = $this->User_m->get_user_info ( $val["user_id"] );
+    			$res["user_name"] = $user['nickname'];
+    			$res["oper_behavior"] = $val["type_text"];
+    			$res["user_score"] = $val["score"];
+    			$res["op_user"] = $val["op_man"];    			 
+    			$list_info[] = $res;
+    		}
+    	}
+    
+    	$score_list_info = array();
+    	
+    	$score_list_info["num"]= $num;
+    	$score_list_info["search"]= $list_info;
+		$score_list_info["all_score"]= $score['num'];
+		$score_list_info["user_id"]= $search_arr["user_id"];
+    	return $score_list_info;		
+	} 
+	
+	
+	public function get_user_info($uid){
+		$sql = "SELECT * FROM md_users WHERE id='{$uid}'";
+		$res = $this->db->query($sql)->row_array();
+		return $res;
+	}
+	
+	public function certificate_user_info($data){
+		$sql = "select t1.*,t2.* from  md_user_certificate t1 left join md_users t2 on t1.user_id = t2.id where ";
+		if(!empty($data["username"])){
+			$sql.=" t2.username like '".$data["username"]."%'";
+		}
+		if(!empty($data["mobile"])){
+			$sql.=" and t2.mobile = '".$data["mobile"]."'";
+		}
+		if(!empty($data["status"]) && $data["status"] == 2){
+			$sql.=" and t1.status = 0";
+		}else{
+			$sql.=" and t1.status != 0";
+		}
+	}
+	
+	public function certificate(){
+		$data = array();
+		$res = array();
+		$res = $this->User_m->certificate_user_info($data);
+		foreach ($res as $key=>$val){
+			$project_num = $this->User_m->get_user_project_num($val["id"]);
+			$favor_count = $this->User_m->get_followed_total($val["id"]);//获取粉丝数
+			$backer_count = $this->User_m->get_user_back_pro_count($val["id"]);//获取项目支持数
+			$list[] = array("id"=>$val["id"],"user_id"=>$val["user_id"],"username"=>$val["username"],"nickname"=>$val["nickname"],"mobile"=>$val["mobile"],"email"=>$val["email"],"icon"=>$val["icon"],"favor_count"=>$favor_count,"backer_count"=>$backer_count,"comment_count"=>$project_num["comment_count"]);
+		}
+		//print_r($list);
+		$this->load->view('site_user/certificate', $data);
+	}
+	
+	public function ajax_certificate(){
+		$data = array();
+		$list = array();
+		$res = array();
+		$data["mobile"] = isset($_POST['mobile']) ? $_POST['mobile'] : '';
+		$data["username"] = isset($_POST['username']) ? $_POST['username']: '';
+		$data["usertype"] = isset($_POST['usertype']) ? $_POST['usertype']: '1';
+		$res = $this->User_m->certificate_user_info($data);
+		foreach ($res as $key=>$val){
+			$project_num = $this->User_m->get_user_project_num($val["id"]);
+			$favor_count = $this->User_m->get_followed_total($val["id"]);//获取粉丝数
+			$backer_count = $this->User_m->get_user_back_pro_count($val["id"]);//获取项目支持数
+			$upload_url = _gc('cdn_url', 'config'); 
+			if(strpos($val["icon"],"uploads/")){
+				$img = '<img src="'.$val["icon"].'" height="100" width="100" onerror="javascript:this.src=\'http://i1.modian.com/new/images/headPic.png\'">';
+			}else{
+				$val["icon"] = str_replace("uploads/","",$val["icon"]);
+				$img = '<img src="'.$upload_url.$val["icon"].'" height="100" width="100" onerror="javascript:this.src=\'http://i1.modian.com/new/images/headPic.png\'">';
+			}
+			
+			if($val["status"] == 2){
+				$list[] = array("id"=>$val["id"],"username"=>$val["username"]."/".$val["nickname"],"mobile"=>$val["mobile"]."/".$val["email"],"icon"=>$img,"ctime"=>$val["platform"]."/".$val["ctime"],"favor_count"=>$favor_count,"backer_count"=>$backer_count,"comment_count"=>$project_num["comment_count"],"operation"=>'<a href="javascript:void(0);" onclick="update_status(3,'.$val["id"].');">取消加V</a>');
+			}else if($val["status"] == 1){
+				$list[] = array("id"=>$val["id"],"username"=>$val["username"]."/".$val["nickname"],"mobile"=>$val["mobile"]."/".$val["email"],"icon"=>$img,"ctime"=>$val["platform"]."/".$val["ctime"],"favor_count"=>$favor_count,"backer_count"=>$backer_count,"comment_count"=>$project_num["comment_count"],"operation"=>'<a href="javascript:void(0);" onclick="update_status(2,'.$val["id"].');">审核通过</a> | <a href="javascript:void(0);" onclick="update_status(3,'.$val["id"].');">拒绝</a>');
+			}else if($val["status"] == 3){
+				$list[] = array("id"=>$val["id"],"username"=>$val["username"]."/".$val["nickname"],"mobile"=>$val["mobile"]."/".$val["email"],"icon"=>$img,"ctime"=>$val["platform"]."/".$val["ctime"],"favor_count"=>$favor_count,"backer_count"=>$backer_count,"comment_count"=>$project_num["comment_count"],"operation"=>'已拒绝 | <a href="javascript:void(0);" onclick="update_status(2,'.$val["id"].');">重新审核</a>');
+			}
+		}
+		
+		$footer = array();
+		 
+		$result = array('total' => count($list),
+				'rows' => $list,
+				'footer' => $footer);
+		echo json_encode($result);
+	}
+	
+	public function update_user_status(){
+		$user_id = isset($_POST['user_id']) ? $_POST['user_id'] : '';
+		$status = isset($_POST['status']) ? $_POST['status'] : '';
+		$res = $this->User_m->update_user_info($user_id,array("status"=>$status));
+		if($res){
+			echo json_encode(array("status"=>1));
+		}else{
+			echo json_encode(array("status"=>2));
+		}
+	}
+	
+	public function register(){
+		$data = array();
+		$this->load->view('site_user/register', $data);
+	}
+	
+	/**
+	 * 生成用户名
+	 * @param type $email
+	 * @return string
+	 */
+	private function _build_single_username($email = "") {
+		$this->load->library('md_validation');
+		if ($this->md_validation->isEmail($email)) {
+			$username = htmlspecialchars(substr($email, 0, -strlen(strstr($email, '@'))));
+			$type = 1;
+		} else {
+			$username = "emai" . rand(10000000, 99999999);
+			$type = 0;
+		}
+		do {
+			$n = 0;
+			$query = $this->db->get_where("md_users", array('username' => $username));
+			$res = $query->row_array();
+			if (!empty($res)) {
+				if ($type) {
+					$username = $username . rand(1000, 9999);
+				} else {
+					$username = "emai" . rand(10000000, 99999999);
+				}
+			}
+			$n++;
+			if ($n > 10) {
+				$username = "emai" . rand(10000000, 99999999);
+				return $username;
+			}
+		} while (!empty($res));
+		return $username;
+	}
+	
+	public function check_user_email(){
+		$email= isset($_POST['email']) ? $_POST['email']: '';
+		$user_info = $this->Common->get_single_record('md_users', array('email'=>$email));
+		if(!empty($user_info)){
+			echo json_encode(array("status" => "EXIT", "content" => "已存在"));
+		}else{
+			echo json_encode(array("status" => "OK", "content" => "可使用"));
+		}
+	}
+	
+	public function check_user_nickname(){
+		$nickname= isset($_POST['nickname']) ? $_POST['nickname']: '';
+		$user_info = $this->Common->get_single_record('md_users', array('nickname'=>$nickname));
+		if(!empty($user_info)){
+			echo json_encode(array("status" => "EXIT", "content" => "已存在"));
+		}else{
+			echo json_encode(array("status" => "OK", "content" => "可使用"));
+		}
+	}
+	
+	public function register_save(){
+		$this->load->model('User_model');
+		if(isset($_POST)){
+			$data["email"] = isset($_POST['email']) ? $_POST['email'] : '';
+			$data["nickname"] = isset($_POST['nickname']) ? $_POST['nickname']: '';
+			
+			$password = isset($_POST['password']) ? $_POST['password']: '';
+			$md5_password = md5($password . $this->config->item('password_extracode'));
+			$data["password"] = $md5_password;
+			
+			$confirm_password = isset($_POST['confirm_password']) ? $_POST['confirm_password']: '';
+			if($confirm_password != $password){
+				echo '<script>alert("两次输入密码不一致!");</script>';
+				return false;
+			}
+			$data["username"] = $this->_build_single_username($data["email"]);
+			
+			$res = $this->User_model->add_user_info($data);
+			if($res){
+				redirect('/main/user');
+			}
+			
+		}
+	}
+
+}

@@ -1,0 +1,20 @@
+<div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <h4 class="modal-title" id="myModalLabel">编辑标签</h4>
+</div>
+<div class="modal-body">
+<div id="tag_list">
+<?php
+	foreach($tag_list as $tag){
+		echo '<h4><span class="label label-primary" title="删除该标签">' . $tag['tag_name'] . '  </span><a class="del_tag" url="'.$site_url.'bbs_post/del_post_tag" data="'.$tag['tag_id'].'"><span aria-hidden="true" >&times;</span></a></h4>';
+	}
+?>
+</div>
+	<div class="form-group">
+		<input type="text" name="new_tag" class="form-control" placeholder="输入已存在的标签名">  <button type="submit" id="add_tag" class="btn btn-default" url="<?php echo $site_url . 'bbs_post/add_post_tag'; ?>">新增</button>
+	</div>
+	<input type="hidden" value="<?php echo $post_id; ?>" name="post_id">
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+</div>	

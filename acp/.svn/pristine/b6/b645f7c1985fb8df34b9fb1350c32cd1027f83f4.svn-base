@@ -1,0 +1,500 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+	require_once APPPATH . 'core/MD_Controller.php';
+
+	/*
+	 *	bbs 中的任务计划
+	 */
+	class Bbs_cron extends Deamon_Controller
+	{
+
+		public function __construct()
+		{
+			parent::__construct();
+
+			$this->load->library("bbs_queue", array(TRUE));
+	        $this->load->model('bbs/bbs_m');
+	        $this->load->model('bbs/bbs_post_m');
+	        $this->load->model('bbs/bbs_tag_m');
+	        $this->load->model('bbs_cron_model');
+		}
+
+		// 查看队列某个位置的内容
+		public function view($pos)
+		{
+			$this->bbs_queue->set_queue_name('moxi');	
+			$data = $this->bbs_queue->view($pos);
+			echo '<pre>';
+			var_dump($data);
+			echo '</pre>';
+			exit;
+		}
+
+		// 查看队列某个位置的内容
+		public function status()
+		{
+			$this->bbs_queue->set_queue_name('moxi');	
+			$data = $this->bbs_queue->status();
+			echo '<pre>';
+			var_dump($data);
+			echo '</pre>';
+			exit;
+		}
+
+		/**
+		 *
+		 * 	使用队列
+		 *
+		 */
+		public function moxi_queue()
+		{
+			$this->bbs_queue->set_queue_name('moxi');	
+			while (TRUE)
+			{
+				$queue_data = $this->bbs_queue->get();
+				if (empty($queue_data)) {
+
+					// 改为1分钟执行一次！如果发现队列中无值，跳出循环(不合理！除非队列中有很多值，执行的很慢！会出现同时跑多个脚本，应该会有问题！)
+					// * * * * * /ROOT/bin/php /ROOT/www/application/acp/index.php bbs_cron moxi_queue
+					// sleep(1);
+					break;
+				} else {
+					list($type, $data) = each($queue_data);
+					switch ($type)
+					{
+						case 'add_post' :
+						case 'verify_post_successed' :
+							$post_tag_data = array();
+							$post_tag_data['post_id'] = $data['post_id'];
+							$post_tag_data['ctime'] = $data['ctime'];
+
+							/*
+							 	需要推送帖子的标签
+									1.审核通过的时候，我们建立所有的对应关系
+									2.新建帖子的时候，我们已经建立了用户的直接标签和帖子的对应关系，所以不必再包含
+									3.后台审核通过的帖子，所有标签的推送都放到队列中执行。
+							 */
+							$if_inc_self = ($type == 'verify_post_successed') ? TRUE : FALSE;
+							$tag_ids = $this->bbs_post_m->get_add_tag_ids($data['tagids'], $if_inc_self);
+							if( empty($tag_ids) ){
+								break;
+							}
+
+							$this->bbs_post_m->add_post_tag_batch($post_tag_data, $tag_ids);
+							
+							// 更新标签帖子数
+							foreach($tag_ids as $tag_id){
+								$this->bbs_tag_m->update_tag_post_num($tag_id);
+								$this->bbs_tag_m->update_tag_week_post($tag_id);
+							}
+							break;
+
+						case 'del_post' :
+							$this->bbs_post_m->del_post_tag_batch_by_post_id($data['post_id']);
+
+							// 删除帖子，所有tag的帖子数不减
+							break;
+
+						case 'add_post_tag' :
+							$post_tag_data = array();
+							$post_tag_data['post_id'] = $data['post_id'];
+							$post_tag_data['ctime'] = time(); 
+
+							// 需要推送帖子的标签
+							$tag_ids = $this->bbs_post_m->get_add_tag_ids($data['tag_id'], FALSE);
+
+							// 考虑批量添加，但后果是：会出现重复。我们得筛除已有的记录
+							$post_current_map_tag_ids = $this->bbs_post_m->get_tag_ids_by_post_id($data['post_id']);
+							$need_add_tag_ids = array_diff($tag_ids, $post_current_map_tag_ids);
+
+							if( empty($need_add_tag_ids) ){
+								break;
+							}
+
+							$this->bbs_post_m->add_post_tag_batch($post_tag_data, $need_add_tag_ids);
+							
+							// 更新标签帖子数
+							foreach($need_add_tag_ids as $tag_id){
+								$this->bbs_tag_m->update_tag_post_num($tag_id);
+								$this->bbs_tag_m->update_tag_week_post($tag_id);
+							}
+							break;
+
+						case 'del_post_tag' :
+							$tagids = $data['tagids'];
+
+							// 排除tagids中要删除的tag_id
+							$search_str = ',' . $data['tag_id'] . ',';
+							$tagids_str = ',' . $tagids . ',';
+							$new_tagids = trim(str_replace($search_str , ',', $tagids_str), ',');
+
+							// 获取当前的和帖子建立对应关系的所有 tag_id
+							$origin_tag_ids = $this->bbs_post_m->get_add_tag_ids($tagids);
+
+							// 获取删除当前tag后，剩余的应该存在的所有 tag_id
+							$remain_tag_ids = $this->bbs_post_m->get_add_tag_ids($new_tagids);
+							$need_del_tag_ids = array_diff($origin_tag_ids, $remain_tag_ids);
+
+							if( empty($need_del_tag_ids) ){
+								break;
+							}
+							$this->bbs_post_m->del_post_tag_batch_by_tag_ids_and_post_id($need_del_tag_ids, $data['post_id']);
+
+							// 更新标签帖子数 -1
+							foreach($need_del_tag_ids as $need_del_tag_id)
+							{
+								$this->bbs_tag_m->update_tag_post_num($need_del_tag_id, -1);
+								$this->bbs_tag_m->update_tag_week_post($need_del_tag_id, -1);
+							}
+							break;
+
+						case 'add_tag_relation' :
+							$ptag_id = $data['ptag_id'];
+							$ctag_id = $data['ctag_id'];
+							$this->add_tag_relation($ptag_id, $ctag_id);
+							break;
+
+						case 'del_tag_relation' :
+							$ptag_id = $data['ptag_id'];
+							$ctag_id = $data['ctag_id'];
+							$this->del_parent_tag_posts($ptag_id, $ctag_id);
+							break;
+					}
+				}
+			}
+//			$this->update_post_type();
+		}
+
+		// 建立新的标签对应关系
+		public function add_tag_relation($ptag_id, $ctag_id)
+		{
+			$ptag_id = (int) $ptag_id;
+			$ctag_id = (int) $ctag_id;
+
+			// 对应关系中ctag的所有post_id
+			$add_post_ids = $this->bbs_post_m->get_post_ids_by_tag_id($ctag_id);
+
+			// 只有当有帖子的时候，才需要建立帖子的对应关系
+			if($add_post_ids){
+
+				// 对应关系中ptag的所有父tag + 自身(包含自身的，直接使用get_add_tag_ids()方法就行)
+				$add_post_tag_ids = $this->bbs_post_m->get_add_tag_ids($ptag_id);
+
+				// 对应关系中ctag原本已存在的所有父tag
+				$ctag_parent_tag_ids = $this->bbs_post_m->get_all_parent_tag_id($ctag_id, TRUE);
+
+				// 排除后，得到需要添加的tag_ids(减少不必要的运算)
+				$need_add_post_tag_ids = array_diff($add_post_tag_ids, $ctag_parent_tag_ids);
+
+				// 给所有标签，都推送$add_post_ids，已存在，则不会建立(这里并未进行数据进一步筛选 - 估计很复杂，效率可能低)
+				foreach($need_add_post_tag_ids as $tag_id)
+				{
+					$post_tag_data = array();
+					$post_tag_data['tag_id'] = $tag_id;
+					$post_tag_data['ctime'] = time();
+
+					/**
+					 *	这里目前是有问题，因为批量插入未走丁丁的判断，会出现重复。我们考虑是否排重，还是再次循环
+					 * 	1.这里我使用了"排重"，感觉效率应该高点
+					 */
+					$tag_post_ids = $this->bbs_post_m->get_post_ids_by_tag_id($tag_id);
+					$need_add_post_ids = array_diff($add_post_ids, $tag_post_ids);
+
+					// 发现没有需要新增的帖子，跳出本次循环
+					if( empty($need_add_post_ids) ){
+						continue;
+					}
+					$this->bbs_post_m->add_tag_post_batch($post_tag_data, $need_add_post_ids);
+
+					// 给当前标签，增加帖子数(对于标签的操作，标签帖子数的增减，是需要计算的)
+					$add_num = count($need_add_post_ids);
+					$this->bbs_tag_m->update_tag_post_num($tag_id, $add_num);
+				}
+			}
+			$this->bbs_tag_m->add_tag_map_record($ctag_id, $ptag_id);
+			return true;
+		}
+
+		// 处理所有父标签
+		public function del_parent_tag_posts($ptag_id, $ctag_id)
+		{
+
+			// ptag + ptag 的所有父，这些都是会受到影响的父标签
+			$ptag_parent_ids_and_self = $this->bbs_post_m->get_add_tag_ids($ptag_id);
+
+			// 对应关系中ctag的所有post_id(可理解为：所有的父元素，最多删除的post_id数组)
+			$ctag_post_ids = $this->bbs_post_m->get_post_ids_by_tag_id($ctag_id);
+
+			foreach($ptag_parent_ids_and_self as $parent_id)
+			{
+				$child_ids_exclude_ctag_child = array_unique($this->bbs_post_m->get_all_child_tag_id_exclude_certain_branch($parent_id, $ptag_id, $ctag_id, true));
+
+				// 发现排除了 ptag <--> ctag 分支后，还有其他分支联结 ctag，不删除post_id
+				if(in_array($ctag_id, $child_ids_exclude_ctag_child)){
+					continue;
+				}else{
+
+					$source_post_ids = array();
+
+					// 将该父级tag_id也添加进来
+					array_push($child_ids_exclude_ctag_child, $parent_id);
+					foreach($child_ids_exclude_ctag_child as $source_tag_id)
+					{
+						$post_ids = $this->bbs_post_m->get_tag_direct_post($source_tag_id);
+						$source_post_ids = array_merge($source_post_ids, $post_ids);
+					}
+
+					// 得到最终要删除的post_id
+					$source_post_ids = array_unique($source_post_ids); 		// 排重下，diff应该会优化点
+							
+					$need_del_post_ids = array_diff($ctag_post_ids, $source_post_ids);
+						
+					$this->bbs_post_m->del_post_tag_batch_by_post_ids_and_tag_id($need_del_post_ids, $parent_id);
+
+					// 给当前标签，删除帖子数(对于标签的操作，标签帖子数的增减，是需要计算的)
+					$del_num = count($need_del_post_ids);
+					$this->bbs_tag_m->update_tag_post_num($tag_id, -$del_num);
+				}
+			}
+
+			$this->bbs_tag_m->del_tag_map_record($ctag_id, $ptag_id);
+		}
+
+		// 下面是处理子的，不过子标签不用删除，我们先保留！
+		public function del_child_tag_posts_and_branches($ctag_id)
+		{
+			$ctag_child_ids = array_unique($this->bbs_post_m->get_all_child_tag_id($ctag_id, true));
+			array_push($ctag_child_ids, $ctag_id);
+			$ctag_child_ids_and_self = $ctag_child_ids;
+			$this->del_tag_relation_recursion($ctag_id, $ctag_child_ids_and_self);
+		}
+
+		public function del_tag_relation_recursion($ctag_id, $ctag_child_ids_and_self)
+		{
+			$direct_child_tag_ids = $this->bbs_post_m->get_direct_child_tag_ids($ctag_id);
+			if($direct_child_tag_ids){
+				foreach($direct_child_tag_ids as $child_tag_id)
+				{
+					$direct_parent_tag_ids = $this->bbs_post_m->get_direct_parent_tag_ids($child_tag_id);
+						
+					$need_del = true;
+					foreach($direct_parent_tag_ids as $parent_tag_id)
+					{
+						if( ! in_array($parent_tag_id, $ctag_child_ids_and_self)){
+							$need_del = false; 		// 发现一个不在此数组里，说明要删除的子元素，有其他不可删除的分支
+							break;
+						}
+					}
+
+					// 删除tag_map的对应关系
+					$this->bbs_tag_m->del_tag_map_record($child_tag_id, $ctag_id);
+
+					// 只有当分支唯一 || 分支的父子关系仍在要删除的ctag_child_ids内，才进行标签的post_id的删除
+					if($need_del){
+
+						// 1.删除child_tag_id对应的post_id
+						$this->bbs_post_m->del_post_tag_batch_by_tag_id($child_tag_id);
+
+						// 2.开始进行递归处理子
+						$this->del_tag_relation_recursion($child_tag_id, $ctag_child_ids_and_self);
+					}
+				}
+			}
+			return;
+		}
+
+
+
+		// 定时检测用户禁言状态，发现禁言时间已到，更改数据
+		public function check_banned()
+		{
+			$banned_user_list = $this->bbs_cron_model->get_banned_user_list();	
+			$enable_uid_array = array();
+			if($banned_user_list){
+				foreach($banned_user_list as $user_info){
+					if($user_info['ban_e_time'] <= time()){
+						$enable_uid_array[] = $user_info['uid'];
+					}		
+				}
+			}
+
+			// 发现有复合条件的，解除禁言
+			if($enable_uid_array){
+				$this->bbs_cron_model->enable_users($enable_uid_array);
+				$this->bbs_cron_model->add_user_manager_log($enable_uid_array);
+			}
+
+			echo '自动解除用户禁言脚本，于' . date('Y-m-d H:i:s') . '执行完毕！\n';
+			if($enable_uid_array){
+				$uids = join(',', $enable_uid_array);
+				echo '解禁用户ID为：' . $uids;
+			}
+		}
+
+		// 定时检查置顶帖子状态，发现已到置顶时间，取消置顶
+		public function check_stick()
+		{
+			$stick_post_tag_map_list = $this->bbs_cron_model->get_stick_post_tag_map_list();
+			$del_stick_id_array = array();
+			if($stick_post_tag_map_list){
+				foreach($stick_post_tag_map_list as $stick_row){
+					if($stick_row['stick_e_time'] <= time()){
+						$del_stick_id_array[] = $stick_row['id'];
+					}
+				}
+			}
+
+			// 发现有过期的，取消置顶状态
+			if($del_stick_id_array){
+				$this->bbs_cron_model->del_stick_map($del_stick_id_array);
+				$this->bbs_cron_model->add_post_manager_log($del_stick_id_array);
+			}
+
+			echo '自动取消置顶脚本，于' . date('Y-m-d H:i:s') . '执行完毕！\n';
+			if($del_stick_id_array){
+				$mapids = join(',', $del_stick_id_array);
+				echo '取消置顶关系ID为：' . $mapids;
+			}
+		}
+
+		//跟新以往origin_type   执行一次还原数据
+//		public function update_post_type(){
+//			//项目origin_type
+//			$update_item = array('origin_type'=>2);
+//			$update_wds  = array('origin_type'=>3);
+//
+//			$this->db->select("moxi_post_id");
+//			$this->db->from("md_product");
+//			$product = $this->db->get()->result_array();
+//
+//			$this->db->select("moxi_post_id");
+//			$this->db->from("md_product_update");
+//			$product_update = $this->db->get()->result_array();
+//
+//			$result = array_merge($product,$product_update); //合并数组
+//			$result = array_map("array_shift",$result);
+//
+//			$this->moxi_db->where_in('post_id',$result);
+//			$this->moxi_db->update("bbs_post",$update_item);
+//			unset($result);
+//
+//			$this->db->select("moxi_post_id");
+//			$this->db->from("md_weidashang_product");
+//			$wds = $this->db->get()->result_array();
+//
+//			$result = array_map("array_shift",$wds);
+//			$this->moxi_db->where_in('post_id',$result);
+//			$this->moxi_db->update("bbs_post",$update_wds);
+//		}
+
+//	public function wds_repair(){
+//		$this->db->from("wds_repair_tmp");
+//		$items = $this->db->get()->result_array();
+//		$back_ids = array();
+//
+//		foreach($items as $item){
+//			$back_id = $this->get_back_id($item['order_name']);
+//			if($back_id){
+//				$back_ids[] = $back_id;
+//			}
+//		}
+////		print_r($back_ids);exit();
+//		$update_data['if_pay'] = 1;
+//		$update_data['status'] = 103;
+//
+//		$update_pay_data['status'] = 1;
+//		foreach($back_ids as $back_id){
+//			$where['id'] = (int)$back_id;
+//			$pay_where['back_id'] = (int)$back_id;
+////			//更新pay表status
+//			$this->db->where($pay_where);
+//			$this->db->update("md_pay",$update_pay_data);
+//			$pay_last_query = $this->db->last_query();
+//
+//			error_log(var_export($pay_last_query,true).'\r\n',3,'/tmp/wds_repair.log');
+////
+//////			//修复评论
+//			$this->repair_comment($back_id);
+//			$moxi_last_query = $this->moxi_db->last_query();
+//			error_log(var_export($moxi_last_query,true).'\r\n',3,'/tmp/wds_repair.log');
+//
+//			//			//跟新product_back if_pay and status
+//			$this->db->where($where);
+//			$this->db->update("md_product_back",$update_data);
+//			$back_last_query = $this->db->last_query();
+//			error_log(var_export($back_last_query,true).'\r\n',3,'/tmp/wds_repair.log');
+//		}
+//	}
+//	public function get_back_id($out_trade_no){
+//		$this->db->select("back_id");
+//		$this->db->from("md_pay");
+//		$this->db->where("out_trade_no",$out_trade_no);
+//		$pay_info = $this->db->get()->row_array();
+//		return $pay_info['back_id'];
+//	}
+//
+//	public function repair_comment($back_id){
+//
+//		$this->db->select("wds_id,ctime,amount,user_id,if_pay");
+//		$this->db->from("md_product_back");
+//		$this->db->where("id",$back_id);
+//		$back_info = $this->db->get()->row_array();
+//
+//		$wds_id = $back_info['wds_id'];
+//
+//		$sql = "SELECT `moxi_post_id` FROM `md_weidashang_product` WHERE `id`={$wds_id}";
+//		$moxi_post_id = $this->db->query($sql)->row_array();
+//
+//		$comment = '您此次支持了#&lt;#' . $back_info['amount'] . '#&gt;#';
+//		$ctime  = strtotime($back_info['ctime']);
+//		if($back_info['if_pay'] != 1 ){
+//			$this->load->model("comment_model");
+//			$this->comment_model->add_comment_wds($moxi_post_id['moxi_post_id'], $back_info['user_id'], $comment, 0, 0,$ctime);
+//		}
+//	}
+	//更新点赞导数据
+	public function add_update_favor(){
+		$this->db->where("type",1);
+		$item_list = $this->db->get("md_like_log")->result_array();
+		$this->load->model("dig_model");
+		static $fail_ids = array();
+		foreach($item_list as $item){
+			$insert_data['post_id'] = $item['item_id'];
+			$insert_data['uid']     = $item['user_id'];
+			$insert_data['type']    = 3;
+			$is_exists = $this->moxi_db->where($insert_data)->get("bbs_favorite")->row_array();
+			if(!$is_exists){
+				$insert_data['ctime'] 	= strtotime($item['ctime']);
+				$bool = $this->moxi_db->insert("bbs_favorite",$insert_data);
+				if(!$bool){
+					$fail_ids[] =  $item['id'];
+				}
+			}
+		}
+		if(!empty($fail_ids)){
+			echo implode(',',$fail_ids).'插入失败';
+		}
+	}
+
+
+	//修复以前未生成帖子的更新
+	public function repair_md_update_post(){
+		$this->load->model("comment_model");
+		$sql = "SELECT mu.`id`,mu.`user_id`,mu.`title`,mu.`content`,mp.category FROM md_product_update mu LEFT JOIN md_product mp ON mu.pro_id = mp.id WHERE mu.`type`=1 AND mu.`moxi_post_id`=0";
+		$item_list = $this->db->query($sql)->result_array();
+		foreach($item_list as $item_info){
+			$update_detail = unserialize($item_info['content']);
+			$update_detail["topic_name"] = $update_detail["topic_name"] ? $update_detail["topic_name"] : $item_info['title'];
+			$content = $update_detail['desc']?$update_detail["desc"]:$update_detail["topic_name"];
+			$category = $item_info['category']?$item_info['category']:'游戏';
+			try{
+				$moxi_post_id = $this->comment_model->add_thread($item_info['user_id'],$update_detail["topic_name"], $content,'', '','', $category);
+				$sql = "UPDATE md_product_update SET `moxi_post_id` = {$moxi_post_id} WHERE id = ".$item_info['id'];
+				$this->db->query($sql);
+			}catch(Exception $e){
+				echo $e->getMessage();
+			}
+		}
+	}
+
+}

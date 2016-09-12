@@ -1,0 +1,68 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+    input[type='text'] {
+        width: 600px;
+    }
+</style>
+<div class="container">
+    <div>
+        <h1>
+        </h1>
+    </div>
+    <hr>
+    <p></p>
+    <form id="pro_form" action="/bbs_tag_promotion/do_add_promotion?t=<?=$_GET['t']?>" method="post" enctype="multipart/form-data">
+<!--        <div class="form-group">-->
+<!--            <label class="col-sm-2 control-label" for="sortid">权重</label>-->
+<!--            <div class="col-sm-10">-->
+<!--                <input class="form-control" type="text" id="sortid" placeholder="0" name="weight" style="width:40px" >-->
+<!--            </div>-->
+<!--        </div>-->
+            <div class="form-group">
+                <label class="col-sm-2 control-label" for="pro_title">推荐标题&nbsp;</label>
+                <div class="col-sm-10">
+                    <input class="form-control" type="text" id="pro_title" placeholder="请输入推荐标题(12个汉字以内呦)" name="title" value="<?=$title?>">
+                </div>
+            </div>
+
+            <input type="hidden" name="id" value="<?=$id?>">
+            <input type="hidden" name="tag_id" value="<?=$object_id?>">
+            <div class="form-group">
+                <label class="col-sm-2 control-label" for="pro_title">链接地址</label>
+                <div class="col-sm-10">
+                    <input class="form-control" type="text" id="links" placeholder="请输入推荐链接" name="link" value="<?=$links?>">
+                </div>
+            </div>
+    </form>
+    <button type="submit" class="btn btn-primary" id="add_pro">提交</button>
+</div>
+<script>
+
+    $('#add_pro').click(function(){
+
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        if( $.trim($('#pro_title').val()).length>12){
+            alert('推荐标题不能超过12个字！');
+            return false;
+        }
+        if(!CheckUrl($("#links").val())){
+            alert('请输入正确的URL地址');
+            return false;
+        }
+
+        $(this).attr({"disabled":"disabled"});
+        $('#pro_form').submit();
+    });
+    function CheckUrl(str) {
+        var RegUrl = new RegExp();
+        RegUrl.compile("^[A-Za-z]+://[A-Za-z0-9-_]+\\.[A-Za-z0-9-_%&\?\/.=]+$");
+        if (!RegUrl.test(str)) {
+            return false;
+        }
+        return true;
+    }
+</script>
+<?php $this->load->view('ckad/footer'); ?>

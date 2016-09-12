@@ -1,0 +1,63 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="/static/js/bootstrap-switch.min.js"></script>
+<link rel="stylesheet" type="text/css" href="/static/css/bootstrap-switch.min.css">
+<script language="javascript">
+    $(function () {
+        $('input[type="checkbox"],[type="radio"]').not('#create-switch').bootstrapSwitch();
+        $('input[type="checkbox"],[type="radio"]').on('switch-change', function (e, data) {
+            var value = data.value;
+            var swth = $(this);
+            jQuery.post("/homepage/ajax_update", {comment_id: $(this).val(), val: value}, function (data) {
+                if (data.result == 'error')
+                {
+                    alert(data.error);
+                }
+            }, 'json');
+        });
+        $("#project").change(function () {
+            if ($(this).val() != "0")
+            {
+                window.location.href = "/homepage/comment?pro_id=" + $(this).val();
+            }
+        })
+    })
+</script>
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th colspan="2"><br />
+                <select id="project">
+                    <option value="0">选择相关项目</option>
+                    <?php foreach ($projects as $project): ?>
+                        <option value="<?= $project['id'] ?>"<?php if ($_GET['pro_id'] == $project['id']): ?> selected="selected"<?php endif; ?>><?= "{$project['id']}.{$project['name']}" ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </th>
+        </tr>
+    </thead>
+    <?php ?>
+    <tbody id = "">
+        <?php foreach ($comments as $comment): ?>
+            <tr>
+                <td style = "width:20px;"><input class="switch-mini" type="checkbox"<?php if (stripos($comment['tags'], 'homepage') !== false): ?> checked="checked"<?php endif; ?> name="comment_ids[]" value="<?= $comment['id']; ?>" /></td>
+                <td><?= $comment['content']; ?></td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+    <?php ?>
+    <tfoot>
+        <tr>
+            <td colspan="2">
+                <?php $_GET['page'] = isset($_GET['page']) ? intval($_GET['page']) : 1; ?>
+                <?php if (($page = $_GET['page']) > 1 && isset($_GET['pro_id'])): ?>
+                    <a href="/homepage/comment?pro_id=<?= $_GET['pro_id'] ?>&page=<?= $page - 1 ?>">上一页</a>
+                <?php endif; ?> 
+                <?php if (count($comments) >= 50 && isset($_GET['pro_id'])): ?>
+                    <a href="/homepage/comment?pro_id=<?= $_GET['pro_id'] ?>&page=<?= $page + 1 ?>">下一页</a>
+                <?php endif; ?> 
+
+            </td>
+        </tr>
+    </tfoot>
+</table>
+<?php $this->load->view('ckad/footer'); ?>

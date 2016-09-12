@@ -1,0 +1,754 @@
+<?php
+require("libraries/function.php");
+class Web_data extends Deamon_Controller {
+    public $warning_mailer = array('luxueyong@modian.com');
+    public $redis;
+    public function __construct() {
+        parent::__construct();
+        $init = new Redis();
+        $host = $this->config->item('md_redis');
+        $init->connect("{$host['ip']}", "{$host['port']}");
+        $this->redis=$init;
+    }
+    //生成前一天数据
+    public function web_time1() {
+        require_once('libraries/elastic/vendor/autoload.php');
+        $host=$this->config->item('md_elasticsearch');
+        $hosts=["{$host['ip']}:{$host['port']}"];
+        $client = Elasticsearch\ClientBuilder::create()->setHosts($hosts)->build();
+        $arr=array();
+        $i = strtotime(date("Y-m-d",time()-86400));
+        //$i = strtotime("2016-03-06");
+        $str = "logstash-".date("Y.m.d", $i - 86400).",logstash-".date("Y.m.d",$i);
+        $ctime = date('Y-m-d',$i);
+        //全站数据
+        $param = [
+            "search_type" => "count", 
+            "index" => "{$str}",
+            "body" => [
+                "query" => [ "filtered" => [ "filter" => [ "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ] ] ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['pv'] = $reslut['hits']['total'];
+        $arr['uv'] = $reslut['aggregations']['uv']['value'];
+        if($arr['pv'] == 0 || $arr['uv'] == 0){
+            $arr['p_u'] = 0;
+        }else{
+            $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+        }
+        unset($param);unset($reslut);
+        $param = [
+            "search_type" => "count", 
+            "index" => "{$str}",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "bool" => [ "must_not" => [ "term" => [ "mdsb" => 0 ] ] ] ],
+                        "filter" => [ "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                    ]
+                ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsb.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['login_user'] = $reslut['aggregations']['uv']['value'];
+        unset($param);unset($reslut);
+        $reslut = $this->db->query("SELECT COUNT(*) as new_user FROM `md_users` WHERE `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00'");
+        $row = $reslut->row_array();
+        $arr['new_user'] = $row['new_user'];
+        unset($row);unset($reslut);
+        $reslut = $this->db->query("SELECT COUNT(*) as form,SUM(`amount`) as money,COUNT(DISTINCT `user_id`) as independent FROM `md_product_back` where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 1");
+        $row = $reslut->row_array();
+        $arr['form'] = $row['form'];
+        $arr['money'] = $row['money'];
+        $arr['independent'] = $row['independent'];
+        unset($row);unset($reslut);
+        if(empty($arr['money'])){
+            $arr['money'] = 0;
+        }
+        $reslut = $this->db->query("SELECT SUM(`amount`) as refund FROM `md_product_back` where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 3");
+        $row = $reslut->row_array();
+        $arr['refund'] = $row['refund'];
+        $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`,`login_user`,`new_user`,`form`,`independent`,`money`,`refund`) values('{$ctime}','0','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}','{$arr['login_user']}','{$arr['new_user']}','{$arr['form']}','{$arr['independent']}','{$arr['money']}','{$arr['refund']}')";
+        $this->db->query($sql);
+        unset($row);unset($reslut);
+
+        //微打赏数据
+        $arr = array();
+        $param = [
+            "index" => "{$str}",
+            "search_type" => "count",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "query_string" => [ "query" => "domain:wds.modian.com", "analyze_wildcard" => true ] ],
+                        "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                    ]
+                ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['pv'] = $reslut['hits']['total'];
+        $arr['uv'] = $reslut['aggregations']['uv']['value'];
+        if($arr['pv'] == 0 || $arr['uv'] == 0){
+            $arr['p_u'] = 0;
+        }else{
+            $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+        }
+        unset($param);unset($reslut);
+        $param = [
+            "index" => "{$str}",
+            "search_type" => "count",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "query_string" => [ "query" => "domain:wds.modian.com -mdsb:0", "analyze_wildcard" => true ] ],
+                        "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                    ]
+                ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsb.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['login_user'] = $reslut['aggregations']['uv']['value'];
+        unset($param);unset($reslut);
+        $sql = "SELECT COUNT(*) as form,SUM(`amount`) as money FROM `md_product_back` WHERE `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 1 AND `wds_id` != 0";
+        $reslut = $this->db->query($sql);
+        $row = $reslut->row_array();
+        $arr['form'] = $row['form'];
+        $arr['money'] = $row['money'];
+        unset($row);unset($reslut);
+        if(empty($arr['money'])){
+            $arr['money'] = 0;
+        }
+        $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`,`login_user`,`form`,`money`) values('{$ctime}','1','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}','{$arr['login_user']}','{$arr['form']}','{$arr['money']}')";
+        $this->db->query($sql);
+
+        //众筹项目数据
+        $arr = array();
+        $param = [
+            "index" => "{$str}",
+            "search_type" => "count",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "query_string" => [ "query" => "domain:zhongchou.modian.com", "analyze_wildcard" => true ] ],
+                        "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                    ]
+                ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['pv'] = $reslut['hits']['total'];
+        $arr['uv'] = $reslut['aggregations']['uv']['value'];
+        if($arr['pv'] == 0 || $arr['uv'] == 0){
+            $arr['p_u'] = 0;
+        }else{
+            $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+        }
+        unset($param);unset($reslut);
+        $param = [
+            "index" => "{$str}",
+            "search_type" => "count",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "query_string" => [ "query" => "domain:zhongchou.modian.com -mdsb:0", "analyze_wildcard" => true ] ],
+                        "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                    ]
+                ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsb.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['login_user'] = $reslut['aggregations']['uv']['value'];
+        unset($param);unset($reslut);
+        $sql = "SELECT COUNT(*) as form,SUM(`amount`) as money FROM `md_product_back` WHERE `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 1 AND `wds_id` = 0";
+        $reslut = $this->db->query($sql);
+        $row = $reslut->row_array();
+        $arr['form'] = $row['form'];
+        $arr['money'] = $row['money'];
+        unset($row);unset($reslut);
+        if(empty($arr['money'])){
+            $arr['money'] = 0;
+        }
+        $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`,`login_user`,`form`,`money`) values('{$ctime}','2','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}','{$arr['login_user']}','{$arr['form']}','{$arr['money']}')";
+        $this->db->query($sql);
+
+        //摩西社区数据
+        $arr = array();
+        $param = [
+            "index" => "{$str}",
+            "search_type" => "count",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "query_string" => [ "query" => "domain:moximoxi.modian.com", "analyze_wildcard" => true ] ],
+                        "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                    ]
+                ],
+                "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $arr['pv'] = $reslut['hits']['total'];
+        $arr['uv'] = $reslut['aggregations']['uv']['value'];
+        if($arr['pv'] == 0 || $arr['uv'] == 0){
+            $arr['p_u'] = 0;
+        }else{
+            $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+        }
+        $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`) values('{$ctime}','3','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}')";
+        $this->db->query($sql);
+        echo $ctime;
+        $this->path_data();
+        $this->visit_domain();
+        $this->register_data_day();
+        $this->login_data_day();
+    }
+    
+    //来路分析  生成前一天的数据
+    public function path_data(){
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $path = array(0=>"www_baidu_com", 1=>"www_google_com", 2=>"www_sogou_com", 3=>"www_so360_com", 4=>"www_haosou_com", 5=>"www_bing_com", 6=>"www_sma_so");
+        $url = array("search" => array(), "external" => array(), "interview" => array(), "unkown" => array());
+        $i =  strtotime( date("Y-m-d", time()-86400) );
+        $a = sort_url($ip, $port, $i, $i+86400, 0);
+        $b = sort_url($ip, $port, $i, $i+86400, 1);
+        $c = no_domain($ip, $port, $i, $i+86400);
+        foreach($path as $k=>$v){
+            $url['search'][$v]=array('pv'=>0,'uv'=>0,'per'=>"0.00%",'p/u'=>0,'out'=>0,'per_out'=>"0.00%");
+            if(isset($a[$v])){
+                $url['search'][$v]['pv'] += $a[$v]['pv'];
+                $url['search'][$v]['uv'] += $a[$v]['uv'];
+                $url['search'][$v]['out'] += $a[$v]['out'];
+                unset($a[$v]);
+            }
+            if(isset($b[$v])){
+                $url['search'][$v]['pv'] += $b[$v]['pv'];
+                $url['search'][$v]['uv'] += $b[$v]['uv'];
+                $url['search'][$v]['out'] += $b[$v]['out'];
+                unset($b[$v]);
+            }
+        }
+        foreach($url['search'] as $k=>$v){
+            if($v['pv'] != 0 && $v['uv'] != 0){
+                $url['search'][$k]['per'] = number_format(($v['uv']/$v['pv'])*100, 2)."%";
+                $url['search'][$k]['p/u'] = number_format($v['pv']/$v['uv'], 2);
+                $url['search'][$k]['per_out'] = number_format(($v['out']/$v['uv'])*100, 2)."%";
+            }
+        }
+        $num=0;
+        foreach($a as $k=>$v){
+            $num++;
+            $url['external'][$k] = $v;
+            if($num == 50){
+                break;
+            }
+        }
+        $num=0;
+        foreach($b as $k=>$v){
+            $num++;
+            $url['interview'][$k] = $v;
+            if($num == 50){
+                break;
+            }
+        }
+        $url['unkown'] = $c;
+        foreach($url as $k=>$v){
+            $num=0;
+            foreach($v as $kk=>$vv){
+                $num++;
+                $sql = "insert into `md_web_path_data`(`ctime`,`type`,`id`,`domain`,`pv`,`uv`,`per`,`p/u`,`per_out`,`out`) values('".date("Y-m-d",$i)."','{$k}','{$num}','{$kk}','{$vv['pv']}','{$vv['uv']}','{$vv['per']}','{$vv['p/u']}','{$vv['per_out']}','{$vv['out']}')";
+                $row = $this->db->query($sql);
+            }
+        }
+        echo 1;
+    }
+    //受访域名   生成前一天的数据
+    public function visit_domain(){
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $i = strtotime(date("Y-m-d", time()-86400));
+        $arr = sort_url($ip, $port, $i, $i+86400, 2);
+        $num=0;
+        foreach($arr as $k=>$v){
+            $num++;
+            $sql = "insert into `md_web_visit_domain`(`ctime`,`id`,`domain`,`pv`,`uv`,`per`,`p/u`) values('".date("Y-m-d",$i)."','{$num}','{$k}','{$v['pv']}','{$v['uv']}','{$v['per']}','{$v['p/u']}')";
+            $row = $this->db->query($sql);
+        }
+	echo 1;
+    }
+    
+     //用户注册来源分析前一天数据
+    public function register_data_day(){
+        $sql = "SELECT md_plan,count(`md_plan`) as sort from `md_users` where `ctime` >= '".date("Y-m-d",time()-86400)." 00:00:00' AND `ctime` < '".date("Y-m-d")." 00:00:00' GROUP BY `md_plan`";
+        $reslut = $this->db->query($sql);
+        $row = $reslut->result_array();
+        $arr = array();
+        $arr['sum'] = 0;
+        foreach($row as $k => $v){
+            $arr[$v['md_plan']] = $v['sort'];
+            $arr['sum'] += $v['sort'];
+        }
+        for($j = 0; $j < 4; $j++){
+            if(!$arr[$j]){
+                $arr[$j] = 0;
+            }
+        }
+        $sql = "insert into `md_web_register_data`(`ctime`,`day_sum`,`pc`,`wap`,`app_andriod`,`app_ios`) values('".date("Y-m-d",time()-86400)."','{$arr['sum']}','{$arr[0]}','{$arr[3]}','{$arr[2]}','{$arr[1]}')";
+        $this->db->query($sql);
+        echo 1;
+    }
+    //登录来源分析生成前一天数据
+    public function Login_data_day(){
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $arr = array(); 
+        $start = (strtotime(date("Y-m-d"))-86400)*1000;
+        $end = (strtotime(date("Y-m-d")))*1000;
+        $str = "-mdsb:0";
+        $sum = Login_class($ip, $port, $start, $end, $str);
+        $str = "-mdsb:0 +UA:Android";
+        $android = Login_class($ip, $port, $start, $end, $str);
+        $str = "-mdsb:0 +UA:iphone";
+        $iphone = Login_class($ip, $port, $start, $end, $str);
+        $str = "-mdsb:0 +UA:ipad";
+        $ipad = Login_class($ip, $port, $start, $end, $str);
+        $pc = $sum - $android - $iphone - $ipad;
+        $sql = "insert into `md_web_login_data`(`ctime`,`login_sum`,`pc`,`android`,`iphone`,`ipad`) values('".date("Y-m-d",time()-86400)."','{$sum}','{$pc}','{$android}','{$iphone}','{$ipad}')";
+        $a = $this->db->query($sql);
+        echo $a;
+    }
+    
+    //全站数据    生成以前的所有数据
+    public function web_all_data(){
+        require_once('libraries/elastic/vendor/autoload.php');
+        $start_time = 1428940800;
+        $end_time = strtotime(date("Y-m-d",time()));
+        $host = $this->config->item('md_elasticsearch');
+        $hosts = ["{$host['ip']}:{$host['port']}"];
+        $client = Elasticsearch\ClientBuilder::create()->setHosts($hosts)->build();
+        $arr = array();
+        for($i = $start_time;$i < $end_time;$i += 86400){
+            $ctime = date('Y-m-d',$i);
+            //全站数据
+            $param = [
+                "search_type" => "count", 
+                "index" => "*",
+                "body" => [
+                    "query" => [ "filtered" => [ "filter" => [ "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ] ] ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['pv'] = $reslut['hits']['total'];
+            $arr['uv'] = $reslut['aggregations']['uv']['value'];
+            if($arr['pv'] == 0 || $arr['uv'] == 0){
+                $arr['p_u'] = 0;
+            }else{
+                $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+            }
+            unset($param);unset($reslut);
+            $param = [
+                "search_type" => "count", 
+                "index" => "*",
+                "body" => [
+                    "query" => [
+                        "filtered" => [ 
+                            "query" => [ "bool" => [ "must_not" => [ "term" => [ "mdsb" => 0 ] ] ] ],
+                            "filter" => [ "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                        ]
+                    ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsb.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['login_user'] = $reslut['aggregations']['uv']['value'];
+            unset($param);unset($reslut);
+            $reslut = $this->db->query("SELECT COUNT(*) as new_user FROM `md_users` WHERE `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00'");
+            $row = $reslut->row_array();
+            $arr['new_user'] = $row['new_user'];
+            unset($row);unset($reslut);
+            $reslut = $this->db->query("SELECT COUNT(*) as form,SUM(`amount`) as money,COUNT(DISTINCT `user_id`) as independent FROM `md_product_back` where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 1");
+            $row = $reslut->row_array();
+            $arr['form'] = $row['form'];
+            $arr['money'] = $row['money'];
+            $arr['independent'] = $row['independent'];
+            unset($row);unset($reslut);
+            if(empty($arr['money'])){
+                $arr['money'] = 0;
+            }
+            $reslut = $this->db->query("SELECT SUM(`amount`) as refund FROM `md_product_back` where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 3");
+            $row = $reslut->row_array();
+            $arr['refund'] = $row['refund'];
+            $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`,`login_user`,`new_user`,`form`,`independent`,`money`,`refund`) values('{$ctime}','0','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}','{$arr['login_user']}','{$arr['new_user']}','{$arr['form']}','{$arr['independent']}','{$arr['money']}','{$arr['refund']}')";
+            $this->db->query($sql);
+            unset($row);unset($reslut);
+            
+            //微打赏数据
+            $arr = array();
+            $param = [
+                "index" => "*",
+                "search_type" => "count",
+                "body" => [
+                    "query" => [
+                        "filtered" => [ 
+                            "query" => [ "query_string" => [ "query" => "domain:wds.modian.com", "analyze_wildcard" => true ] ],
+                            "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                        ]
+                    ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['pv'] = $reslut['hits']['total'];
+            $arr['uv'] = $reslut['aggregations']['uv']['value'];
+            if($arr['pv'] == 0 || $arr['uv'] == 0){
+                $arr['p_u'] = 0;
+            }else{
+                $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+            }
+            unset($param);unset($reslut);
+            $param = [
+                "index" => "*",
+                "search_type" => "count",
+                "body" => [
+                    "query" => [
+                        "filtered" => [ 
+                            "query" => [ "query_string" => [ "query" => "domain:wds.modian.com -mdsb:0", "analyze_wildcard" => true ] ],
+                            "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                        ]
+                    ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsb.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['login_user'] = $reslut['aggregations']['uv']['value'];
+            unset($param);unset($reslut);
+            $sql = "SELECT COUNT(*) as form,SUM(`amount`) as money FROM `md_product_back` WHERE `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 1 AND `wds_id` != 0";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->row_array();
+            $arr['form'] = $row['form'];
+            $arr['money'] = $row['money'];
+            unset($row);unset($reslut);
+            if(empty($arr['money'])){
+                $arr['money'] = 0;
+            }
+            $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`,`login_user`,`form`,`money`) values('{$ctime}','1','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}','{$arr['login_user']}','{$arr['form']}','{$arr['money']}')";
+            $this->db->query($sql);
+            
+            //众筹项目数据
+            $arr = array();
+            $param = [
+                "index" => "*",
+                "search_type" => "count",
+                "body" => [
+                    "query" => [
+                        "filtered" => [ 
+                            "query" => [ "query_string" => [ "query" => "domain:zhongchou.modian.com", "analyze_wildcard" => true ] ],
+                            "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                        ]
+                    ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['pv'] = $reslut['hits']['total'];
+            $arr['uv'] = $reslut['aggregations']['uv']['value'];
+            if($arr['pv'] == 0 || $arr['uv'] == 0){
+                $arr['p_u'] = 0;
+            }else{
+                $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+            }
+            unset($param);unset($reslut);
+            $param = [
+                "index" => "*",
+                "search_type" => "count",
+                "body" => [
+                    "query" => [
+                        "filtered" => [ 
+                            "query" => [ "query_string" => [ "query" => "domain:zhongchou.modian.com -mdsb:0", "analyze_wildcard" => true ] ],
+                            "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                        ]
+                    ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsb.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['login_user'] = $reslut['aggregations']['uv']['value'];
+            unset($param);unset($reslut);
+            $sql = "SELECT COUNT(*) as form,SUM(`amount`) as money FROM `md_product_back` WHERE `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' AND `if_pay` = 1 AND `wds_id` = 0";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->row_array();
+            $arr['form'] = $row['form'];
+            $arr['money'] = $row['money'];
+            unset($row);unset($reslut);
+            if(empty($arr['money'])){
+                $arr['money'] = 0;
+            }
+            $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`,`login_user`,`form`,`money`) values('{$ctime}','2','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}','{$arr['login_user']}','{$arr['form']}','{$arr['money']}')";
+            $this->db->query($sql);
+            
+            //摩西社区数据
+            $arr = array();
+            $param = [
+                "index" => "*",
+                "search_type" => "count",
+                "body" => [
+                    "query" => [
+                        "filtered" => [ 
+                            "query" => [ "query_string" => [ "query" => "domain:moximoxi.modian.com", "analyze_wildcard" => true ] ],
+                            "filter" => [  "range" => [ "@timestamp" => [ "gte" => $i*1000, "lt" => ($i+86400)*1000 ] ] ]
+                        ]
+                    ],
+                    "aggs" => [ "uv" => [ "cardinality" => [ "field" => "mdsa.raw" ] ] ]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $arr['pv'] = $reslut['hits']['total'];
+            $arr['uv'] = $reslut['aggregations']['uv']['value'];
+            if($arr['pv'] == 0 || $arr['uv'] == 0){
+                $arr['p_u'] = 0;
+            }else{
+                $arr['p_u'] = round($arr['pv']/$arr['uv'],2);
+            }
+            $sql = "insert into `md_web_data`(`ctime`,`type`,`pv`,`uv`,`p_u`) values('{$ctime}','3','{$arr['pv']}','{$arr['uv']}','{$arr['p_u']}')";
+            $this->db->query($sql);
+            echo $ctime."\n";
+        }
+    }
+
+    //来路分析   生成以前所有数据
+    public function web_path_data(){
+        ini_set('memory_limit','512M');
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $redis = new Redis();
+        $host = $this->config->item('md_redis');
+        $redis->connect("{$host['ip']}", "{$host['port']}");
+        $path = array(0=>"www_baidu_com", 1=>"www_google_com", 2=>"www_sogou_com", 3=>"www_so360_com", 4=>"www_haosou_com", 5=>"www_bing_com", 6=>"www_sma_so");
+        //$now = strtotime(date("2016-02-22"));
+        for($i = 1445097600; $i < time(); $i += 86400){   //1445097600
+            $url = array("search" => array(), "external" => array(), "interview" => array(), "unkown" => array());
+            if($i == 1445702400){
+                continue;
+            }
+            $a = sort_url($ip, $port, $i, $i+86400, 0);
+            $b = sort_url($ip, $port, $i, $i+86400, 1);
+            $c = no_domain($ip, $port, $i, $i+86400);
+            foreach($path as $k=>$v){
+                $url['search'][$v]=array('pv'=>0,'uv'=>0,'per'=>"0.00%",'p/u'=>0,'out'=>0,'per_out'=>"0.00%");
+                if(isset($a[$v])){
+                    $url['search'][$v]['pv'] += $a[$v]['pv'];
+                    $url['search'][$v]['uv'] += $a[$v]['uv'];
+                    $url['search'][$v]['out'] += $a[$v]['out'];
+                    unset($a[$v]);
+                }
+                if(isset($b[$v])){
+                    $url['search'][$v]['pv'] += $b[$v]['pv'];
+                    $url['search'][$v]['uv'] += $b[$v]['uv'];
+                    $url['search'][$v]['out'] += $b[$v]['out'];
+                    unset($b[$v]);
+                }
+            }
+            foreach($url['search'] as $k=>$v){
+                if($v['pv'] != 0 && $v['uv'] != 0){
+                    $url['search'][$k]['per'] = number_format(($v['uv']/$v['pv'])*100,2)."%";
+                    $url['search'][$k]['p/u'] = round($v['pv']/$v['uv'],2);
+                    $url['search'][$k]['per_out'] = number_format(($v['out']/$v['uv'])*100,2)."%";
+                }
+            }
+            $num=0;
+            foreach($a as $k=>$v){
+                $num++;
+                $url['external'][$k] = $v;
+                if($num >= 50){
+                    break;
+                }
+            }
+            $num=0;
+            foreach($b as $k=>$v){
+                $num++;
+                $url['interview'][$k] = $v;
+                if($num >= 50){
+                    break;
+                }
+            }
+            $url['unkown'] = $c;
+            $str = serialize($url);
+            $log = "log_".date("Ymd",$i);
+            $redis -> set($log, $str);
+            foreach($url as $k=>$v){
+                $num = 0;
+                foreach($v as $kk=>$vv){
+                    $num++;
+                    $sql = "insert into `md_web_path_data`(`ctime`,`type`,`id`,`domain`,`pv`,`uv`,`per`,`p/u`,`per_out`,`out`) values('".date("Y-m-d",$i)."','{$k}','{$num}','{$kk}','{$vv['pv']}','{$vv['uv']}','{$vv['per']}','{$vv['p/u']}','{$vv['per_out']}','{$vv['out']}')";
+                    $row = $this->db->query($sql);
+                }
+            }
+            echo date("Y-m-d",$i)."\n";
+        }
+    }
+    
+    //来路分析补充
+    public function path_data_moxi(){
+        for($i = 1445097600; $i < time()-86400; $i += 86400){
+            if($i == 1445702400){
+                continue;
+            }
+            $str = "logstash-".date("Y.m.d", $i - 86400).",logstash-".date("Y.m.d",$i);
+            $param = [
+                "index" => "{$str}",
+                "search_type" => "count",
+                "body" => [ "query" => [ "filtered" => [ "query" => [ "query_string" => [ "query" => "-mdsff:* -domain:moximoxi.modian.com", "analyze_wildcard" => true]],
+                            "filter" => [ "range" => [ "@timestamp" => [ "gte" => $i * 1000, "lt" => ($i+86400) * 1000]]]
+                        ]
+                    ],
+                    "aggs" => [ "out" => [ "terms" => [ "field" => "mdsa.raw", "size" => 0, "order" => [ "_count" => "asc"]]]]
+                ]
+            ];
+            $reslut = $client->search($param);
+            $url['pv'] = $reslut['hits']['total'];
+            $arr = $reslut['aggregations']['out']['buckets'];
+            $url['uv']  = count($arr);
+            $sum = 0;
+            foreach($arr as $k => $v){
+                if($v['doc_count'] == 1){
+                    $sum++;
+                }else{
+                    break;
+                }
+            }
+            $url['out'] = $sum;
+            $url['per'] = number_format(($url['uv'] / $url['pv']) * 100, 2) . "%";
+            $url['p/u'] = round($url['pv'] / $url['uv'], 2);
+            $url['per_out'] = number_format(($url['out'] / $url['uv']) * 100, 2) . "%";
+            $sql = "insert into `md_web_path_data`(`ctime`,`type`,`id`,`domain`,`pv`,`uv`,`per`,`p/u`,`per_out`,`out`) values('".date("Y-m-d",$i)."','unkown','2','no_moxi','{$url['pv']}','{$url['uv']}','{$url['per']}','{$url['p/u']}','{$url['per_out']}','{$url['out']}')";
+            $this->db->query($sql);
+            echo date("Y-m-d")."\n";
+        }
+    }
+    //生成受访域名全部数据
+    public function visit_domain_all(){
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $redis = new Redis();
+        $host = $this->config->item('md_redis');
+        $redis->connect("{$host['ip']}", "{$host['port']}");
+        $now = strtotime(date("Y-m-d"));
+        for($i = 1445097600; $i < $now; $i += 86400){
+            $url = array("visit_domain" => array());
+            if($i == 1445702400){
+                continue;
+            }
+            $arr = sort_url($ip, $port, $i, $i+86400, 2);
+            $num=0;
+            foreach($arr as $k=>$v){
+                $num++;
+                $sql = "insert into `md_web_visit_domain`(`ctime`,`id`,`domain`,`pv`,`uv`,`per`,`p/u`) values('".date("Y-m-d",$i)."','{$num}','{$k}','{$v['pv']}','{$v['uv']}','{$v['per']}','{$v['p/u']}')";
+                $row = $this->db->query($sql);
+            }
+            $url['visit_domain'] = $arr; 
+            $log = "log_".date("Ymd",$i)."_domain";
+            $str = serialize($url);
+            $row = $redis->set($log,$str);
+            echo $row;
+        }
+    }
+    
+    //生成登录来源分析的全部数据
+    public function Login_data_all(){
+        $host = $this->config->item('md_elasticsearch');
+        $ip = $host['ip'];
+        $port = $host['port'];
+        $arr = array(); 
+        for($i=strtotime("2014-06-01");$i<time()-86400;$i+=86400){
+            $k = intval(date("Ymd",$i));
+            $start = $i*1000;
+            $end = ($i+86400)*1000;
+            $str = "-mdsb:0";
+            $sum = Login_class($ip, $port, $start, $end, $str);
+            $str = "-mdsb:0 +UA:Android";
+            $android = Login_class($ip, $port, $start, $end, $str);
+            $str = "-mdsb:0 +UA:iphone";
+            $iphone = Login_class($ip, $port, $start, $end, $str);
+            $str = "-mdsb:0 +UA:ipad";
+            $ipad = Login_class($ip, $port, $start, $end, $str);
+            $pc = $sum - $android - $iphone - $ipad;
+            $sql = "insert into `md_web_login_data`(`ctime`,`login_sum`,`pc`,`android`,`iphone`,`ipad`) values('".date("Y-m-d",$i)."','{$sum}','{$pc}','{$android}','{$iphone}','{$ipad}')";
+            $a = $this->db->query($sql);
+            echo date("Y-m-d",$i)."\n";
+        }
+    }
+    
+    //生成注册来源全部数据
+    public function register_data(){
+        for($i = strtotime("2014-06-01"); $i < time() - 86400; $i += 86400){
+            $sql = "SELECT md_plan,count(`md_plan`) as sort from `md_users` where `ctime` >= '".date("Y-m-d",$i)." 00:00:00' AND `ctime` < '".date("Y-m-d",$i+86400)." 00:00:00' GROUP BY `md_plan`";
+            $reslut = $this->db->query($sql);
+            $row = $reslut->result_array();
+            $arr = array();
+            $arr['sum'] = 0;
+            foreach($row as $k => $v){
+                $arr[$v['md_plan']] = $v['sort'];
+                $arr['sum'] += $v['sort'];
+            }
+            for($j = 0; $j < 4; $j++){
+                if(!$arr[$j]){
+                    $arr[$j] = 0;
+                }
+            }
+            $sql = "insert into `md_web_register_data`(`ctime`,`day_sum`,`pc`,`wap`,`app_andriod`,`app_ios`) values('".date("Y-m-d",$i)."','{$arr['sum']}','{$arr[0]}','{$arr[3]}','{$arr[2]}','{$arr[1]}')";
+            $this->db->query($sql);
+            echo date("Y-m-d",$i)."\n";
+        }
+    }
+    //测试
+    public function test(){
+        /*$str = $this->redis->get("avg_month");
+        $arr = unserialize($str);
+        print_r($arr);*/
+        require_once('libraries/elastic/vendor/autoload.php');
+        $host=$this->config->item('md_elasticsearch');
+        $hosts=["{$host['ip']}:{$host['port']}"];
+        $client = Elasticsearch\ClientBuilder::create()->setHosts($hosts)->build();
+        $param = [
+            "index" => "logstash-2016.03.06,logstash-2016.03.07",
+            "search_type" => "count",
+            "body" => [ "query" => [ "filtered" => [ "query" => [ "query_string" => [ "query" => "-mdsff:* -domain:moximoxi.modian.com", "analyze_wildcard" => true]],
+                        "filter" => [ "range" => [ "@timestamp" => [ "gte" => 1457280000000, "lt" => 1457366399999] ] ]
+                    ]
+                ],
+                "aggs" => [ "out" => [ "terms" => [ "field" => "mdsa.raw", "size" => 10, "order" => [ "_count" => "asc"] ] ] ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $no_moxi['pv'] = $reslut['hits']['total'];
+        $arr = $reslut['aggregations']['out']['buckets'];
+        $no_moxi['uv']  = count($arr);
+        $sum = 0;
+        foreach($arr as $k => $v){
+            if($v['doc_count'] == 1){
+                $sum++;
+            }else{
+                break;
+            }
+        }
+        $no_moxi['out'] = $sum;
+        $no_moxi['per'] = number_format(($no_moxi['uv'] / $no_moxi['pv']) * 100, 2) . "%";
+        $no_moxi['p/u'] = round($no_moxi['pv'] / $no_moxi['uv'], 2);
+        $no_moxi['per_out'] = number_format(($no_moxi['out'] / $no_moxi['uv']) * 100, 2) . "%";
+        print_r($reslut);
+    }
+}

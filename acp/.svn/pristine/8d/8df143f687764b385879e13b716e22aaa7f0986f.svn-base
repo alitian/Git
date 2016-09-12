@@ -1,0 +1,51 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class User extends Deamon_Controller {
+
+    public function update_sys_tag() {
+        $sql = "SELECT id,pro_tag FROM md_product WHERE pro_tag<>''";
+        $res = $this->db->query($sql)->result_array();
+        $user_tag = $pro_tag = array();
+        foreach ($res as $item) {
+            $pro_tag[$item['id']] = explode(',', $item['pro_tag']);
+        }
+        $sql = "SELECT user_id,pro_id FROM md_product_back WHERE if_pay='1'";
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $item) {
+            if (!isset($user_tag[$item['user_id']])) {
+                $user_tag[$item['user_id']] = array();
+            }
+            if (isset($pro_tag[$item['pro_id']])) {
+                $user_tag[$item['user_id']] = array_merge($user_tag[$item['user_id']], $pro_tag[$item['pro_id']]);
+            }
+
+            $user_tag[$item['user_id']] = array_unique($user_tag[$item['user_id']]);
+            sort($user_tag[$item['user_id']]);
+        }
+
+        $sql = "SELECT user_id,pro_id FROM md_product_favors";
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $item) {
+            if (!isset($user_tag[$item['user_id']])) {
+                $user_tag[$item['user_id']] = array();
+            }
+            if (isset($pro_tag[$item['pro_id']])) {
+                $user_tag[$item['user_id']] = array_merge($user_tag[$item['user_id']], $pro_tag[$item['pro_id']]);
+            }
+
+            $user_tag[$item['user_id']] = array_unique($user_tag[$item['user_id']]);
+            sort($user_tag[$item['user_id']]);
+        }
+        foreach ($user_tag as &$item) {
+            $item = implode(',', $item);
+        }
+        foreach ($user_tag as $user_id => $sys_tag) {
+            $this->db->query("update md_users SET sys_tags='{$sys_tag}' WHERE id='{$user_id}'");
+        }
+        echo "更新：" . count($user_tag);
+    }
+
+}

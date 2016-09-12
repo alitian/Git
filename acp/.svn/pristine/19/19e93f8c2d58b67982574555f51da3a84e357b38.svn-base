@@ -1,0 +1,1566 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+/**
+ * 此处专门处理财务需求
+ */
+class Pay_ad extends Acp_Controller {
+
+    private $_alipay_config = array();
+    private $status_debt = array(0 => '未赊账', '1' => '赊账中');
+    private $_title = array(
+        'back_id' => '摩点单号',
+        'order_no' => '外部单号',
+        'ali_trade_no' => '支付宝业务流水号',
+        'rew_id' => '回报ID',
+        // 'rew_content'    => '回报内容',
+        'pro_id' => '项目ID',
+        'pro_name' => '项目名称',
+        'pro_status' => '项目状态',
+        'money' => '支持金额',
+        'bak_user_id' => '支持者ID',
+        'user_name' => '支持者名称',
+        'address_mobile' => '手机',
+        'address_email' => '邮件',
+        'if_pay' => '交易状态',
+        'bank_type' => '交易渠道',
+        // 'address_name'   => '收件人',
+        // 'address_detail' => '详细地址',
+        'trans_date' => '交易时间',
+        'operation' => '操作',
+    );
+
+    public function __construct() {
+        parent::__construct();
+
+        $this->load->helper('url');
+        $this->load->model('Common');
+        $this->load->model('User_m');
+        $this->load->model('Product_m');
+        $this->load->model('Admin_m');
+        $this->load->model('Order_biz');
+        $this->load->model('Account_m');
+        $this->load->library('md_refund');
+        $this->load->library('md_payment_weixin');
+        require_once(LIB_PATH . "/payment/alipay_erp/lib/alipay_submit.class.php");
+    }
+
+    public function check_account($page = 1) {
+        $data['type'] = 'check_account';
+
+        $pro_id = $this->input->post('pro_id');
+        if (!$pro_id) $pro_id = null;
+
+        $per_page = 11;
+        $offset = (intval($page) - 1) * $per_page;
+        $res = $this->Account_m->get_product_list_info($pro_id, $per_page, $offset);
+
+        $data['product_list'] = array();
+        $this->_set_pro_account_page_data($data['product_list'], $res['list']);
+        unset($res['list']);
+
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url("pay_ad/check_account"),
+            'use_page_numbers' => true,
+            'num_links' => 2,
+            'total_rows' => $res['total'],
+            'per_page' => $per_page,
+            'full_tag_open' => '<ul id="page-nav" class="pager">',
+            'full_tag_close' => '</ul>',
+            'first_link' => '首页',
+            'first_tag_open' => '<li style="display:none;">',
+            'first_tag_close' => '</li>',
+            'last_link' => '尾页',
+            'last_tag_open' => '<li style="display:none;">',
+            'last_tag_close' => '</li>',
+            'next_link' => '下一页',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li>',
+            'prev_link' => '前一页',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li>',
+            'cur_tag_open' => '<li class="disabled"><a href="javascript:void(0)">',
+            'cur_tag_close' => '</a></li>',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li>',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        $this->load->view('pay_ad/pro_account_list', $data);
+    }
+
+    // $page_type: 0 for page render; 1 for export render.
+    private function _set_pro_account_page_data(&$result, $base, $page_type=0)
+    {
+        foreach ($base as $ii => $row) {
+            $result[$ii]['pro_id'] = $row['id'];
+            $result[$ii]['pro_name'] = empty($row['short_title']) ? $row['name'] : $row['short_title'];
+            $result[$ii]['user_id'] = $row['user_id'];
+
+            $tmp = explode('|', $row['install_money']);
+            $result[$ii]['goal'] = $tmp['0'];
+            $result[$ii]['has_back'] = $this->Product_m->get_product_back_amount_v2($row['id'], 1);
+
+            if (intval($result[$ii]['goal']) == 0)
+                $result[$ii]['progress'] = "目标金额为0";
+            else
+                $result[$ii]['progress'] = sprintf("%.2f%%", ($result[$ii]['has_back'] / $result[$ii]['goal']) * 100);
+
+            $tmp = $this->Product_m->get_product_status($row['id'], 1);
+            switch ($tmp) {
+                case PRODUCT_STATUS_FINANCING_SUCCESS:
+                    $result[$ii]['pro_status'] = "众筹成功";
+                    break;
+                case PRODUCT_STATUS_FINANCING_FAILURE:
+                    $result[$ii]['pro_status'] = "众筹失败";
+                    break;
+                case PRODUCT_STATUS_FINANCING_FULL:
+                case PRODUCT_STATUS_FINANCING_HUNGRY:
+                    $result[$ii]['pro_status'] = "众筹中";
+                    break;
+                default:
+                    $result[$ii]['pro_status'] = "不知道";
+                    break;
+            }
+
+            $result[$ii]['start_time'] = $row['start_time'];
+            $result[$ii]['end_time'] = $row['end_time'];
+            $result[$ii]['paid_count'] = $this->Account_m->get_paid_order_count($row['id']);
+            $result[$ii]['refund_req_count'] = $this->Account_m->get_refund_req_order_count($row['id']);
+            $result[$ii]['refund_succ_count'] = $this->Account_m->get_refund_succ_order_count($row['id']);
+            $result[$ii]['refund_ing_count'] = $this->Account_m->get_refund_ing_order_count($row['id']);
+            $result[$ii]['except_order_count'] = $this->Account_m->get_exception_order_count($row['id']);
+            $result[$ii]['unpost_count'] = $this->Account_m->get_unpost_count($row['id']);
+            $result[$ii]['post_count'] = $this->Account_m->get_post_count($row['id']);
+            $result[$ii]['operation'] = "查看订单";
+
+
+            // 为页面提供链接
+            if ($page_type != 1) {
+                $result[$ii]['paid_count'] = "<a href='/pay_ad/orders?pro_id={$row['id']}&ordstat=1'>{$result[$ii]['paid_count']}</a>";
+                $result[$ii]['refund_req_count'] = "<a href='/pay_ad/orders?pro_id={$row['id']}&ordstat=2'>{$result[$ii]['refund_req_count']}</a>";
+                $result[$ii]['refund_succ_count'] = "<a href='/pay_ad/orders?pro_id={$row['id']}&ordstat=3'>{$result[$ii]['refund_succ_count']}</a>";
+                $result[$ii]['refund_ing_count'] = "<a href='/pay_ad/orders?pro_id={$row['id']}&ordstat=4'>{$result[$ii]['refund_ing_count']}</a>";
+
+                $result[$ii]['except_order_count'] = "<a href='/pay_ad/index/abnormal?pro_id={$row['id']}' style='color:red;'>{$result[$ii]['except_order_count']}</a>";
+
+                $result[$ii]['unpost_count'] = "<a href='/pay_ad/orders?pro_id={$row['id']}&postat=1'>{$result[$ii]['unpost_count']}</a>";
+                $result[$ii]['post_count'] = "<a href='/pay_ad/orders?pro_id={$row['id']}&postat=2'>{$result[$ii]['post_count']}</a>";
+
+                $result[$ii]['operation'] = "<a href='/pay_ad/orders?pro_id={$row['id']}'>{$result[$ii]['operation']}</a>";
+            }
+        }
+        unset($base);
+    }
+
+    public function tools() {
+
+        if ($_POST['start_time'] && $_POST['end_time']) {
+            $common = new Common();
+            for ($i = strtotime($_POST['start_time']); $i <= strtotime($_POST['end_time']); $i+=3600 * 24) {
+                $result = $common->delete('md_pay_record_alipay', "trans_date LIKE '" . date("Y-m-d", $i) . "%'");
+                $this->_pull(date("Y-m-d", $i));
+            }
+            for ($i = strtotime($_POST['start_time']); $i <= strtotime($_POST['end_time']); $i+=3600 * 24) {
+                $this->_pull(date("Y-m-d", $i), 'alipay_forcard');
+            }
+            $this->load->library('md_payment_weixin');
+            for ($i = strtotime($_POST['start_time']); $i <= strtotime($_POST['end_time']); $i+=3600 * 24) {
+                $result = $common->delete('md_pay_record_weixin', "pay_time LIKE '" . date("Y-m-d", $i) . "%'");
+                $datetime = date("Ymd", $i);
+                $rows = $this->md_payment_weixin->bill($datetime);
+                foreach ($rows as $row) {
+                    $this->db->insert("md_pay_record_weixin", $row);
+                }
+            }
+        }
+        $sql = "SELECT max(trans_date) as trans_date_max,min(trans_date) as trans_date_min,count(1) as c FROM md_pay_record_alipay";
+        $row = $this->db->query($sql)->row_array();
+        $data['c'] = $row['c'];
+        $data['trans_date_max'] = $row['trans_date_max'];
+        $data['trans_date_min'] = $row['trans_date_min'];
+        $data['type'] = 'tools';
+        $this->load->view('pay_ad/tools', $data);
+    }
+
+    public function refund($type = 'refund') {
+        if ($_POST) {
+            //更新订单状态
+            $sql = "SELECT bak.* FROM md_product_back AS bak,md_pay_record_alipay ali,md_pay pay WHERE ali.merchant_out_order_no = pay.out_trade_no AND pay.back_id = bak.id AND ali.sub_trans_code_msg = '交易退款' AND bak.if_pay=1";
+            $list = $this->db->query($sql)->result_array();
+            foreach ($list as $item) {
+                $this->Order_biz->set_oid($item['id'])->update_status('400');
+            }
+            $sql = "UPDATE md_product_back as bak,md_pay_record_alipay ali,md_pay pay SET bak.if_pay=3 WHERE ali.merchant_out_order_no=pay.out_trade_no AND pay.back_id=bak.id AND ali.sub_trans_code_msg='交易退款' AND bak.if_pay=1";
+
+            //$sql = "UPDATE md_product_back as bak,md_pay_record_alipay ali,md_pay pay SET bak.if_pay=3 WHERE ali.merchant_out_order_no=pay.out_trade_no AND pay.back_id=bak.id AND ali.sub_trans_code_msg='交易退款'";
+            $this->db->query($sql);
+        }
+        $data['type'] = $type;
+        $data['startTime'] = $this->input->get_post('start_time');
+        $data['endTime'] = $this->input->get_post('end_time');
+        $data['proId'] = $this->input->get_post('pro_id');
+        $data['level'] = $this->input->get_post('level');
+        $data['orderNo'] = $this->input->get_post('order_no');
+        $data['transNo'] = $this->input->get_post('trans_no');
+        if ($type == 'refund') {
+            $data['res'] = $this->_get_refund($data);
+        } else {
+            $data['res'] = $this->_get_refunded($data);
+        }
+        $this->_title = array_merge(array('warning' => '支付宝已退款'), $this->_title);
+        $data['title'] = $this->_title;
+        $this->load->view('pay_ad/refund', $data);
+    }
+
+    public function index($type = 'normal', $page = 1) {
+//        $this->_pull(date("Y-m-d"));
+//        for ($i = strtotime('2014-06-01'); $i <= time(); $i+=3600 * 24) {
+//            $this->_pull(date("Y-m-d", $i));
+//        }
+
+        $data['type'] = $type;
+        $data['pro_id'] = $this->input->get_post('pro_id');
+        $data['pro_name'] = $this->input->post('pro_name');
+        $data['user_mobile'] = $this->input->post('user_mobile');
+        $data['pay_time_start'] = $this->input->post('pay_time_start');
+        $data['pay_time_end'] = $this->input->post('pay_time_end');
+        $data['pro_status'] = $this->input->post('pro_status');
+        $data['except_reason'] = $this->input->post('except_reason');
+
+        $data['per_page'] = 8;
+        $data['offset'] = ($page - 1) * $data['per_page'];
+
+        //是否是全部订单页
+        if (!empty($data['pro_id']) && $type == 'normal') {
+            $res = $this->_get_normal_pay($data);
+            $data['res'] = $res['list'];
+            $data['total_rows'] = $res['total'];
+            unset($res);
+        } elseif (!empty($data['pro_id']) && $type == 'abnormal') {
+            //修复异常订单
+            if ($this->input->get('repair') == 'all') {
+                /*
+                  //修复在支付宝没有交易记录的订单
+                  $sql = "SELECT
+                  modian.out_trade_no AS order_no,
+                  ali.trade_no as ali_trade_no,
+                  rew.id as rew_id,
+                  rew.content AS rew_content,
+                  pro.id AS pro_id,
+                  pro.`name` AS pro_name,
+                  pro.duration AS days,
+                  bak.amount AS money,
+                  bak.user_id as bak_user_id,
+                  bak.address_name as user_name,
+                  ali.trans_date as trans_date,
+                  bak.if_pay as if_pay,
+                  modian.bank_type as bank_type,
+                  '支付宝状态未支付' as warning
+                  FROM md_product_back bak
+                  INNER JOIN md_pay modian ON bak.id=modian.back_id
+                  INNER JOIN md_product_rewards rew ON bak.rew_id = rew.id
+                  INNER JOIN md_product pro ON pro.id = modian.pro_id
+                  LEFT JOIN md_pay_record_alipay ali ON ali.merchant_out_order_no=modian.out_trade_no AND ali.income>0
+                  WHERE bak.if_pay=1 AND modian.status=1
+                  HAVING ISNULL(trans_date)";
+                  $list_out_no = $this->db->query($sql)->result_array();
+                  foreach ($list_out_no as $item) {
+                  $sql = "UPDATE md_pay pay, md_product_back bak SET bak.if_pay = 0, pay.`status` = 0 WHERE
+                  (pay.`status`=1 OR bak.if_pay=0) and
+                  pay.back_id = bak.id AND pay.out_trade_no='{$item['order_no']}'";
+                  $this->db->query($sql);
+                  }
+                 */
+
+                //修复支付时间
+                $sql = "update md_pay pay,md_product_back bak,md_pay_record_alipay ali SET pay.ctime=ali.trans_date,bak.ctime=ali.trans_date
+WHERE ali.merchant_out_order_no=pay.out_trade_no AND bak.id=pay.back_id AND bak.ctime LIKE '2014-07-01 19:%' AND ali.income>0";
+                $this->db->query($sql);
+                //修复已支付但我方状态为未支付的订单
+                $sql = "UPDATE md_pay pay,md_product_back bak,md_pay_record_alipay ali SET pay.`status`=1,bak.if_pay=1,pay.return_str=CONCAT('参照:',ali.trade_no),bak.ctime=ali.trans_date 
+WHERE pay.back_id=bak.id 
+AND pay.out_trade_no=ali.merchant_out_order_no 
+AND ali.income>0 
+AND pay.`status`=0 AND bak.if_pay=0";
+                $this->db->query($sql);
+                //修复back与支付表状态不符
+                $sql = "UPDATE md_pay pay,md_product_back bak,md_pay_record_alipay ali SET pay.`status`=1,bak.if_pay=1,pay.return_str=CONCAT('参照:',ali.trade_no),bak.ctime=ali.trans_date 
+WHERE pay.back_id=bak.id 
+AND pay.out_trade_no=ali.merchant_out_order_no 
+AND ali.income>0 
+AND pay.`status`=0 AND bak.if_pay=1";
+                $this->db->query($sql);
+                //修复back与支付表状态不符
+                $sql = "UPDATE md_pay pay,md_product_back bak,md_pay_record_alipay ali SET pay.`status`=1,bak.if_pay=1,pay.return_str=CONCAT('参照:',ali.trade_no),bak.ctime=ali.trans_date 
+WHERE pay.back_id=bak.id 
+AND pay.out_trade_no=ali.merchant_out_order_no 
+AND ali.income>0 
+AND pay.`status`=1 AND bak.if_pay=0";
+                $this->db->query($sql);
+                redirect('pay_ad/index/' . $type);
+            }
+
+            $res = $this->_get_abnormal_pay($data);
+            $data['res'] = $res['list'];
+            $data['total_rows'] = $res['total'];
+            unset($res);
+            $this->_title = array_merge(array('warning' => '异常类型'), $this->_title);
+        } else {
+            $data['res'] = array();
+            $data['total_rows'] = 0;
+        }
+
+
+        $config = array(
+            'uri_segment' => 4,
+            'base_url' => site_url("pay_ad/index/{$type}"),
+            'use_page_numbers' => true,
+            'num_links' => 2,
+            'total_rows' => $data['total_rows'],
+            'per_page' => $data['per_page'],
+            'full_tag_open' => '<ul id="page-nav" class="pager">',
+            'full_tag_close' => '</ul>',
+            'first_link' => '首页',
+            'first_tag_open' => '<li style="display:none;">',
+            'first_tag_close' => '</li>',
+            'last_link' => '尾页',
+            'last_tag_open' => '<li style="display:none;">',
+            'last_tag_close' => '</li>',
+            'next_link' => '下一页',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li>',
+            'prev_link' => '前一页',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li>',
+            'cur_tag_open' => '<li class="disabled"><a href="javascript:void(0)">',
+            'cur_tag_close' => '</a></li>',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li>',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        $data['title'] = $this->_title;
+        $this->load->view('pay_ad/index', $data);
+    }
+
+    // 修复订单
+    public function repair_order()
+    {
+        $if_repair = 1;
+
+        $type = $this->input->post('repair_type', true);
+        switch (intval($type)) {
+            case 1: // 重复支付
+            case 2: // 过期支付
+                // 重复支付，注意退款回调接口会修改订单状态
+                // 过期支付没有以上考虑
+                $if_repair = $this->_repair_refund_order($this->input->post(null, true));
+                break;
+            case 3: // 摩点未收到支付成功信息
+                $if_repair = $this->_update_md_pay_record($this->input->post(null, true));
+                break;
+            case 4: // 摩点未收到退款成功信息
+                $if_repair = $this->_update_md_back_record($this->input->post(null, true));
+                break;
+            default:
+                # code...
+                break;
+        }
+
+        pack_data($this->input->post(null, true), $if_repair);
+    }
+
+    // 修复订单::未同步退款成功信息
+    function _update_md_back_record($back_info) {
+        $status = 1;
+
+        // setting
+        $insert_d['ctime']        = date('Y-m-d H:i:s');
+        $insert_d['repair_rsn']   = 'REFUND_SUCCESS_UNSYNC';
+        $insert_d['admin_id']     = $_SESSION['admin_id'];
+        $insert_d['out_trade_no'] = $back_info['order_no'];
+        $insert_d['back_id']      = $back_info['back_id'];
+        $insert_d['pro_id']       = $back_info['pro_id'];
+
+        $this->db->select('md_product_back.status AS back_status, md_pay.status AS pay_status', false);
+        $this->db->from('md_product_back');
+        $this->db->join('md_pay', "md_product_back.id=md_pay.back_id AND md_pay.out_trade_no='{$back_info['order_no']}'", 'inner');
+        $this->db->where('md_product_back.id', $back_info['back_id']);
+        $res = $this->db->get()->row_array();
+        $insert_d['last_back_status'] = intval($res['back_status']);
+        $insert_d['last_pay_status'] = intval($res['pay_status']);
+
+
+        $this->db->select('if_pay, status');
+        $this->db->from('md_product_back');
+        $this->db->where('id', $back_info['back_id']);
+        $res = $this->db->get()->row_array();
+        $if_pay = $res['if_pay'];
+        $insert_d['set_back_status'] = $res['status'];
+
+        switch ($insert_d['last_pay_status']) {
+        case 31:
+        case 35: // 重复支付退款中
+            $insert_d['set_back_status'] = $insert_d['last_back_status'];
+            $insert_d['set_pay_status'] = 31;
+            break;
+        case 39:
+        case 36: // 过期支付退款中
+            $insert_d['set_back_status'] = $insert_d['last_back_status'];
+            $insert_d['set_pay_status'] = 39;
+            break;
+        default: // 正常订单退款中
+            $insert_d['set_pay_status'] = $insert_d['last_pay_status'];
+
+            $if_repeat = $this->md_refund->if_repeat_order($back_info['back_id']);
+            if (! $if_repeat) {
+                $if_pay = 3;
+                switch ($back_info['pro_status']) {
+                case '众筹失败':
+                    $insert_d['set_back_status'] = '400';
+                    break;
+                case '众筹中':
+                    $insert_d['set_back_status'] = '300';
+                    break;
+                case '众筹成功':
+                    $insert_d['set_back_status'] = '205';
+                    break;
+                default:
+                    $insert_d['set_back_status'] = 0;
+                    break;
+                }
+                break;
+            }
+        }
+
+        // update
+        switch ($back_info['pay_platform']) {
+        case 'alipay':
+        case 'alipay_wap':
+            $sql = "UPDATE md_pay pay
+                        INNER JOIN md_product_back bak ON bak.id=pay.back_id
+                        INNER JOIN md_pay_record_alipay ali ON ali.merchant_out_order_no=pay.out_trade_no AND ali.income=pay.amount
+                    SET pay.return_time=ali.trans_date, pay.status={$insert_d['set_pay_status']}, bak.if_pay={$if_pay}, bak.status={$insert_d['set_back_status']}
+                    WHERE bak.id={$back_info['back_id']} AND pay.out_trade_no='{$back_info['order_no']}' AND ali.trade_no='{$back_info['trade_no']}'";
+            if ($this->db->query($sql))
+                $status = 0;
+            break;
+        case 'weixin':
+            $sql = "UPDATE md_pay pay
+                        INNER JOIN md_product_back bak ON bak.id=pay.back_id
+                        INNER JOIN md_pay_record_weixin wx ON wx.md_trade_no=pay.out_trade_no AND wx.money=pay.amount
+                    SET pay.return_time=wx.pay_time, pay.status={$insert_d['set_pay_status']}, bak.if_pay={$if_pay}, bak.status={$insert_d['set_back_status']}
+                    WHERE bak.id={$back_info['back_id']} AND pay.out_trade_no='{$back_info['order_no']}' AND wx.wx_trade_no='{$back_info['trade_no']}'";
+            if ($this->db->query($sql))
+                $status = 0;
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        // log
+        $this->db->insert('md_order_repaired_log', $insert_d);
+
+        return $status;
+    }
+
+    // 修复订单::支付信息
+    public function _update_md_pay_record($parms)
+    {
+        $status = 1;
+
+        // setting
+        $insert_d['ctime']        = date('Y-m-d H:i:s');
+        $insert_d['repair_rsn']   = 'PAID_SUCCESS_UNSYNC';
+        $insert_d['admin_id']     = $_SESSION['admin_id'];
+        $insert_d['out_trade_no'] = $parms['order_no'];
+        $insert_d['back_id']      = $parms['back_id'];
+        $insert_d['pro_id']       = $parms['pro_id'];
+
+        $this->db->select('md_product_back.status AS back_status, md_pay.status AS pay_status', false);
+        $this->db->from('md_product_back');
+        $this->db->join('md_pay', "md_product_back.id=md_pay.back_id AND md_pay.out_trade_no='{$parms['order_no']}'", 'inner');
+        $this->db->where('md_product_back.id', $parms['back_id']);
+        $res = $this->db->get()->row_array();
+        $insert_d['last_back_status'] = intval($res['back_status']);
+        $insert_d['last_pay_status'] = intval($res['pay_status']);
+        $insert_d['set_back_status'] = 103;
+        $insert_d['set_pay_status'] = 1;
+        $if_pay = 1;
+
+        switch ($parms['pay_platform']) {
+        case 'alipay':
+        case 'alipay_wap':
+            $sql = "UPDATE md_pay pay
+                        INNER JOIN md_product_back bak ON bak.id=pay.back_id
+                        INNER JOIN md_pay_record_alipay ali ON ali.merchant_out_order_no=pay.out_trade_no AND ali.income=pay.amount
+                    SET pay.return_time=ali.trans_date, pay.return_str=CONCAT('修复参照:', ali.trade_no),
+                        pay.status={$insert_d['set_pay_status']}, bak.if_pay={$if_pay}, bak.status={$insert_d['set_back_status']}
+                    WHERE bak.id={$parms['back_id']} AND pay.out_trade_no='{$parms['order_no']}' AND ali.trade_no='{$parms['trade_no']}'";
+            if ($this->db->query($sql))
+                $status = 0;
+            break;
+        case 'weixin':
+            $sql = "UPDATE md_pay pay
+                        INNER JOIN md_product_back bak ON bak.id=pay.back_id
+                        INNER JOIN md_pay_record_weixin wx ON wx.md_trade_no=pay.out_trade_no AND wx.money=pay.amount
+                    SET pay.return_time=wx.pay_time, pay.return_str=CONCAT('修复参照:', wx.md_trade_no),
+                        pay.status={$insert_d['set_pay_status']}, bak.if_pay={$if_pay}, bak.status={$insert_d['set_back_status']}
+                    WHERE bak.id={$parms['back_id']} AND pay.out_trade_no='{$parms['order_no']}' AND wx.wx_trade_no='{$parms['trade_no']}'";
+            if ($this->db->query($sql))
+                $status = 0;
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        // log
+        $this->db->insert('md_order_repaired_log', $insert_d);
+
+        return $status;
+    }
+
+    // 修复订单::退款
+    function _repair_refund_order($back_info) {
+        $status = 1;
+        switch ($back_info['pay_platform']) {
+            case 'alipay':
+            case 'alipay_wap':
+                $status = $this->_repair_refund_alipay_order($back_info);
+                break;
+            case 'weixin':
+                $status = $this->_repair_refund_weixin_order($back_info);
+                break;
+            default:
+                # code...
+                break;
+        }
+        return $status;
+    }
+
+    // 修复订单::退款::ali
+    public function _repair_refund_alipay_order($back_info)
+    {
+        $rtn_stat = 2;
+        if (!empty($back_info) && !empty($back_info['repair_type']) && !empty($back_info['pro_id']) && !empty($back_info['back_id'])
+            && !empty($back_info['order_no']) && !empty($back_info['trade_no']) && !empty($back_info['pay_money'])) {
+
+            if ($back_info['repair_type'] == 2) {
+                $refund_reasion = '过期支付退款';
+            } elseif ($back_info['repair_type'] == 1) {
+                $refund_reasion = '重复支付退款';
+            } else {}
+            $batch_id = $this->md_refund->get_next_batch_id($back_info['pro_id']);
+            $parm['batch_no'] = $this->md_refund->create_next_batch_no($back_info['pro_id'], $batch_id, 'R');
+            $parm['refund_date'] = date("Y-m-d H:i:s");
+            $parm['batch_num'] = 1;
+            $parm['detail_data'] = "{$back_info['trade_no']}^{$back_info['pay_money']}^{$refund_reasion}";
+
+            $alipayapi_return = $this->md_refund->refund_alipayapi($parm);
+            $rtn_status = $this->md_refund->get_refund_req_status($alipayapi_return['return_code']);
+            if ($rtn_status == '请求成功') {
+                $rtn_stat = 0;
+
+                $ppppstat = 35;
+                if ($back_info['repair_type'] == 2) { // 过期支付
+                    $ppppstat = 36;
+                    switch ($back_info['pro_status']) {
+                        case '众筹失败':
+                            $back_status = '402';
+                            break;
+                        case '众筹中':
+                            $back_status = '302';
+                            break;
+                        case '众筹成功':
+                            $back_status = '204';
+                            break;
+                        default:
+                            # code...
+                            break;
+                    }
+                }
+
+                if ($this->md_refund->if_repeat_order($back_info['back_id'])) {
+                    $this->md_refund->update_order_pay_status($back_info['back_id'], $back_info['order_no'], $ppppstat);
+                } else {
+                    $this->Order_biz->set_oid($back_info['back_id'])->update_status($back_status);
+                }
+            }
+
+            $back_data = array('0' => $alipayapi_return + array('pro_id' => $back_info['pro_id'], 'batch_id' => $batch_id, 'batch_amount' => $back_info['pay_money']));
+            $this->md_refund->save_refund_req_log($back_data);
+            $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+            $sub_lsts[] = array('batch_no' => $parm['batch_no'],
+                'back_id' => $back_info['back_id'],
+                'pay_out_trade_no' => $back_info['order_no'],
+                'trade_no' => $back_info['trade_no'],
+                'refund_amount' => $back_info['pay_money'],
+                'refund_rsn' => $refund_reasion,
+                'refund_date' => $parm['refund_date'],
+                'user_realname' => "",
+                'user_reg_mobile' => "",
+                'op_type' => 1,
+                'op_reason' => "",
+                'op_time' => "",
+                'op_man' => "{$op_man}",
+            );
+            $this->md_refund->save_refund_order_info($sub_lsts);
+        }
+        return $rtn_stat;
+    }
+
+    // 修复订单::退款::weixin
+    public function _repair_refund_weixin_order($back_info)
+    {
+        $rtn_stat = 2;
+        if (!empty($back_info) && !empty($back_info['back_id']) && !empty($back_info['repair_type']) && !empty($back_info['order_no']) && !empty($back_info['pay_money'])) {
+
+            $err_msg = null;
+            if ($this->md_payment_weixin->refund($back_info['order_no'], $back_info['pay_money'], $err_msg)) {
+                $rtn_stat = 0;
+                $ppppstat = 35;
+                if ($back_info['repair_type'] == 2) {
+                    $ppppstat = 36;
+                    switch ($back_info['pro_status']) {
+                        case '众筹失败':
+                            $back_status = '400';
+                            break;
+                        case '众筹中':
+                            $back_status = '300';
+                            break;
+                        case '众筹成功':
+                            $back_status = '205';
+                            break;
+                        default:
+                            # code...
+                            break;
+                    }
+                }
+
+                if ($this->md_refund->if_repeat_order($back_info['back_id'])) {
+                    $this->md_refund->update_order_pay_status($back_info['back_id'], $back_info['order_no'], $ppppstat);
+                } else {
+                    $this->Order_biz->set_oid($back_info['back_id'])->update_status($back_status);
+                }
+            }
+        }
+        return $rtn_stat;
+    }
+
+    /**
+     * 生成where
+     * @param type $parms
+     * @return type
+     */
+    public function _filterParamToWhere($parms) {
+        $where = "";
+        if ($parms['pro_id']) {
+            $where .= " AND bak.pro_id='{$parms['pro_id']}' ";
+        }
+        if ($parms['user_mobile']) {
+            $where .= " AND bak.address_mobile='{$parms['user_mobile']}' ";
+        }
+        if ($parms['pay_time_start']) {
+            $where .= " AND pay.return_time>='{$parms['pay_time_start']}' ";
+        }
+        if ($parms['pay_time_end']) {
+            $where .= " AND pay.return_time<='{$parms['pay_time_end']}' ";
+        }
+
+        if ($parms['pro_name']) {
+            $where .= " AND (pro.name LIKE '%{$parms['pro_name']}%' OR pro.short_title LIKE '%{$parms['pro_name']}%') ";
+        }
+        return $where;
+    }
+
+    public function _get_normal_pay($parms) {
+        $where = $this->_filterParamToWhere($parms);
+        $sql = "SELECT bak.id AS back_id,
+                        pay.out_trade_no AS order_no,
+                        ali.trade_no AS ali_trade_no,
+                        rew.id AS rew_id,
+                        rew.content AS rew_content,
+                        pro.id AS pro_id,
+                        pro.`short_title` AS pro_name,
+                        '无' AS pro_status,
+                        bak.amount AS money,
+                        bak.user_id AS bak_user_id,
+                        bak.address_name AS user_name,
+                        bak.address_mobile,
+                        bak.address_email,
+                        pay.status AS if_pay,
+                        pay.bank_type,
+                        bak.address_name,
+                        CONCAT(address_province,address_city,address_detail) as address_detail,
+                        ali.trans_date as trans_date,
+                        '操作' AS operation
+                    FROM md_product_back bak
+                        INNER JOIN md_product_rewards rew ON bak.rew_id = rew.id
+                        INNER JOIN md_product pro ON pro.id = bak.pro_id
+                        INNER JOIN md_pay pay ON bak.id = pay.back_id
+                        INNER JOIN md_pay_record_alipay ali ON ali.merchant_out_order_no = pay.out_trade_no AND ali.income > 0
+                    WHERE bak.if_pay=1 AND pay.status=1 {$where}";
+        $res['total'] = $this->db->query($sql)->num_rows();
+
+        if ($parms['offset'] !== null && $parms['per_page'] !== null)
+            $sql .= "LIMIT {$parms['offset']}, {$parms['per_page']}";
+        $res['list'] = $this->db->query($sql)->result_array();
+        foreach ($res['list'] as $k => $item) {
+            $tmp = $this->Product_m->get_product_status($item['pro_id'], 1);
+            switch ($tmp) {
+                case PRODUCT_STATUS_FINANCING_SUCCESS:
+                    $res['list'][$k]['pro_status'] = "众筹成功";
+                    break;
+                case PRODUCT_STATUS_FINANCING_FAILURE:
+                    $res['list'][$k]['pro_status'] = "众筹失败";
+                    break;
+                case PRODUCT_STATUS_FINANCING_FULL:
+                case PRODUCT_STATUS_FINANCING_HUNGRY:
+                    $res['list'][$k]['pro_status'] = "众筹中";
+                    break;
+                default:
+                    $res['list'][$k]['pro_status'] = "不知道";
+                    break;
+            }
+        }
+        return $res;
+    }
+
+    public function _get_abnormal_pay($parms) {
+        $repeat_paid_order = array();
+        if (empty($parms['except_reason']) || intval($parms['except_reason']) == 1)
+            $repeat_paid_order = $this->Account_m->get_repeat_paid_order_ids($parms['pro_id']);
+        $exceed_time_order = array();
+        if (empty($parms['except_reason']) || intval($parms['except_reason']) == 2)
+            $exceed_time_order = $this->Account_m->get_exceed_time_paid_order_ids($parms['pro_id']);
+        $md_unsucc_order = array();
+        if (empty($parms['except_reason']) || intval($parms['except_reason']) == 3)
+            $md_unsucc_order = $this->Account_m->get_md_unsucc_order_ids($parms['pro_id']);
+        $md_repaired_order = array();
+        if (empty($parms['except_reason']) || intval($parms['except_reason']) == 4)
+            $md_repaired_order = $this->Account_m->get_md_repaired_order_ids($parms['pro_id']);
+        $md_unrefund_order = array();
+        if (empty($parms['except_reason']) || intval($parms['except_reason']) == 5)
+            $md_unrefund_order = $this->Account_m->get_md_unrefund_order_ids($parms['pro_id']);
+        $id_arr = array_merge(array(0), $repeat_paid_order, $exceed_time_order, $md_unsucc_order, $md_repaired_order, $md_unrefund_order);
+        $id_arr = '(' . implode(',', $id_arr) . ')';
+
+        $where = $this->_filterParamToWhere($parms);
+        $sql = "SELECT bak.id AS back_id,
+                        pay.out_trade_no AS order_no,
+                        '暂无' AS ali_trade_no,
+                        rew.id AS rew_id,
+                        rew.content AS rew_content,
+                        pro.id AS pro_id,
+                        pro.`short_title` AS pro_name,
+                        '暂无' AS pro_status,
+                        bak.status AS back_status,
+                        bak.amount AS money,
+                        bak.user_id AS bak_user_id,
+                        bak.address_name AS user_name,
+                        bak.address_mobile,
+                        bak.address_email,
+                        pay.status AS if_pay,
+                        pay.bank_type,
+                        bak.address_name,
+                        CONCAT(address_province,address_city,address_detail) AS address_detail,
+                        '暂无' AS trans_date,
+                        '操作' AS operation,
+                        pay.pay_platform
+                    FROM md_product_back bak
+                        INNER JOIN md_product_rewards rew ON bak.rew_id = rew.id
+                        INNER JOIN md_product pro ON pro.id = bak.pro_id
+                        INNER JOIN md_pay pay ON bak.id = pay.back_id
+                    WHERE bak.id IN {$id_arr} {$where}
+                    ORDER BY bak.id ";
+        $res['total'] = $this->db->query($sql)->num_rows();
+        $res['list'] = $this->db->query($sql)->result_array();
+        foreach ($res['list'] as &$item) {
+            if (intval($item['if_pay']) === 0 && !in_array($item['back_id'], $md_unsucc_order)) {
+                unset($item);
+                continue;
+            }
+
+            switch (intval($item['if_pay'])) {
+            case 0:
+                $item['if_pay'] = "未支付";
+                break;
+            case 1:
+                $item['if_pay'] = "已支付";
+                if (in_array($item['back_status'], array(402,302,204)))
+                    $item['if_pay'] = "退款中";
+                elseif (in_array($item['back_status'], array(400,300,205)))
+                    $item['if_pay'] = "已退款";
+                else
+                    ;
+                break;
+            case 35:
+            case 36:
+                $item['if_pay'] = "退款中";
+                break;
+            case 31:
+            case 39:
+                $item['if_pay'] = "已退款";
+                break;
+            default:
+                # code...
+                break;
+            }
+
+            $tmp = $this->Account_m->get_paid_order_third_party_info($item['order_no'], $item['pay_platform']);
+            $item['ali_trade_no'] = $tmp['trade_no'];
+            $item['trans_date'] = $tmp['trans_date'];
+
+            $tmp = $this->Product_m->get_product_status($item['pro_id'], 1);
+            switch ($tmp) {
+            case PRODUCT_STATUS_FINANCING_SUCCESS:
+                $item['pro_status'] = "众筹成功";
+                break;
+            case PRODUCT_STATUS_FINANCING_FAILURE:
+                $item['pro_status'] = "众筹失败";
+                break;
+            case PRODUCT_STATUS_FINANCING_FULL:
+            case PRODUCT_STATUS_FINANCING_HUNGRY:
+                $item['pro_status'] = "众筹中";
+                break;
+            default:
+                $item['pro_status'] = "不知道";
+            }
+
+            $tt1 = $this->Account_m->get_repaired_repeat_paid_out_trade_no($item['pro_id']);
+            $tt2 = $this->Account_m->get_repaired_exceed_time_out_trade_no($item['pro_id']);
+            $tt3 = $this->Account_m->get_repaired_unsucc_out_trade_no($item['pro_id']);
+            $tt4 = $this->Account_m->get_repaired_unrefundsucc_info('out_trade_no', $item['pro_id']);
+
+            if (in_array($item['back_id'], $md_unrefund_order)) {
+                $item['warning'] = '未收到退款成功信息';
+                if (in_array($item['order_no'], $tt4)) {
+                    $item['operation'] = '已修复';
+                } elseif ($item['if_pay'] == '退款中') {
+                    if (empty($item['ali_trade_no']) || ($parms['offset'] == null && $parms['per_page'] == null)) {
+                        $item['operation'] = '修复';
+                    } else {
+                        $item['operation'] = '<a class="repair" href="#" data-repair=\'' .
+                                json_encode(
+                                        array(
+                                            'repair_type'  => 4,
+                                            'back_id'      => $item['back_id'],
+                                            'pay_platform' => $item['pay_platform'],
+                                            'order_no'     => $item['order_no'],
+                                            'trade_no'     => $item['ali_trade_no'],
+                                            'pay_money'    => $item['money'],
+                                            'pro_id'       => $item['pro_id'],
+                                            'pro_status'   => $item['pro_status']
+                                )) . '\'>修复</a>';
+                    }
+                } else {
+                    $item['operation'] = '无需修复';
+                }
+            } elseif (in_array($item['back_id'], $md_unsucc_order)) {
+                $item['warning'] = '未收到支付成功信息';
+                if (in_array($item['order_no'], $tt3)) {
+                    $item['operation'] = '已修复';
+                } else {
+                    if (empty($item['ali_trade_no']) || ($parms['offset'] == null && $parms['per_page'] == null)) {
+                        $item['operation'] = '修复';
+                    } else {
+                        $item['operation'] = '<a class="repair" href="#" data-repair=\'' .
+                                json_encode(
+                                        array(
+                                            'repair_type'  => 3,
+                                            'back_id'      => $item['back_id'],
+                                            'pay_platform' => $item['pay_platform'],
+                                            'order_no'     => $item['order_no'],
+                                            'trade_no'     => $item['ali_trade_no'],
+                                            'pay_money'    => $item['money'],
+                                            'pro_id'       => $item['pro_id'],
+                                            'pro_status'   => $item['pro_status']
+                                )) . '\'>修复</a>';
+                    }
+                }
+            } elseif (in_array($item['back_id'], $exceed_time_order)) {
+                $item['warning'] = '过期支付';
+                if (in_array($item['order_no'], $tt2) || in_array($item['order_no'], $tt1)) {
+                    $item['operation'] = '已修复';
+                } else {
+                    if (empty($item['ali_trade_no']) || ($parms['offset'] == null && $parms['per_page'] == null)) {
+                        $item['operation'] = '修复';
+                    } else {
+                        $item['operation'] = '<a class="repair" href="#" data-repair=\'' .
+                                json_encode(
+                                        array(
+                                            'repair_type'  => 2,
+                                            'back_id'      => $item['back_id'],
+                                            'pay_platform' => $item['pay_platform'],
+                                            'order_no'     => $item['order_no'],
+                                            'trade_no'     => $item['ali_trade_no'],
+                                            'pay_money'    => $item['money'],
+                                            'pro_id'       => $item['pro_id'],
+                                            'pro_status'   => $item['pro_status']
+                                )) . '\'>修复</a>';
+                    }
+                }
+            } elseif (in_array($item['back_id'], $repeat_paid_order)) {
+                $item['warning'] = '重复支付';
+                if (in_array($item['order_no'], $tt2) || in_array($item['order_no'], $tt1)) {
+                    $item['operation'] = '已修复';
+                } else {
+                    if (empty($item['ali_trade_no']) || ($parms['offset'] == null && $parms['per_page'] == null)) {
+                        $item['operation'] = '修复';
+                    } else {
+                        $item['operation'] = '<a class="repair" href="#" data-repair=\'' .
+                                json_encode(
+                                        array(
+                                            'repair_type'  => 1,
+                                            'back_id'      => $item['back_id'],
+                                            'pay_platform' => $item['pay_platform'],
+                                            'order_no'     => $item['order_no'],
+                                            'trade_no'     => $item['ali_trade_no'],
+                                            'pay_money'    => $item['money'],
+                                            'pro_id'       => $item['pro_id'],
+                                            'pro_status'   => $item['pro_status']
+                                )) . '\'>修复</a>';
+                    }
+                }
+            } else {
+
+                $tt1 = $this->Account_m->get_repaired_repeat_paid_ids($item['pro_id']);
+                $tt2 = $this->Account_m->get_repaired_exceed_time_ids($item['pro_id']);
+                $tt3 = $this->Account_m->get_repaired_unsucc_ids($item['pro_id']);
+                $tt4 = $this->Account_m->get_repaired_unrefundsucc_info('back_id', $item['pro_id']);
+
+                if (in_array($item['back_id'], $tt1)) {
+                    $item['warning'] = '重复支付';
+                    $item['operation'] = '已修复';
+                } elseif (in_array($item['back_id'], $tt2)) {
+                    $item['warning'] = '过期支付';
+                    $item['operation'] = '已修复';
+                } elseif (in_array($item['back_id'], $tt3)) {
+                    $item['warning'] = '未收到支付成功信息';
+                    $item['operation'] = '已修复';
+                } elseif (in_array($item['back_id'], $tt4)) {
+                    $item['warning'] = '未收到退款成功信息';
+                    $item['operation'] = '已修复';
+                } else {
+                    $item['warning'] = '不知道';
+                }
+            }
+        }
+
+        if ($parms['offset'] !== null && $parms['per_page'] !== null)
+            $res['list'] = array_slice($res['list'], $parms['offset'], $parms['per_page']);
+
+        return $res;
+    }
+
+    public function _get_refunded($parms) {
+        $where = $this->_filterParamToWhere($parms);
+        $where = $this->_filterParamToWhere($parms);
+        $sql = "SELECT
+        '已退款' as warning,
+	modian.out_trade_no AS order_no,
+	ali.trade_no as ali_trade_no,
+	rew.id as rew_id,
+	rew.content AS rew_content,
+	pro.id AS pro_id,
+	pro.`name` AS pro_name,
+	pro.duration AS days,
+	bak.amount AS money,
+	bak.user_id as bak_user_id,
+	bak.address_name as user_name,
+	ali.trans_date as trans_date,
+	bak.if_pay as if_pay,
+	modian.bank_type as bank_type
+FROM
+	md_pay_record_alipay ali
+INNER JOIN md_pay modian ON ali.merchant_out_order_no = modian.out_trade_no
+INNER JOIN md_product_back bak ON bak.id = modian.back_id
+INNER JOIN md_product_rewards rew ON bak.rew_id = rew.id
+INNER JOIN md_product pro ON pro.id = modian.pro_id
+WHERE
+	ali.outcome > 0 AND ali.sub_trans_code_msg='交易退款' AND bak.if_pay='3' $where
+ORDER BY
+	ali.trans_date";
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $k => $item) {
+            $producntInfo = $this->Product_m->get_product_info($item['pro_id']);
+            $res[$k]['pro_status'] = $producntInfo['status'];
+        }
+        return $res;
+    }
+
+    public function _get_refund($parms) {
+
+        $where = $this->_filterParamToWhere($parms);
+        $sql = "SELECT
+        '支付宝已退款' as warning,
+	modian.out_trade_no AS order_no,
+	ali.trade_no as ali_trade_no,
+	rew.id as rew_id,
+	rew.content AS rew_content,
+	pro.id AS pro_id,
+	pro.`name` AS pro_name,
+	pro.duration AS days,
+	bak.amount AS money,
+	bak.user_id as bak_user_id,
+	bak.address_name as user_name,
+	ali.trans_date as trans_date,
+	bak.if_pay as if_pay,
+	modian.bank_type as bank_type
+FROM
+	md_pay_record_alipay ali
+INNER JOIN md_pay modian ON ali.merchant_out_order_no = modian.out_trade_no
+INNER JOIN md_product_back bak ON bak.id = modian.back_id
+INNER JOIN md_product_rewards rew ON bak.rew_id = rew.id
+INNER JOIN md_product pro ON pro.id = modian.pro_id
+WHERE
+	ali.outcome > 0 AND ali.sub_trans_code_msg='交易退款' AND bak.if_pay='1' $where
+ORDER BY
+	ali.trans_date";
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $k => $item) {
+            $producntInfo = $this->Product_m->get_product_info($item['pro_id']);
+            $res[$k]['pro_status'] = $producntInfo['status'];
+        }
+        return $res;
+    }
+
+    //导出excel
+    public function export($type = 'normal', $pro_id = null) {
+        $data['type'] = $type;
+        $data['pro_id'] = $pro_id;
+        $data['pro_name'] = $this->input->post('pro_name');
+        $data['user_mobile'] = $this->input->post('user_mobile');
+        $data['pay_time_start'] = $this->input->post('pay_time_start');
+        $data['pay_time_end'] = $this->input->post('pay_time_end');
+        $data['pro_status'] = $this->input->post('pro_status');
+        $data['except_reason'] = $this->input->post('except_reason');
+        $data['per_page'] = null;
+        $data['offset'] = null;
+
+        if ($pro_id !== null && $type == 'normal') {
+            $res = $this->_get_normal_pay($data);
+            $data['res'] = $res['list'];
+            $data['total_rows'] = $res['total'];
+            unset($res);
+        } elseif ($pro_id !== null) {
+            $res = $this->_get_abnormal_pay($data);
+            $data['res'] = $res['list'];
+            $data['total_rows'] = $res['total'];
+            unset($res);
+            $this->_title = array_merge(array('warning' => '异常类型'), $this->_title);
+        } else {
+            $data['res'] = array();
+        }
+
+        $filename = time() . '.xls';
+        $this->load->helper('excel');
+        export_to_excel($this->_title, $data['res'], $filename);
+
+
+
+        // $this->load->library('PHPExcel');
+        // $objPHPExcel = new PHPExcel();
+        // $objPHPExcel->getProperties()->setTitle('export')->setDescription('none');
+        // $row_no = 1;
+        // $col = 0;
+        // foreach ($this->_title as $title) {
+        //     $objPHPExcel->setActiveSheetIndex(0)
+        //             ->setCellValueByColumnAndRow($col, $row_no, $title);
+        //     $col++;
+        // }
+        // $row_no++;
+        // foreach ($data['res'] as $row) {
+        //     $col = 0;
+        //     foreach ($this->_title as $k => $title) {
+        //         $objPHPExcel->setActiveSheetIndex(0)
+        //                 ->setCellValueByColumnAndRow($col, $row_no, $row[$k], true)->getStyle()->getNumberFormat()
+        //                 ->setFormatCode(PHPExcel_Style_NumberFormat::FORMAT_TEXT);
+        //         ;
+        //         $col++;
+        //     }
+        //     $row_no++;
+        // }
+        // $objPHPExcel->setActiveSheetIndex(0);
+        // $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+        // $finalFileName = time() . '.xls';
+        // $objWriter->save($finalFileName);
+        // ob_start();
+        // header('Content-Type: application/vnd.ms-excel');
+        // header('Content-Disposition: attachment;filename="Products_' . date('dMy') . '.xls"');
+        // header('Cache-Control: max-age=0');
+        // echo file_get_contents($finalFileName);
+        // flush();
+        // ob_end_flush();
+        // unlink($finalFileName);
+    }
+
+    /**
+     * 拉取指定日期的对账单
+     * @author zhewang@modian.com
+     * @param type $date '2014-06-11'
+     */
+    public function _pull($date, $type = 'alipay_erp') {
+        $path = dirname(dirname(dirname(dirname(__FILE__))));
+        require(LIB_PATH . "/payment/{$type}/alipay.config.php");
+
+        $this->_alipay_config = $alipay_config;
+        $page = 1;
+        $parameter = array(
+            "service" => "account.page.query",
+            "partner" => trim($this->_alipay_config['partner']),
+            "page_no" => $page,
+//            'page_size' => 5,//测试多页时用到
+            "gmt_start_time" => $date . ' 00:00:00',
+            "gmt_end_time" => $date . ' 23:59:59',
+            "_input_charset" => trim(strtolower($this->_alipay_config['input_charset']))
+        );
+        $alipaySubmit = new AlipaySubmit($this->_alipay_config);
+        $common = new Common();
+//print_r($this->_alipay_config);
+        do {
+            $parameter['page_no'] = $page;
+            try {
+                $html_text = $alipaySubmit->buildRequestHttp($parameter);
+            } catch (Exception $e) {
+                echo $e->getMessage();
+            }
+//            print_r($html_text);
+            $doc = new DOMDocument();
+            $doc->loadXML($html_text);
+            if ($doc->getElementsByTagName('is_success')->item(0)->nodeValue == 'F') {
+                echo ($date . '分页' . $page . '获取失败');
+                exit;
+            }
+            $accountQuerys = $doc->getElementsByTagName('AccountQueryAccountLogVO');
+            $columName = array(
+                'balance' => '0',
+                'income' => '0',
+                'outcome' => '0',
+                'trans_date' => '',
+                'sub_trans_code_msg' => '',
+                'trans_code_msg' => '',
+                'merchant_out_order_no' => '',
+                'trans_out_order_no' => '',
+                'bank_name' => '',
+                'bank_account_no' => '',
+                'bank_account_name' => '',
+                'memo' => '',
+                'buyer_account' => '',
+                'seller_account' => '',
+                'seller_fullname' => '',
+                'currency' => '',
+                'deposit_bank_no' => '',
+                'goods_title' => '',
+                'iw_account_log_id' => '',
+                'trans_account' => '',
+                'other_account_email' => '',
+                'other_account_fullname' => '',
+                'other_user_id' => '',
+                'partner_id' => '',
+                'service_fee' => '0',
+                'service_fee_ratio' => '0',
+                'total_fee' => '0',
+                'trade_no' => '',
+                'trade_refund_amount' => '0',
+                'sign_product_name' => '',
+                'rate' => ''
+            );
+            foreach ($accountQuerys as $item) {
+                $newRow = array();
+                foreach ($columName as $colName => $defaultValue) {
+                    $newRow[$colName] = $item->getElementsByTagName($colName)->item(0)->nodeValue ? $item->getElementsByTagName($colName)->item(0)->nodeValue : $defaultValue;
+                }
+                $result = $common->add('md_pay_record_alipay', $newRow);
+            }
+            if ($doc->getElementsByTagName('has_next_page')->item(0)->nodeValue == 'F') {
+                break;
+            }
+            $page++;
+        } while (true);
+    }
+
+    public function orders() {
+        $data['pro_id'] = $this->input->get('pro_id');
+        $data['postat'] = $this->input->get('postat');
+        $data['ordstat'] = $this->input->get('ordstat');
+
+        $data['order_status'] = $this->Order_biz->order_status;
+        $data['order_status_group'] = $this->Order_biz->order_status_group;
+        $this->load->view('pay_ad/orders', $data);
+    }
+
+    public function order($oid) {
+        $data['order_status'] = $this->Order_biz->order_status;
+        $data['order_status_group'] = $this->Order_biz->order_status_group;
+
+        if ($_POST && $_POST['order_status']) {
+            $this->Common->update('md_product_back', array('id' => $oid), array('status_debt' => $_POST['status_debt']));
+            $this->Order_biz->update_status($_POST['order_status'], $oid);
+            redirect('/pay_ad/order/' . $oid);
+        }
+        $sql = "SELECT * FROM md_product_back WHERE id='{$oid}'";
+        $data['order_info'] = $this->db->query($sql)->row_array();
+        $sql = "SELECT * FROM md_pay WHERE back_id='{$oid}'";
+        $data['pay_list'] = $this->db->query($sql)->result_array();
+        $sql = "SELECT pro.`name`,rew.content,rew.money,usr.nickname,pro.user_id,rew.day,rew.rew_phase FROM md_product_rewards rew
+INNER JOIN md_product pro ON rew.pro_id=pro.id
+INNER JOIN md_users usr ON pro.user_id=usr.id
+WHERE rew.id={$data['order_info']['rew_id']}";
+        $data['pro_info'] = $this->db->query($sql)->row_array();
+
+        $sql = "SELECT stat.*,ad_usr.`name` FROM md_order_status stat LEFT JOIN md_admin ad_usr ON stat.admin_id=ad_usr.id WHERE back_id='{$oid}' ORDER BY id";
+        $order_status_log = $this->db->query($sql)->result_array();
+        $order_log = array();
+        $order_log[strtotime($data['order_info']['ctime'])] = '订单创建时间';
+        foreach ($data['pay_list'] as $pay) {
+            $order_log[strtotime($pay['ctime'])] = "创建".$pay['pay_platform']."订单 {$pay['out_trade_no']} ";
+            if ($pay['return_time'] != '0000-00-00 00:00:00' && $pay['return_type'] != 0 && $pay['status']=='1') {
+                $time = strtotime($pay['return_time']);
+                if (isset($order_log[$time])) {
+                    $time++;
+                }
+                $order_log[$time] = $pay['pay_platform']."回告订单 {$pay['out_trade_no']} 支付成功";
+            }
+        }
+        foreach ($order_status_log as $status_log) {
+            $time = strtotime($status_log['ctime']);
+            if(isset($order_log[$time])){
+                $time++;
+            }
+            $order_log[$time] = "{$status_log['name']} 变更订单状态 从 {$status_log['last_status']} 到 {$status_log['set_status']}";
+        }
+        ksort($order_log);
+        $data['operation_list'] = $order_log;
+        $this->load->view('pay_ad/order', $data);
+    }
+
+    public function _get_order_where($arr_where) {
+        $where = '';
+        $pay_where = '';
+        $order_st_where = '';
+        if (isset($arr_where['pay_start_time']) && $arr_where['pay_start_time']) {
+            $where .= " AND pay_date>='{$arr_where['pay_start_time']}'";
+        }
+        if (isset($arr_where['pay_end_time']) && $arr_where['pay_end_time']) {
+            $where .= " AND pay_date<='{$arr_where['pay_end_time']}'";
+        }
+        if (isset($arr_where['trade_no']) && $arr_where['trade_no']) {
+            $where .= " AND trade_no='{$arr_where['trade_no']}'";
+        }
+        if (isset($arr_where['bak_start_time']) && $arr_where['bak_start_time']) {
+            $where .= " AND bak_date>='{$arr_where['bak_start_time']}'";
+        }
+        if (isset($arr_where['bak_id']) && $arr_where['bak_id']) {
+            $where .= " AND oid='{$arr_where['bak_id']}'";
+        }
+        if (isset($arr_where['bak_end_time']) && $arr_where['bak_end_time']) {
+            $where .= " AND bak_date<='{$arr_where['bak_end_time']}'";
+        }
+        if (isset($arr_where['pro_name']) && $arr_where['pro_name']) {
+            $where .= " AND pro_name LIKE '%{$arr_where['pro_name']}%'";
+        }
+        if (isset($arr_where['pro_id']) && $arr_where['pro_id']) {
+            $where .= " AND pro_id ='{$arr_where['pro_id']}'";
+        }
+        if (isset($arr_where['rew_id']) && $arr_where['rew_id']) {
+            $where .= " AND rew_id ='{$arr_where['rew_id']}'";
+        }
+        if (isset($arr_where['user_id']) && $arr_where['user_id']) {
+            $where .= " AND user_id ='{$arr_where['user_id']}'";
+        }
+        if (isset($arr_where['address_name']) && $arr_where['address_name']) {
+            $where .= " AND address_name ='{$arr_where['address_name']}'";
+        }
+        if (isset($arr_where['address_mobile']) && $arr_where['address_mobile']) {
+            $where .= " AND address_mobile ='{$arr_where['address_mobile']}'";
+        }
+        if (isset($arr_where['order_status']) && $arr_where['order_status']) {
+            $where .= " AND `order_status` ='{$arr_where['order_status']}'";
+        }
+        if (isset($arr_where['if_pay']) && $arr_where['if_pay'] != '') {
+            $where .= " AND `if_pay` ='{$arr_where['if_pay']}'";
+        }
+        if (isset($arr_where['pay_type']) && $arr_where['pay_type'] != '') {
+            $where .= " AND `pay_plan` ='{$arr_where['pay_type']}'";
+        }
+        if (isset($arr_where['reg_acc']) && $arr_where['reg_acc']) {
+            $where .= " AND `reg_plan` ='{$arr_where['reg_acc']}'";
+        }
+        if (isset($arr_where['md_plan']) && $arr_where['md_plan']) {
+            $where .= " AND `md_plan` ='{$arr_where['md_plan']}'";
+        }
+        if (isset($arr_where['out_trade_no']) && $arr_where['out_trade_no']) {
+            $where .= " AND `out_trade_no` LIKE '%{$arr_where['out_trade_no']}%'";
+        }
+        return $where;
+    }
+
+    public function ajax_orders() {
+        $rows = $_POST['rows'];
+        $cur_page = $_POST['page'];
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $where = $this->_get_order_where($_POST);
+        $count = $this->_get_order_data($where, $order_by, '', true);
+        $limit = " LIMIT " . ($cur_page - 1) * $rows . " ,{$rows}";
+        $order_by = " ORDER BY {$sort} {$order}";
+        $rows = $this->_get_order_data($where, $order_by, $limit);
+        foreach ($rows as &$row) {
+            $row['order_status'] = isset($this->Order_biz->order_status[$row['order_status']]) ? $this->Order_biz->order_status[$row['order_status']] : '';
+            $row['bak_date'] = $row['bak_date'];
+
+            if ($row['pay_date']) {
+                if ($row['pay_date'] > '0000-00-00 00:00:00') {
+                    $row['pay_date'] = $row['pay_date'];
+                } else {
+                    $row['pay_date'] = $row['pay_time'] = '无';
+                }
+            }
+            //$row['pro_end_date'] = date("Y-m-d H:i:s", strtotime($row['pro_start_date']) + $row['pro_end_date'] * 3600 * 24);
+            $row['operation'] = '<a href="/pay_ad/order/' . $row['oid'] . '">订单详情</a>';
+        }
+        $result = array('total' => $count, 'rows' => $rows);
+        echo json_encode($result);
+    }
+
+    public function export_orders() {
+        $arr_title = array("oid" => "摩点订单号",
+            "out_trade_no" => "第三方订单号",
+            "md_plan" => "下单平台",
+            "bak_date" => "下单时间",
+            "rew_id" => "回报ID",
+            "rew_content" => "回报内容",
+            "pro_name" => "项目名",
+            "pro_id" => "项目ID",
+            "pro_from" => "项目来源",
+            "pro_mng" => "项目经理",
+            "pro_start_date" => "开始时间",
+            "pro_end_date" => "结束时间",
+            "progress" => "预订时 筹资％",
+            "is_return" => "要回报",
+            'rew_type' => '回报类型',
+            'game_code' => '游戏码',
+            'user_id' => '用户ID',
+            "nickname" => "用户昵称",
+            "reg_email" => "注册邮箱",
+            "reg_mobile" => "注册手机",
+            "reg_plan" => '注册平台',
+            "address_name" => "订单联系人",
+            "address_mobile" => "手机号",
+            "address_detail" => "地址",
+            "address_description" => "备注信息",
+            "amount" => "应支持金额 单价",
+            "bonus" => "补贴",
+            "real_amount" => "实际应支持金额",
+            "order_status" => "订单状态",
+            "status_debt" => "赊账状态",
+            "pay_date" => "支付日期",
+            "pay_plan" => "支付交易渠道",
+            "pay_platform" => "支付通道",
+            "rate" => "费率",
+            "outcome" => "财务费用",
+            "post_time" => "回报发放时间",
+            "post_company" => "快递公司",
+            "post_number" => "快递单号",
+            "address_email" => "用户邮箱",
+        );
+        $where = $this->_get_order_where($_POST);
+        $rows = $this->_get_order_data($where, $order_by, $limit);
+        $this->load->library('PHPExcel');
+        $objPHPExcel = new PHPExcel();
+        $objPHPExcel->getProperties()->setTitle('export')->setDescription('none');
+        $row_no = 1;
+        $col = 0;
+        $delim = ",";
+        $newline = "\n";
+        $enclosure = '"';
+        $replace = array("\n");
+        foreach ($arr_title as $title) {
+            $title = str_replace($replace, '', $title);
+            $title = iconv("UTF-8", "GB2312", $title);
+            $out .= $enclosure . str_replace($enclosure, $enclosure . $enclosure, $title) . $enclosure . $delim;
+        }
+        $out .= $newline;
+        $row_no++;
+        foreach ($rows as $row) {
+            $row['order_status'] = isset($this->Order_biz->order_status[$row['order_status']]) ? $this->Order_biz->order_status[$row['order_status']] : '';
+            $row['bak_date'] = $row['bak_date'];
+            $row['pay_date'] = $row['pay_date'];
+            //$row['pro_end_date'] = date("Y-m-d H:i:s", strtotime($row['pro_start_date']) + $row['pro_end_date'] * 3600 * 24);
+            $row['operation'] = '<a href="/pay_ad/order/' . $row['oid'] . '">订单详情</a>';
+            $col = 0;
+            foreach ($arr_title as $k => $title) {
+                $value = $row[$k];
+                $value = iconv("UTF-8", "GB2312", $value);
+                $value = str_replace($replace, '', $value);
+                $out .= $enclosure . str_replace($enclosure, $enclosure . $enclosure, $value) . $enclosure . $delim;
+            }
+            $out .= $newline;
+        }
+
+        ob_start();
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="OrderList_' . date('dMy') . '.csv"');
+        header('Cache-Control: max-age=0');
+
+        echo $out;
+        flush();
+        ob_end_flush();
+        unlink($finalFileName);
+    }
+
+    public function _get_order_data($where = '', $order = 'ORDER BY oid', $limit = '', $is_count = false) {
+        if ($is_count) {
+            $field = "count(1) as c";
+        } else {
+            $field = "*";
+        }
+        $sql = "SELECT {$field}
+FROM md_order_archive
+WHERE 1 $where
+{$order} {$limit}";
+        $query = $this->db->query($sql);
+        if ($is_count) {
+            $res = $query->row_array();
+            return $res['c'];
+        } else {
+            $rows = $query->result_array();
+            return $rows;
+        }
+    }
+
+    public function cross_users() {
+        $sql = "select user_id FROM 
+	(select user_id,count(1) c from 
+     	(SELECT user_id,pro_id FROM `md_product_back` WHERE 1 #WHERE# GROUP BY user_id,pro_id) 
+     a GROUP BY user_id HAVING c>1) a";
+        $if_pay = " AND if_pay IN (1,3)";
+
+
+        $data = array();
+        //查询
+        if ($_POST['start_time'] && $_POST['end_time']) {
+            $where = "AND '{$_POST['start_time']}'>ctime {$if_pay}";
+            $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+            $where = "AND '{$_POST['end_time']}'>=ctime {$if_pay}";
+            $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+            $data['search_result'] = count($result_2) - count($result_1);
+            $data['start_time'] = $_POST['start_time'];
+            $data['end_time'] = $_POST['end_time'];
+        }
+
+        $getMonthDays = date("t", mktime(0, 0, 0, date('n') - 3 + (date('n') - 1) % 3, 1, date("Y")));
+        //上季度本季度
+        $last_quarter_start = date('Y-m-d H:i:s', mktime(0, 0, 0, date('n') - 3 - (date('n') - 1) % 3, 1, date('Y')));
+        $last_quarter_end = date('Y-m-d H:i:s', mktime(23, 59, 59, date('n') - 3 + (date('n') - 1) % 3, $getMonthDays, date('Y')));
+        $where = "AND '{$last_quarter_start}'>ctime {$if_pay}";
+        $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $where = "AND '{$last_quarter_end}'>=ctime {$if_pay}";
+        $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $data['last_quarter'] = count($result_2) - count($result_1);
+
+        $getMonthDays = date("t", mktime(0, 0, 0, date('n') + (date('n') - 1) % 3, 1, date("Y")));
+        //本季度本季度;
+        $the_quarter_start = date('Y-m-d H:i:s', mktime(0, 0, 0, date('n') - (date('n') - 1) % 3, 1, date('Y')));
+        $the_quarter_end = date('Y-m-d H:i:s', mktime(23, 59, 59, date('n') + (date('n') - 1) % 3, $getMonthDays, date('Y')));
+        $where = "AND '{$the_quarter_start}'>ctime {$if_pay}";
+        $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $where = "AND '{$the_quarter_end}'>=ctime {$if_pay}";
+        $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $data['the_quarter'] = count($result_2) - count($result_1);
+        //上月
+        $last_month_start = date("Y-m-d H:i:s", mktime(0, 0, 0, date("m") - 1, 1, date("Y")));
+        $last_month_end = date("Y-m-d H:i:s", mktime(23, 59, 59, date("m"), 0, date("Y")));
+        $where = "AND '{$last_month_start}'>ctime {$if_pay}";
+        $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $where = "AND '{$last_month_end}'>=ctime {$if_pay}";
+        $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $data['last_month'] = count($result_2) - count($result_1);
+        //本月
+        $the_month_start = date("Y-m-d H:i:s", mktime(0, 0, 0, date("m"), 1, date("Y")));
+        $the_month_end = date("Y-m-d H:i:s", mktime(23, 59, 59, date("m"), date("t"), date("Y")));
+        $where = "AND '{$the_month_start}'>ctime {$if_pay}";
+        $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $where = "AND '{$the_month_end}'>=ctime {$if_pay}";
+        $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $data['the_month'] = count($result_2) - count($result_1);
+
+        //上周
+        $last_week_start = date("Y-m-d H:i:s", mktime(0, 0, 0, date("m"), date("d") - date("w") + 1 - 7, date("Y")));
+        $last_week_end = date("Y-m-d H:i:s", mktime(23, 59, 59, date("m"), date("d") - date("w") + 7 - 7, date("Y")));
+        $where = "AND '{$last_week_start}'>ctime {$if_pay}";
+        $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $where = "AND '{$last_week_end}'>=ctime {$if_pay}";
+        $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $data['last_week'] = count($result_2) - count($result_1);
+        //本周
+        $the_week_start = date("Y-m-d H:i:s", mktime(0, 0, 0, date("m"), date("d") - date("w") + 1, date("Y")));
+        $the_week_end = date("Y-m-d H:i:s", mktime(23, 59, 59, date("m"), date("d") - date("w") + 7, date("Y")));
+        $where = "AND '{$the_week_start}'>ctime {$if_pay}";
+        $result_1 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $where = "AND '{$the_week_end}'>=ctime {$if_pay}";
+        $result_2 = $this->db->query(str_replace('#WHERE#', $where, $sql))->result_array();
+        $data['the_week'] = count($result_2) - count($result_1);
+
+        //迄今交叉用户支付
+        $result = $this->db->query(str_replace('#WHERE#', $if_pay, $sql))->result_array();
+        $data['all_cross_pay'] = count($result);
+
+        //迄今交叉用户包括不支付
+        $result = $this->db->query(str_replace('#WHERE#', '', $sql))->result_array();
+        $data['all_cross'] = count($result);
+
+        //下单总数
+        $all_sql = "SELECT user_id FROM md_product_back GROUP BY user_id";
+        $result = $this->db->query($all_sql)->result_array();
+        $data['all_order_user'] = count($result);
+        $this->load->view('pay_ad/cross_users', $data);
+    }
+
+    public function modify_address() {
+        $oid = isset($_POST['oid']) ? intval($this->input->post('oid', true)) : '';
+        $address_name = isset($_POST['address_name']) ? $this->input->post('address_name', true) : '';
+        $address_mobile = isset($_POST['address_mobile']) ? $this->input->post('address_mobile', true) : '';
+        $address_email = isset($_POST['address_email']) ? $this->input->post('address_email', true) : '';
+        $address_province = isset($_POST['address_province']) ? $this->input->post('address_province', true) : '';
+        $address_city = isset($_POST['address_city']) ? $this->input->post('address_city', true) : '';
+        $address_postal_code = isset($_POST['address_postal_code']) ? $this->input->post('address_postal_code', true) : '';
+        $address_detail = isset($_POST['address_detail']) ? $this->input->post('address_detail', true) : '';
+        $address_description = isset($_POST['address_description']) ? $this->input->post('address_description', true) : '';
+
+        if (empty($oid))
+            md_common::display_javascript('订单号错误');
+
+        $update = array();
+        $update['address_name'] = $address_name;
+        $update['address_mobile'] = $address_mobile;
+        $update['address_email'] = $address_email;
+        $update['address_province'] = $address_province;
+        $update['address_city'] = $address_city;
+        $update['address_postal_code'] = $address_postal_code;
+        $update['address_detail'] = $address_detail;
+        $update['address_description'] = $address_description;
+
+//        foreach ($update as $k => $v) {
+//            if (empty($v))
+//                unset($update[$k]);
+//        }
+
+        $this->Common->update('md_product_back', array('id' => $oid), $update);
+        $message = array('action' => 'update md_product_back', 'id' => $oid, 'date' => $update, 'admin' => $_SESSION);
+        Md_log::info($message, 'acp_action');
+        md_common::display_javascript('修改成功');
+    }
+
+}

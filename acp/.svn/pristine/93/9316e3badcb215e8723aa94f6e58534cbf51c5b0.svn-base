@@ -1,0 +1,239 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('project_manager/sub_menu') ?>
+<script src="<?= static_url(); ?>new/js/ajaxfileupload.js" type="text/javascript"></script>
+<div class="containers">
+    <?php if(!$if_add):?>
+        <div>
+            <form action="/project_manager/advert" method="post">
+                <input type="hidden" name="if_add" value="1">
+                <input type="hidden" name="pro_id" value="<?=$pro_id?>">
+                <button type="submit" class="btn btn-info btn-large" href="">添加</>
+            </form>
+        </div>
+    <?php else:?>
+        <h2>新增购买入口</h2>
+    <?php endif;?>
+    <hr>
+    <div>
+        <?php if($rcmd_lists): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>权重</th>
+                        <th width="20%">推荐图</th>
+                        <th>推荐标题</th>
+                        <th>推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($rcmd_lists as $key=>$rcmd_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $rcmd_info['weight'] ?>" subid="<?= $key ?>" type="text" class="sortid" value="<?= $rcmd_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?php if($rcmd_info['cover']){ ?><img src="<?= cdn_url($rcmd_info['cover']) ?>" style="width: 200px;height: 100px;" /><?php }else{ echo '无图';}?></td>
+                            <td><?= $rcmd_info['title'] ?></td>
+                            <td><?= $rcmd_info['link']?></td>
+                            <td>
+                                <a class="del" href="javascript:;" data-id="<?=$pro_id?>" data-key="<?= $key ?>">删除</a>
+                                |   <a href="javascript:;" data-key="<?= $key ?>" data-link="<?=$rcmd_info['link']?>" class="edit" data-id="<?=$pro_id?>" data-cover="<?=$rcmd_info['cover']?>" data-title="<?=$rcmd_info['title']?>" >编辑</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php elseif( empty($rcmd_lists) && $if_add):?>
+            <div class="offset3">
+                <p></p>
+                <form id="pro_form" action="/project_manager/add_advert" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label class="col-sm-2 control-label" for="pro_title">推荐主题:&nbsp;</label>
+                        <div class="col-sm-10">
+                            <input class="form-control" type="text"  placeholder="请输入推荐主题" name="title" value="" width="350px">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-2 control-label" for="pro_title">推荐链接:&nbsp;</label>
+                        <div class="col-sm-10">
+                            <input class="form-control" type="text"  placeholder="请输入推荐链接" name="link" value="" width="350px">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="col-sm-2 control-label" for="pro_title">推荐图:&nbsp;</label>
+                        <div class="col-sm-10">
+                            <img  alt="" id="preview_cover"><br>
+                            <input class="form-control cover" type="file"  name="pro_cover" id="cover"" onchange="upload_cover(this)">
+                            <input type="hidden" name="cover" id="pro_cover">
+                        </div>
+                    </div>
+                    <input type="hidden" name="pro_id" value="<?= $pro_id ?>">
+                    <div class="form-group">
+                        <button class="btn btn-info btn-large" type="submit">提交</button>
+                    </div>
+                </form>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<!--<iframe src="" style="display:none" name="winupload"></iframe>-->
+<!--<input type="hidden" name="check_upload" id="check_upload" value="0">-->
+<!--modal start -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">编辑</h4>
+            </div>
+            <div class="modal-body">
+                <label for="pro_id">推荐标题:</label>
+                <input type="text" id="pro_title" name="title" style="width:100%"  placeholder="请输入推荐主题">
+                <label for="pro_id">推荐链接:</label>
+                <input type="text" id="pro_link" name="link" style="width:100%"  placeholder="请输入推荐链接">
+
+                <label for="pro_id">推荐图片:</label>
+                <img  alt="" id="preview_cover">
+                <input class="form-control cover" type="file" id="cover" name="pro_cover" onchange="upload_cover(this)">
+                <input type="hidden" id="pro_cover" name="cover">
+                <input type="hidden" id="pro_id"   name="pro_id">
+                <input type="hidden" id="pro_key"   name="pro_key">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="edit_rcmd_item">保存</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+<!--modal end-->
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    $("#upfile").change(function(){
+        $("#up_form").submit();
+    });
+
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('subid');
+        var pro_id = <?=$pro_id?>;
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('project_manager/change_weight')?>",
+            data : {'id':id,'weight':value,'pro_id':pro_id}, //这儿type1表示专题列表权重
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that    = $(this);
+        var pro_id  = parseInt(that.data('id'));
+        var pro_key = parseInt(that.data('key'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('project_manager/advert')?>",
+            data:{'pro_id':pro_id,'pro_key':pro_key,'del':1},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+
+    $(".edit").click(function(){
+        var title = $(this).data("title");
+        var link  = $(this).data("link");
+        var cover = $(this).data("cover");
+        var pro_id   = $(this).data("id");
+        var pro_key = $(this).data("key")
+        $("#pro_title").val(title);
+        $("#pro_cover").val(cover);
+        $("#pro_id").val(pro_id);
+        $("#pro_link").val(link);
+        $("#preview_cover").attr({'src':cover});
+        $("#pro_key").val(pro_key);
+        $("#myModal").modal("show");
+    });
+
+    $("#edit_rcmd_item").click(function(){
+        var title = $("#pro_title").val();
+        var link  = $("#pro_link").val();
+        var cover = $("#pro_cover").val();
+        var pro_id    = $("#pro_id").val();
+        var pro_key    = $("#pro_key").val();
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        if( ! $.trim(cover)){
+            alert('推荐图片不能为空！');
+            return false;
+        }
+        $.ajax({
+            type : 'post',
+            url  : '/project_manager/advert/',
+            data : {'title':title,'cover':cover,'pro_id':pro_id,'link':link,'pro_key':pro_key,'edit':1},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    $("#myModal").modal("hide");
+                    window.location.reload();
+                }
+            }
+
+        })
+    });
+    function upload_cover(obj){
+        var name = $(obj).attr("name");
+        var obj_id = "cover" + "_" + Math.ceil(Math.random() * 1000);
+        $(obj).attr({"id":obj_id});
+        var url = '/project_manager/upload_cover/'+ name +'/4096/<?=$res["id"]?>'; //你处理上传文件的服务端
+        $.ajaxFileUpload({
+            url:url,
+            secureuri: false,
+            fileElementId: obj_id,
+            dataType: 'json',
+            success: function (data) {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    $("#preview_cover").attr({'src':data.pic});
+                    $("#pro_cover").val(data.pic);
+                }
+            },
+            error: function (data, status, e){   //服务器响应失败处理函数
+                alert(e);
+            }
+        });
+    }
+</script>
+<?php $this->load->view('ckad/footer'); ?>

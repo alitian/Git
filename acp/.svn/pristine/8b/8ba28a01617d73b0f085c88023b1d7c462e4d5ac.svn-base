@@ -1,0 +1,748 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_tag extends Acp_Controller {
+
+		public $site_url;
+		public $base_url;
+
+		public function __construct(){
+			parent::__construct();
+			
+			$this->load->library("bbs_queue", array(TRUE));
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs/bbs_tag_m');
+			$this->load->helper('url');
+			$this->load->helper('bbs_common');
+			$this->load->config('pinyin');
+			$this->base_url = base_url();
+			$this->site_url = site_url();
+			$vars = array(
+						'base_url' => $this->base_url,
+						'site_url' => $this->site_url
+					);
+			$this->load->vars($vars);
+		}
+		
+		/**
+		 *
+		 * 	组织结构
+		 *
+		 */
+		public function relation()
+		{
+			$submit = $this->input->post('submit');
+			if ($submit)
+			{
+
+				// 因为只能搜索出一个，所以必须是 '名字完全匹配'
+				$tag_name = (string) $this->input->post('tag_name');
+				if(empty($tag_name)){
+					md_common::display_javascript('标签不能为空');
+				}
+				$tag_id = $this->bbs_tag_m->get_tag_id_by_name($tag_name);
+				if(empty($tag_id)){
+					md_common::display_javascript('当前标签不存在','/bbs_tag/relation');
+				}
+				$cur_tag = array(
+								'tag_id' => $tag_id,
+								'tag_name' => $tag_name
+							);
+				$relative_tag_list = $this->bbs_tag_m->get_relative_tags($tag_name);
+				$child_list = $this->bbs_tag_m->get_child_tag_list($tag_id);
+
+				// 当非顶级的时候，才有查询父标签
+				$is_top = $this->bbs_tag_m->is_toptag_by_id($tag_id);
+				$parent_organization_list = $parent_list = array();
+				if(!$is_top){
+					$parent_list = $this->bbs_tag_m->get_parent_tag_list($tag_id);
+					$parent_organization_list = $this->bbs_tag_m->get_organization_list($tag_id);
+
+					// 添加上自身
+					foreach($parent_organization_list as &$parent_organization_row){
+						$parent_organization_row[] = $cur_tag;
+					}
+				}
+
+				$vars = array(
+							'cur_tag' => $cur_tag,
+							'child_list' => $child_list,
+							'parent_list' => $parent_list,
+							'parent_organization_list' => $parent_organization_list,
+							'is_top' => $is_top
+						);
+				$vars['relative_tag_list'] = $relative_tag_list;
+				$this->load->view('bbs_tag/relation', $vars);
+			} else {
+				$this->load->view('bbs_tag/relation_init');
+			}
+		}
+
+		/**
+		 *
+		 * 	查看标签
+		 *	@param 			int 			$tag_id
+		 * 	
+		 */
+		public function view_tag($tag_id)
+		{
+			$tag_info = $this->bbs_tag_m->get_tag_record($tag_id);
+			if($tag_info){
+				$tag_info['final_icon_url'] = cdn_url($tag_info['icon_url']);
+			}
+			$str = <<<EOF
+					<div class="form-group">
+					    <label class="col-sm-2 control-label" for="tag_name">标签名</label>
+					    <div class="col-sm-10">
+					    	<input class="form-control" type="text" disabled value="{$tag_info['tag_name']}">
+					    </div>
+					</div>
+					<div class="form-group">
+					    <label class="col-sm-2 control-label" for="description">标签描述</label>
+					    <div class="col-sm-10">
+					    	<textarea row="5" class="form-control" disabled>{$tag_info['description']}</textarea>
+					    </div>
+					</div>
+					<div class="form-group">
+					    <label class="col-sm-2 control-label" for="tag_name">标签图标</label>
+					    <div class="col-sm-10">
+					    	<img src="{$tag_info['final_icon_url']}" >
+					    </div>
+					</div>
+EOF;
+			echo $str;
+		}
+
+		/**
+		 *
+		 * 	编辑标签
+		 *	@param 			int 			$tag_id
+		 * 	
+		 */
+		public function edit_tag($tag_id)
+		{
+			$submit = $this->input->post('submit');
+			if(!$submit){
+				$tag_info = $this->bbs_tag_m->get_tag_record($tag_id);
+				if($tag_info){
+					if($tag_info['icon_url']){
+						$tag_info['final_icon_url'] = cdn_url($tag_info['icon_url']);
+					}else{
+						$tag_info['final_icon_url'] = '';
+					}
+				}
+				$vars = array(
+							'tag_info' => $tag_info
+						);
+				$this->load->view('bbs_tag/edit_tag', $vars);
+			}else{
+				$tag_name = trim($this->input->post('tag_name'));
+				$description = trim($this->input->post('description'));
+				$prev_tag_name = $this->input->post('prev_tag_name');
+				$prev_tag_pinyin = $this->input->post('prev_tag_pinyin'); 
+				$prev_description = $this->input->post('prev_description');
+				$prev_icon_url = $this->input->post('prev_icon_url');
+				$input_file_name = 'icon';
+
+				// 标签名不能为空
+				if(empty($tag_name)){
+					echo "<script>alert('标签不能为空！');window.history.go('-1')</script>";
+					exit();
+				}
+
+				// 这里先使用bbs_strlen()，中文字和英文字都当成一个字符来处理
+				if(bbs_strlen($description) > 80){
+					echo "<script>alert('简介不能超过80字');window.history.go('-1')</script>";
+					exit();
+				}
+
+				// 表示并未进行任何改动
+				if(($tag_name == $prev_tag_name) && ($description == $prev_description) && !$_FILES[$input_file_name]['name']){
+					echo "<script>alert('并未进行任何修改!');window.history.go('-1')</script>";
+					exit;
+				}
+
+				// 只有当2次标签名，不同的时候，才会进行验证标签是否存在
+				if($tag_name != $prev_tag_name){
+					$tag_info = $this->bbs_tag_m->get_tag_record_by_name($tag_name);
+					if($tag_info){
+						echo "<script>alert('标签已存在！');window.history.go('-1')</script>";
+						exit();
+					}
+
+					// 给tag_name转换为拼音
+					$this->load->config('pinyin');
+					$pinyin = config_item('pinyin');
+					$tag_pinyin = '';
+					$arr = $set = $tag_list = $tag_pinyin_list = array();
+					preg_match_all('/./u', $tag_name, $arr);
+					foreach($arr[0] as $single){
+						if($pinyin[$single]){
+							$tag_pinyin .= $pinyin[$single];
+						}else{
+
+							if(preg_match('/\w/', $single)){
+								$tag_pinyin .= $single;
+							// }elseif(preg_match('/[-\\\,\s\'\/]|’|‘|，/', $single)){
+								// $tag_pinyin .= '_';
+							}else{
+
+								// 其他字符，全部变为 '_'(这个是为了保险起见。。)
+								$tag_pinyin .= '_';
+							}
+						}
+					}
+					$if_pinyin_change = FALSE;
+
+					// 只有当两次的拼音不同的时候，才进行更新拼音的字段
+					if($tag_pinyin != $prev_tag_pinyin){
+						$if_pinyin_change = TRUE;
+						$this->moxi_db->from('bbs_tag');
+						$this->moxi_db->select('tag_pinyin');
+						$tag_list = $this->moxi_db->get()->result_array();
+						foreach($tag_list as $tag_info){
+							$tag_pinyin_list[] = $tag_info['tag_pinyin'];
+						}
+
+						// 这里添加了一个条件 $tag_pinyin != $prev_tag_pinyin(有点绕这里，每次.1后，再次来和之前的标签比对，如果拼音相同，我们就不用改拼音了，虽然仍然update拼音了，但是拼音本身并没变)
+						while(in_array($tag_pinyin, $tag_pinyin_list) && $tag_pinyin != $prev_tag_pinyin){
+							$tag_pinyin .= 1; 		// 如果已存在，每次随机拼接一个0-9的数字	
+						}
+					}
+				}
+
+				// 只有当确实上传了文件，才去处理图片
+				if($_FILES['icon']['name']){
+					$upload_path = _gc('uploads_path'). 'bbs_icons/';
+					if(!file_exists($upload_path)){
+						if(!mkdir($upload_path, 0777, TRUE)){
+							echo '创建上传目录失败!';
+							exit;
+						}
+					}
+					$config = array(
+									'upload_path' => $upload_path,
+									'allowed_types' => 'gif|jpg|png',
+									'encrypt_name' => TRUE,
+									'max_size' => '2000',
+									'max_width' => '1024',
+									'max_height' => '768'
+								);
+					$this->load->library('upload', $config);
+					if(!$this->upload->do_upload($input_file_name)){
+						$error = $this->upload->display_errors('<p>', '</p>');
+						echo "<script>alert('{$error}');window.history.go('-1')</script>";
+						exit();
+					}
+					$data = $this->upload->data();
+					$icon_system_path = $data['full_path'];
+
+					// 数据库存储tag icon的路径
+					$icon_url = 'uploads/bbs_icons/' . $data['file_name'];
+					$set = array(
+
+								// 这里未转实体，会出现一些问题，以后重构建议转
+								// 'tag_name' => htmlspecialchars($tag_name, ENT_QUOTES),
+								// 'description' => htmlspecialchars($description, ENT_QUOTES),
+								'tag_name' => $tag_name,
+								'description' => $description,
+								'icon_url' => $icon_url,
+								'ctime' => time(),
+								'isshow' => 1
+							);
+					if($if_pinyin_change){
+						$set['tag_pinyin'] = $tag_pinyin;
+					}
+				}else{
+					$set = array(
+								'tag_name' => $tag_name,
+								'description' => $description,
+								'ctime' => time(),
+								'isshow' => 1
+							);
+					if($if_pinyin_change){
+						$set['tag_pinyin'] = $tag_pinyin;
+					}
+				}
+
+				// 得到新增的tag_id
+				$bool = $this->bbs_tag_m->update_tag_record($tag_id, $set);
+				if($bool){
+
+					// 只有当拼音改变的时候，才更新redis的键
+					if($if_pinyin_change){
+
+						// 更新redis的tag_pinyin的键
+						$prev_tag_pinyin_key = $this->bbs_m->get_key('tag_pinyin', $prev_tag_pinyin);
+						$tag_pinyin_key = $this->bbs_m->get_key('tag_pinyin', $tag_pinyin);
+						$this->bbs_m->delete($prev_tag_pinyin_key);
+						$this->bbs_m->set($tag_pinyin_key, $tag_id);
+
+						// 更新redis的tag_id的键
+						$tag_id_key = $this->bbs_m->get_key('tag_id', $tag_id);
+						$this->bbs_m->delete($tag_id_key);
+						$this->bbs_m->set($tag_id_key, $tag_pinyin);
+					}
+				}
+
+				if($bool && $icon_url){
+
+					// 删除之前的图片
+					@unlink(_gc('uploads_path') . str_replace('uploads/', '', $prev_icon_url));
+					echo "<script>alert('修改成功');location='{$this->site_url}bbs_tag/edit_tag/{$tag_id}'</script>";
+					exit;
+				}elseif($bool){
+					echo "<script>alert('修改成功');location='{$this->site_url}bbs_tag/edit_tag/{$tag_id}'</script>";
+					exit;
+				}else{
+					echo "<script>alert('修改失败');location='{$this->site_url}bbs_tag/edit_tag/{$tag_id}'</script>";
+					exit;
+				}
+			}
+		}
+		
+		/**
+		 *
+		 * 	新增标签
+		 *
+		 */
+		public function add_tag()
+		{
+			$tag_name = trim($this->input->post('tag_name'));
+			$description = trim($this->input->post('description'));
+			$is_top = $this->input->post('is_top');
+			$input_file_name = 'icon';
+			if(empty($tag_name)){
+				echo "<script>alert('标签不能为空！');window.history.go('-1')</script>";
+				exit();
+			}
+
+			// 这里先使用bbs_strlen()，中文字和英文字都当成一个字符来处理
+			if(bbs_strlen($tag_name) > 16){
+				echo "<script>alert('简介不能超过16字！');window.history.go('-1')</script>";
+				exit();
+			}
+
+			// 增加一条，检验机制，验证 tag_name 是否已经存在
+			$tag_info = $this->bbs_tag_m->get_tag_record_by_name($tag_name);
+			if($tag_info){
+				echo "<script>alert('标签已存在！');window.history.go('-1')</script>";
+				exit();
+			}
+
+			// 允许用户不上传图片，只有当上传的时候再进行图片上传处理
+			if($_FILES[$input_file_name]['name']){
+				// 图片上传，暂时使用CI的
+				$upload_path = _gc('uploads_path'). 'bbs_icons/';
+				if(!file_exists($upload_path)){
+					if(!mkdir($upload_path, 0777, TRUE)){
+						echo '创建上传目录失败!';
+						exit;
+					}
+				}
+				$config = array(
+								'upload_path' => $upload_path,
+								'allowed_types' => 'gif|jpg|png',
+								'encrypt_name' => TRUE,
+								'max_size' => '2000',
+								'max_width' => '1024',
+								'max_height' => '768'
+							);
+				$this->load->library('upload', $config);
+				if(!$this->upload->do_upload($input_file_name)){
+					$error = $this->upload->display_errors('<p>', '</p>');
+					echo "<script>alert('{$error}');window.history.go('-1')</script>";
+					exit();
+				}
+				$data = $this->upload->data();
+				$icon_system_path = $data['full_path'];
+
+				// 数据库存储tag icon的路径
+				$icon_url = 'uploads/bbs_icons/' . $data['file_name'];
+			}else{
+				$icon_url = '';
+			}
+			
+			// 给tag_name转换为拼音
+			$this->load->config('pinyin');
+			$pinyin = config_item('pinyin');
+			$tag_pinyin = '';
+			$arr = $set = $tag_list = $tag_pinyin_list = array();
+			preg_match_all('/./u', $tag_name, $arr);
+			foreach($arr[0] as $single){
+				if(preg_match('/[`~!@#\$\^&\*\(\)\=\|\{\}:;,\\\[\]\.\<\>\/\?！@#￥……（）—【】‘；：”“。，、？]/', $single)){
+					$tag_pinyin .= '_';
+				}elseif(preg_match('/\w/', $single)){
+					$tag_pinyin .= $single;
+				}else{
+					$tag_pinyin .= $pinyin[$single];
+				}
+			}
+			$this->moxi_db->from('bbs_tag');
+			$this->moxi_db->select('tag_pinyin');
+			$tag_list = $this->moxi_db->get()->result_array();
+			foreach($tag_list as $tag_info){
+				$tag_pinyin_list[] = $tag_info['tag_pinyin'];
+			}
+			while(in_array($tag_pinyin, $tag_pinyin_list)){
+				$tag_pinyin .= 1; 		// 如果已存在，每次随机拼接一个0-9的数字	
+			}
+
+			$set = array(
+						'tag_name' => $tag_name,
+						'tag_pinyin' => $tag_pinyin,
+						'description' => $description,
+						'icon_url' => $icon_url,
+						'ctime' => time(),
+						'isshow' => 1
+					);
+
+
+			// 得到新增的tag_id
+			$tag_id = $this->bbs_tag_m->add_tag_record($set);
+			if(!$tag_id && $_FILES[$input_file_name]['name']){
+
+				// 添加失败，删除上传的图标
+				@unlink($icon_system_path);
+				echo "<script>alert('添加失败！');window.history.go('-1')</script>";
+				exit();
+			}
+
+			// 更新redis中tag_pinyin对应的键
+			$tag_pinyin_key = $this->bbs_m->get_key('tag_pinyin', $tag_pinyin);
+			$this->bbs_m->set($tag_pinyin_key, $tag_id);
+
+			// 更新redis中tag_id对应的键
+			$tag_id_key = $this->bbs_m->get_key('tag_id', $tag_id);
+			$this->bbs_m->set($tag_id_key, $tag_pinyin);
+
+			// 如果点击的是 '添加顶级tag'，直接建立顶级tag关系
+			// is_top = 0 | 1
+			if($is_top){
+				$this->bbs_tag_m->add_tag_map_record($tag_id, 0);	
+			}
+
+			// 此时，并没有任何的父子关系
+			$vars = array('cur_tag' => array(
+										'tag_id' => $tag_id,
+										'tag_name' => $tag_name
+									),
+						'is_top' => $is_top
+					);
+			$this->load->view('bbs_tag/add_success', $vars);
+		}
+		
+		/**
+		 *
+		 * 	新增子关系
+		 * 	
+		 */
+		public function add_child()
+		{
+			$child_name = trim( (string) $this->input->post('child_name') );
+			$cur_tag_id = (int) $this->input->post('cur_tag_id');
+			if(empty($child_name)){
+				$return_data = json_encode(array(
+								'status' => -1,
+								'content' => '子标签不能为空!'
+							));
+				echo $return_data;
+				exit;
+			}
+			$child_tag_id = (int) $this->bbs_tag_m->get_tag_id_by_name($child_name);
+			if(!$child_tag_id){
+				$return_data = json_encode(array(
+									'status' => -2,
+									'content' => '要添加的子标签不存在，请先建立'
+								));
+				echo $return_data;
+				exit;
+			}
+
+			// 不可以添加顶级标签
+			$istop = $this->bbs_tag_m->is_toptag_by_id($child_tag_id);
+			if($istop){
+				$return_data = json_encode(array(
+									'status' => -3,
+									'content' => '不能添加顶级标签为子标签'
+								));
+				echo $return_data;
+				exit;
+			}
+			$is_map_exists = $this->bbs_tag_m->get_tag_map_record($child_tag_id, $cur_tag_id);
+			if($is_map_exists){
+				$return_data = json_encode(array(
+								'status' => -4,
+								'content' => '对应关系已存在!'
+							));
+				echo $return_data;
+				exit;	
+			}
+			$parent_tags = $this->bbs_post_m->get_all_parent_tag_id($cur_tag_id, TRUE);
+			$parent_tags[] = $cur_tag_id; 	// 添加上自身ID
+			$parent_tags = array_unique($parent_tags);
+			if(in_array($child_tag_id, $parent_tags)){
+				$return_data = json_encode(array(
+								'status' => -5,
+								'content' => '不能添加当前标签的父级标签和本身为子标签!'
+							));
+				echo $return_data;
+				exit;
+			}
+
+			/*
+				1.使用队列
+			 */
+			$this->bbs_queue->set_queue_name('moxi'); 		// 设置队列名
+			$data = array(
+						'ptag_id' => $cur_tag_id,
+						'ctag_id' => $child_tag_id
+					);
+
+			// 该方法暂时没有返回参数，考虑是否使用原始的 Httpsqs
+			$this->bbs_queue->put($data, 'add_tag_relation');
+
+			// 插入队列成功后，不能先建立对应关系，得在队列中所有建立成功后，再建立对应关系
+			$return_data = array(
+							'status' => $child_tag_id,
+							'content' => '添加成功!请等待一段时间查看效果'
+						);
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *
+		 * 	新增父关系
+		 * 	
+		 * 	0 	- 	tag_name不存在
+		 * 	N	- 	添加成功(返回的是新标签的ID，用于追加元素)
+		 * 	-1 	- 	对应关系已存在
+		 * 	-2 	- 	添加失败
+		 */
+		public function add_parent()
+		{
+			$parent_name = trim($this->input->post('parent_name'));
+			if(empty($parent_name)){
+				$return_data = json_encode(array(
+								'status' => -1,
+								'content' => '父标签不能为空!'
+							));
+				echo $return_data;
+				exit;
+			}
+			$cur_tag_id = (int) $this->input->post('cur_tag_id');
+			$parent_tag_id = (int) $this->bbs_tag_m->get_tag_id_by_name($parent_name);
+			if(!$parent_tag_id){
+				$return_data = json_encode(array(
+									'status' => -2,
+									'content' => '要添加的父标签不存在，请先建立'
+								));
+				echo $return_data;
+				exit;
+			}
+
+			// 不可以添加顶级标签
+			// 这里进行修改，添加父级标签的时候，是可以指定为顶级标签的，先放开
+			// $istop = $this->bbs_tag_m->is_toptag_by_id($parent_tag_id);
+			// if($istop){
+			// 	$return_data = json_encode(array(
+			// 						'status' => -3,
+			// 						'content' => '不能添加顶级标签为父标签'
+			// 					));
+			// 	echo $return_data;
+			// 	exit;
+			// }
+			$type = 'parent';
+			$status = $this->bbs_tag_m->add_map($cur_tag_id, $parent_tag_id, $type);
+			switch($status){
+				case 0:
+					$return_data = json_encode(array(
+									'status' => 0,
+									'content' => '添加失败!'
+								));
+					break;
+				case -4:
+					$return_data = json_encode(array(
+									'status' => -4,
+									'content' => '对应关系已存在!'
+								));
+					break;
+				case -5:
+					$return_data = json_encode(array(
+									'status' => -5,
+									'content' => '不能添加当前标签的父级标签和本身为子标签!'
+								));
+					break;
+				case -6:
+					$return_data = json_encode(array(
+									'status' => -6,
+									'content' => '不能添加当前标签的子级标签和本身为父标签!'
+								));
+					break;
+				default :
+					$return_data = json_encode(array(
+									'status' => $status,
+									'content' => '添加成功!'
+								));
+					break;
+
+			}
+			echo $return_data;
+			exit;
+		}
+
+		/**
+		 *
+		 *  删除child和parent关系
+		 *
+		 */
+		public function del_map()
+		{
+			$tag_id = (int) $this->input->post('tag_id');
+			$parent_id = (int) $this->input->post('parent_id');
+
+			/*
+				1.使用队列
+			 */
+			$this->bbs_queue->set_queue_name('moxi'); 		// 设置队列名
+			$data = array(
+						'ptag_id' => $parent_id,
+						'ctag_id' => $tag_id
+					);
+
+			// 该方法暂时没有返回参数，考虑是否使用原始的 Httpsqs
+			$this->bbs_queue->put($data, 'del_tag_relation');
+
+			// 插入队列成功后，不能先删除对应关系，得在队列中所有建立成功后，再删除对应关系
+			$return_data = array(
+								'status' => 1,
+								'content' => '删除关联关系成功，请等待一段时间查看效果'
+							);
+			echo json_encode($return_data);
+			exit;
+		}
+
+		/**
+		 *
+		 *  推荐标签
+		 *
+		 */
+		public function recommend()
+		{
+			// 先获取顶级的标签
+			$top_tag_list = $this->bbs_tag_m->get_top_tag_list();
+
+			// 循环获取每个顶级下面的递归子标签，并且存在到顶级标签的一个'child_list'元素
+			foreach($top_tag_list as &$top_tag){
+				$recommend_tag_id = $norecommend_tag_id = array();		// 这2个值，每次循环的时候重新初始化
+
+				// 通过递归函数来遍历所有的子(这里添加了第二个参数为TRUE，清除上次的递归结果)
+				$child_tag_id = $this->bbs_post_m->get_all_child_tag_id($top_tag['tag_id'], TRUE);
+
+				// 上面的可能出现重复，我们去重
+				$child_tag_id = array_unique($child_tag_id);
+
+				// 如果没有子标签，跳出该tag即可
+				if(!$child_tag_id){
+					$top_tag['recommend_tag_list'] = array();
+					$top_tag['norecommend_tag_list'] = array();
+					continue;
+				}
+
+				$recommend_tag_list = $this->bbs_tag_m->get_recommend_tag_list($top_tag['tag_id']);
+				if($recommend_tag_list){
+					$top_tag['recommend_tag_list'] = $recommend_tag_list;
+					foreach($recommend_tag_list as $recommend_tag){
+						$recommend_tag_id[] = $recommend_tag['tag_id'];
+					}
+				}else{
+					$top_tag['recommend_tag_list'] = array();
+				}
+
+				// 去差集，就是 '未推荐的标签'
+				$norecommend_tag_id = array_diff($child_tag_id, $recommend_tag_id);
+
+				// 查找所有的非推荐标签的tag_name和tag_id。
+				if($norecommend_tag_id){
+					$norecommend_tag_list = $this->bbs_tag_m->get_tag_list_by_tagid_array($norecommend_tag_id);
+					$top_tag['norecommend_tag_list'] = $norecommend_tag_list;
+				}else{
+					$top_tag['norecommend_tag_list'] = array();
+				}
+			}
+
+			$vars = array(
+						'top_tag_list' => $top_tag_list
+					);
+			$this->load->view('bbs_tag/recommend', $vars);	
+		}
+
+		/**
+		 *
+		 * 	修改顶级tag标签顺序
+		 *
+		 */
+		public function edit_top_sortid()
+		{
+			$tag_id = (int) $this->input->post('tag_id');
+			$sortid = (int) $this->input->post('sortid');
+			$return = $this->bbs_tag_m->edit_top_sortid($tag_id, $sortid);
+
+			if(empty($return)){
+				return 0;
+			}else{
+
+				// 同时往 tag_recomend 表中插入记录
+				if($sortid){
+
+					// 查看有无该推荐记录
+					$is_recommend = $this->bbs_tag_m->is_recommend(0, $tag_id);
+					if(!$is_recommend){
+						$return = $this->bbs_tag_m->add_recommend(0, $tag_id, $sortid);
+						echo ($return ? 1 : 0);
+						exit;
+					}else{
+						$return = $this->bbs_tag_m->edit_recommend(0, $tag_id, $sortid);
+						echo ($return ? 1 : 0);
+						exit;
+					}
+				}else{
+					$return = $this->bbs_tag_m->del_recommend(0, $tag_id);
+					echo ($return ? 1: 0);
+					exit;
+				}
+			}
+		}
+
+		/**
+		 *
+		 * 	标签推荐
+		 *
+		 */
+		public function edit_recommend_sortid()
+		{
+			$tag_id = (int) $this->input->post('tag_id');
+			$recommend_id = (int) $this->input->post('recommend_id');
+			$sortid = (int) $this->input->post('sortid');
+			if($sortid){
+
+				// 查看有无该推荐记录
+				$is_recommend = $this->bbs_tag_m->is_recommend($tag_id, $recommend_id);
+				if(!$is_recommend){
+					$return = $this->bbs_tag_m->add_recommend($tag_id, $recommend_id, $sortid);
+					echo ($return ? 1 : 0);
+					exit;
+				}else{
+					$return = $this->bbs_tag_m->edit_recommend($tag_id, $recommend_id, $sortid);
+					echo ($return ? 2 : 0);
+					exit;
+				}
+			}else{
+				$return = $this->bbs_tag_m->del_recommend($tag_id, $recommend_id);
+				echo ($return ? 3 : 0);
+				exit;
+			}
+		}
+	}

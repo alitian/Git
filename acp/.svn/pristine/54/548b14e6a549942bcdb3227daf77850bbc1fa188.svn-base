@@ -1,0 +1,740 @@
+<?php
+/**
+ * APP 首页推荐Controller
+ * Created by PhpStorm.
+ * User: modian
+ * Date: 2016/7/25
+ * Time: 17:54
+ * @author jaafar
+ */
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+class Md_app_manager extends Acp_Controller
+{
+    const MD_APP_RCMD_PRO = "md_app_rcmd_pro";
+    const MD_APP_RCMD_CATE = "md_app_rcmd_cate";
+
+    private $key        = "md_app_homepage_update_status";
+    private $weight_key = "md_app_homepage_update_weight";
+    private $update_field = array();
+    private $weight_field = array();
+    public $uid;
+    public $find_product;
+    public $preview_url;
+    public $thumb_marker = "_app_rcmd";
+    public $action = 'index';
+
+    private $cate_ids = array(
+        "item_list"     => 10000,
+        "comment_list"  => 10001,
+        "update_list"   => 10002,
+        "video_list"    => 10003
+    );
+
+    public $img_list = array();
+    private $cate_fields = array(
+         10000 => "项目",
+         10001 => "评论",
+         10002 => "更新",
+         10003 => "视频"
+    );
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->helper('bbs_common');
+        $this->load->library('md_model_cache');
+        $this->load->model('Comment_model');
+        $this->load->model("bbs/bbs_reply_m");
+        $this->load->model("bbs/bbs_post_m");
+        $this->action = $this->uri->segment(2);  //取当前请求的方法名
+        $this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+        $this->find_product = _gc('domain_zhongchou', 'domain');
+    }
+
+    /**
+     *
+     * @param $cate_id 推荐信息类型
+     * @param $page
+     * @param int $perpage
+     * @return mixed
+     */
+    public function get_rcmd_list($cate_id,$page,$perpage=20){
+        $cate_id  = $cate_id ? $cate_id : '';
+        $page = $page ? (int)$page : 1;
+        $perpage  = (int) $perpage;
+        $offset   = ($page-1)*$perpage;
+        $this->db->from(self::MD_APP_RCMD_PRO);
+        if(is_array($cate_id)){
+            $this->db->where_in("cate_id",$cate_id);
+        }else{
+            $this->db->where('cate_id',$cate_id);
+        }
+        $this->db->order_by('weight desc , id desc');
+        $this->db->limit($perpage,$offset);
+        $result = $this->db->get()->result_array();
+        $this->load->library("md_redis");
+        $tmp_data = $this->md_redis->hGetAll($this->key);
+        $tmp_weight_data = $this->md_redis->hGetAll($this->weight_key);
+        $tmp_weight_ids = array_keys($tmp_weight_data);
+        if(!empty($result)){
+            foreach($result as &$rcmd_info){
+                $detail = unserialize($rcmd_info['pic']);
+                $rcmd_info['media']   = $detail['image']?$detail['image']:$detail['vedio'];
+                $rcmd_info['title']   = $detail['title'];
+                $rcmd_info['link']    = $detail['link'];
+                $rcmd_info['content'] = $detail['content'];
+                if(isset($detail['post_id'])){
+                    $rcmd_info['origin_id']   = $detail['origin_id'];
+                    $rcmd_info['nickname']   = $detail['nickname'];
+                    $rcmd_info['reply_time'] = $detail['ctime'];
+                    $rcmd_info['post_id']  = $detail['post_id'];
+                    $rcmd_info['reply_cate'] = $detail['reply_cate'];
+                }
+                if($rcmd_info['cate_id'] == $this->cate_ids['update_list']){
+                    $rcmd_info['update_time'] = $detail['ctime'];
+                }
+                if($rcmd_info['cate_id'] == $this->cate_ids['video_list']){
+                    $rcmd_info['swf_url'] = $this->get_swf_url($detail['origin_id']);
+                }
+
+                //未同步到首页的权重
+                if( $tmp_weight_data !== NULl  && in_array($rcmd_info['id'],$tmp_weight_ids)){
+                    $rcmd_info['weight'] = $tmp_weight_data[$rcmd_info['id']]?$tmp_weight_data[$rcmd_info['id']]:0;
+                }
+
+                //未同步到首页的内容
+                if( $tmp_data !== NULL && $tmp_data[$rcmd_info['id']] !== NULL ){
+                    $item_detail = unserialize($tmp_data[$rcmd_info['id']]);
+                    $rcmd_info['title']   =   $item_detail['title'] ? $item_detail['title'] : $rcmd_info['title'];
+                    $rcmd_info['content'] =   $item_detail['content'] ? $item_detail['content'] : $rcmd_info['content'];
+                    $rcmd_info['media']   =   $item_detail['image'] ? $item_detail['image'] : $rcmd_info['image'];
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * total
+     * @param $cate_id
+     * @return mixed
+     */
+    public function get_total_rcmd($cate_id){
+        $cate_id  = $cate_id ? $cate_id : '';
+        $this->db->from(self::MD_APP_RCMD_PRO);
+
+        if(is_array($cate_id)){
+            $cate_id = array_values($cate_id);
+            $this->db->where_in("cate_id",$cate_id);
+        }else{
+            $this->db->where('cate_id',$cate_id);
+        }
+        $this->db->order_by('weight desc , id desc');
+        $result = $this->db->get()->num_rows();
+        return $result;
+    }
+
+
+
+    //首页推荐列表
+    public function index($page){
+        $this->load->vars("cate_fields",$this->cate_fields);
+        $this->_render_view($page);
+    }
+
+    //项目推荐列表
+    public function item_list($page){
+        $this->_render_view($page);
+    }
+
+    //项目推荐编辑
+    public function edit_rcmd_item(){
+        $type = isset($_POST['type'])?$_POST['type']:'';
+        $update_data['title'] = _pv('title');
+        $update_data['image'] = _pv("media");
+        if($type == 3){
+            $update_data['content'] = _pv('title');
+            unset($update_data['title']);
+        }
+        $id = _pv('id');
+//        $res = $this->update_rcmd_field($update_data,$id);
+        $val = serialize($update_data);
+        $this->load->library("md_redis");
+        $res = $this->md_redis->hSet($this->key,$id,$val);
+        if($res){
+            $return_data['status'] = 1;
+            $return_data['msg'] = "修改成功";
+        }else{
+            $return_data['status'] = 0;
+            $return_data['msg'] = "修改异常";
+        }
+
+        echo json_encode($return_data);
+    }
+
+    //评论推荐列表
+    public function comment_list($page){
+        $this->_render_view($page);
+    }
+
+    //视频推荐列表
+    public function video_list($page){
+        $this->_render_view($page);
+    }
+
+    //更新推荐列表
+    public function update_list($page){
+        $this->_render_view($page);
+    }
+
+    //编辑更新推荐 type 1为项目 2为评论 3为视频 4为更新
+    public function edit_rcmd_update(){
+        $update_data['title'] = _pv('title');
+        $update_data['image'] = _pv("media");
+        $id = _pv('id');
+        $this->update_rcmd_field($update_data,$id);
+    }
+
+    //推荐删除
+    public function del_rcmd_by_id(){
+        $id = _pv("id");
+        $where = array("id" => $id);
+        $this->db->delete(self::MD_APP_RCMD_PRO,$where);
+        $result = $this->db->affected_rows();
+        if($result){
+            $return_data['status'] = 1;
+            $return_data['msg']    = "操作成功";
+        }else{
+            $return_data['status'] = 1;
+            $return_data['msg']    = "操作失败";
+        }
+        echo json_encode($return_data);
+    }
+
+    //更改权重
+    public function change_weight($type){
+        $type = $type ? (int) $type : 1;
+        $this->load->library("md_redis");
+        if($type == 9){ //批量修改
+            $subid_array = (string) $this->input->post('subid_array', true);
+            $sortid_array = (string) $this->input->post('sortid_array', true);
+            $subid_array = array_filter(json_decode($subid_array));
+            $sortid_array = array_filter(json_decode($sortid_array));
+            $errmsg = "保存成功";
+            $fields = array_combine($subid_array,$sortid_array);
+            $res = $this->md_redis->hMSet($this->weight_key,$fields);
+            if(!$res)
+                $errmsg = "权重设置失败";
+            md_common::display_javascript($errmsg, site_url('md_app_manager/index/'));
+        }else{
+            $id = (int) _pv('id');
+            $weight = (int) _pv('weight');
+            $res = $this->md_redis->hSet($this->weight_key,$id,$weight);
+            if($res){
+                $return_data = array(
+                    'status' => 1,
+                    'msg'    => "更改成功"
+                );
+            }else{
+                $return_data = array(
+                    'status' => 0,
+                    'msg'    => "更改异常"
+                );
+            }
+            echo json_encode($return_data);
+        }
+    }
+
+    //同步到首页
+    public function update_status(){
+        $data = array(
+            'isshow' => 1
+        );
+        $this->load->library("md_redis");
+        $cate_id = array_values($this->cate_ids);
+        $this->db->where_in('cate_id',$cate_id);
+        $this->db->update(self::MD_APP_RCMD_PRO,$data);
+
+        $this->load->library("md_redis");
+        $update_list = $this->md_redis->hGetAll($this->key);
+        $weight_list = $this->md_redis->hGetAll($this->weight_key);
+
+        $prompt = "未修改任何内容";
+
+        //更新权重
+        if(is_array($weight_list) && !empty($weight_list)){
+            foreach($weight_list as $key=>$val){
+                $weight_data['weight'] = $val;
+                $this->db->where('id',$key);
+                $res = $this->db->update(self::MD_APP_RCMD_PRO,$weight_data);
+                if(!$res){
+                    $this->weight_field[] = $val;
+                    continue;
+                }else{
+                    $prompt ="同步成功";
+                    $this->md_redis->hDel($this->weight_key,$key);
+                }
+            }
+            unset($weight_list);
+        }
+
+        //同步编辑内容
+        if(is_array($update_list) && !empty($update_list)){
+            foreach($update_list as $k=>$update_info){
+                $update_data = unserialize($update_info);
+                $id = intval($k);
+                $if_success = $this->update_rcmd_field($update_data,$id);
+                if(!$if_success){ //更新失败
+                    $this->update_field[] = $id;
+                    continue;
+                }else{
+                    $prompt ="同步成功";
+                    $this->md_redis->hDel($this->key,$id);
+                }
+            }
+            unset($update_list);
+        }
+
+        $url = site_url('md_app_manager/index');
+        if(empty($this->weight_field) && empty($this->update_field)) {
+            md_common::display_javascript($prompt, $url);
+        }else{
+            if(!empty($this->update_field)){
+                md_common::display_javascript("ID:".implode(',',$this->update_field)." 同步失败,请重新操作", $url);
+            }
+            md_common::display_javascript("权重:  ".implode(",",$this->weight_field).' 同步失败,请重新操作', $url);
+        }
+    }
+
+    // 添加推荐 type 1为项目   form添加
+    // 2为评论 3为视频 4为更新  ajax 添加
+    public function add_rcmd_item(){
+        $type   = isset($_POST['type'])?_pv('type'):'';
+        $pro_id = isset($_POST['pro_id'])?_pv('pro_id'):'';
+        $this->load->model("product_model");
+        $product_info = $this->product_model->get_product_info($pro_id);
+        switch($type){
+            case 1:
+                $url = site_url('md_app_manager/item_list');
+                $is_exists = $this->check_exists($pro_id,'item_list');
+                if($is_exists){
+                    md_common::display_javascript("此项目已经存在",$url);
+                }
+                $insert_data['origin_id'] = $pro_id;
+                $insert_data['image']     = $product_info['logo2'];
+                $insert_data['title']     = $product_info['name'];
+                $insert_data['author_id'] = $product_info['user_id'];
+                $insert_data['link']     = $this->find_product."/item/".$pro_id.".html";
+                $item['pic']     = serialize($insert_data);
+                $item['pro_id']  = $pro_id;
+                $item['cate_id'] = $this->cate_ids['item_list'];
+                $res = $this->db->insert(self::MD_APP_RCMD_PRO,$item);
+                break;
+            case 2:
+                $post_id   = _pv("post_id");
+                $reply_id  = _pv("reply_id");
+                if($post_id == $product_info['moxi_post_id']){
+                    $insert_data['reply_cate'] = "项目评论";
+                }else{
+                    $insert_data['reply_cate'] = "更新评论";
+                }
+                $reply_info = $this->bbs_reply_m->get_reply_info($post_id, $reply_id);
+                $user_info = $this->Comment_model->get_md_user_info($reply_info['reply_fuid']);
+
+                $insert_data['origin_id'] = $reply_id;
+                $insert_data['post_id']  = $post_id;
+                $insert_data['author_id'] = $reply_info['reply_fuid'];
+                $insert_data['nickname']  = $user_info['nickname']?$user_info['nickname']:$user_info['username'];
+                $insert_data['ctime']     = date("Y-m-d H:i:s",$reply_info['ctime']);
+                $insert_data['content']   = $reply_info['content'];
+                $insert_data['link']      = $this->find_product."/p/comment/".$pro_id;
+                $item['pic']     = serialize($insert_data);
+                $item['pro_id']  = $pro_id;
+                $item['cate_id'] = $this->cate_ids['comment_list'];
+                $res = $this->db->insert(self::MD_APP_RCMD_PRO,$item);
+                break;
+            case 3:
+                $id = _pv("id");
+                $sql = "SELECT `id`,`user_id`,`pro_id`,`vedio_url`,`swf_url`,`vedio_desc`,`upload_time`,`img_url` FROM md_product_vedio WHERE `if_show`= 1 AND `id`={$id}";
+                $video_info = $this->db->query($sql)->row_array();
+
+                $insert_data['origin_id'] = $video_info['id'];
+                $insert_data['author_id'] = $video_info['user_id'];
+                $insert_data['vedio']     = $video_info['vedio_url'];
+                $insert_data['content']     = $video_info['vedio_desc'];
+                $insert_data['image']     = $video_info['img_url'];
+                $insert_data['link']     = $this->find_product."/item/".$video_info['pro_id'].".html";
+                $item['pic']     = serialize($insert_data);
+                $item['pro_id']  = $video_info['pro_id'];
+                $item['cate_id'] = $this->cate_ids['video_list'];
+                $res = $this->db->insert(self::MD_APP_RCMD_PRO,$item);
+                break;
+            case 4:
+                $update_id = _pv('id');
+                $this->load->model("product_update");
+                $update_info = $this->product_update->get_update_info($update_id);
+                $insert_data['origin_id'] = $update_info['id'];
+                $insert_data['image']     = $update_info['logo'];
+                $insert_data['title']     = $update_info['title'];
+                $insert_data['author_id'] = $update_info['user_id'];
+                $this->img_list = array();
+                $content   = htmlspecialchars_decode($update_info['content']);
+//                $pattern = '/\&lt\;img src=\&quot\;(.*?)\&quot\; alt=\&quot\;(.*?)\&quot\;\/\&gt\;/i';
+                $pattern = '/<img [^>]*src=[\'"]([^\'"]+)[^>]*>/i';
+                $insert_data['content'] = preg_replace_callback($pattern,
+                    function($matches){
+                        $this->img_list[]=$matches[1];
+                        return '';
+                    }
+                    ,$content);
+                $insert_data['img_list']  = $this->img_list;
+                $insert_data['link']      = _gc("domain_wap","domain").'/main/client_update_detail/'.$update_info['pro_id'].'/'.$update_info['id'];
+                $insert_data['ctime']     = $update_info['ctime'];
+                $item['pic']     = serialize($insert_data);
+                $item['pro_id']  = $update_info['pro_id'];
+                $item['cate_id'] = $this->cate_ids['update_list'];
+                $res = $this->db->insert(self::MD_APP_RCMD_PRO,$item);
+                break;
+        }
+        if($res){
+            $return_data['msg']   = "添加成功";
+            $return_data['status'] = 1;
+        }else{
+            $return_data['msg']   = "添加失败";
+            $return_data['status'] = 0;
+        }
+        echo json_encode($return_data);
+
+    }
+
+    //评论分页
+    public function show_reply_list($pro_id,$page=1){
+        $pro_id =isset($_POST['pro_id'])? intval(_pv('pro_id')) :$pro_id;
+        $page   = $page ? intval($page) : 1;
+        $sql = "SELECT `moxi_post_id` FROM md_product_update WHERE `moxi_post_id` <> 0 AND `pro_id` = {$pro_id}";
+        $result = $this->db->query($sql)->result_array();
+
+        $moxi_sql = "SELECT `moxi_post_id` FROM md_product WHERE `moxi_post_id` <> 0 AND `id` = {$pro_id}";
+        $moxi_post_id = $this->db->query($moxi_sql)->row_array();
+
+        $post_ids = array_map("array_shift",$result);
+        array_unshift($post_ids,$moxi_post_id['moxi_post_id']);
+        $pids = implode(',',$post_ids);
+
+        $reply_list = $this->Comment_model->get_reply_record_by_post_ids($pids,"ctime",$page,20);
+        if(empty($reply_list)){
+            md_common::display_javascript("该项目和项目更新暂时没有评论",site_url("md_app_manager/comment_list"));
+        }
+        $reply_num = '';
+        foreach($post_ids as $post_id) {
+            $reply_num += $this->bbs_post_m->count_post_comments_isshow_num($post_id,0);
+        }
+        $cur_url = $cur_url = "/md_app_manager/show_reply_list/".$pro_id."/";
+        $pagination = $this->pagination($cur_url,$reply_num,4,20);
+        $origin_ids = $this->get_rcmd_ids_by_condition('','comment_list');
+        $this->load->vars("pro_id",$pro_id);
+        $this->load->vars("origin_ids",$origin_ids);
+        $this->load->vars('curpage', $page);
+        $this->load->vars('reply_list', $reply_list['reply_list']);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("md_app_manager/comment_list");
+    }
+
+    public function show_update_list($pro_id,$page=1){
+        $pro_id =isset($_POST['pro_id'])? intval(_pv('pro_id')) :$pro_id;
+        $page   = $page ? intval($page) : 1;
+        $offset = ($page-1)*20;
+
+//        $this->load->model("product_model");
+        $sql = "SELECT * FROM md_product_update WHERE if_show=1 AND result_view=0 AND pro_id={$pro_id} ORDER BY id DESC LIMIT $offset,20";
+        $count_sql = "SELECT * FROM md_product_update WHERE if_show=1 AND result_view=0 AND pro_id={$pro_id}";
+        $res = $this->db->query($sql)->result_array();
+        $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(\/uploads\/ueditor\/(?:.*?)|uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+        foreach ($res as $key => $value) {
+            $replace = array();
+            preg_match_all($pattern, $value['content'], $matches);
+            foreach ($matches[1] as $k => $v) {
+                $replace[] = cdn_url($v, 'p', 'fix');
+            }
+            $content = unserialize($value['content']);
+            if (is_array($content)) {
+                $res[$key]['content'] = $content;
+            } else {
+                $res[$key]['content'] = str_replace($matches[1], $replace, $value['content']);
+            }
+        }
+        $update_list = $res;
+        $update_num  = $this->db->query($count_sql)->num_rows();
+        if(empty($update_list)){
+            md_common::display_javascript("该项目暂时没有更新",site_url("md_app_manager/update_list"));
+        }
+        $origin_ids = $this->get_rcmd_ids_by_condition($pro_id,'update_list');
+        $cur_url = $cur_url = "/md_app_manager/show_update_list/".$pro_id."/";
+        $pagination = $this->pagination($cur_url,$update_num,4,20);
+        $this->load->vars("pro_id",$pro_id);
+        $this->load->vars("origin_ids",$origin_ids);
+        $this->load->vars('curpage', $page);
+        $this->load->vars('update_list', $update_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("md_app_manager/update_list");
+    }
+
+    public function show_video_list($pro_id,$page=1){
+        $pro_id =isset($_POST['pro_id'])? intval(_pv('pro_id')) :$pro_id;
+        $page   = $page ? intval($page) : 1;
+        $offset = ($page-1)*20;
+
+        $sql = "SELECT `vedio` FROM md_product WHERE `if_show` = 1 AND `id` = {$pro_id}";
+        $result = $this->db->query($sql)->row_array();
+        $swf_url = $result['vedio'];
+
+        $video_sql = "SELECT `id`,`user_id`,`pro_id`,`vedio_url`,`swf_url`,`vedio_desc`,`upload_time` FROM md_product_vedio WHERE `swf_url` = '{$swf_url}' AND `pro_id` = {$pro_id} ORDER BY id DESC LIMIT {$offset},20";
+        $video_list = $this->db->query($video_sql)->result_array();
+        if(empty($video_list)){
+            md_common::display_javascript("该项目和项目更新暂时没有视频",site_url("md_app_manager/video_list"));
+        }
+
+        $cur_url = $cur_url = "/md_app_manager/show_video_list/".$pro_id."/";
+        $pagination = $this->pagination($cur_url,1,4,20);
+        $origin_ids = $this->get_rcmd_ids_by_condition('','video_list');
+        $this->load->vars("pro_id",$pro_id);
+        $this->load->vars("origin_ids",$origin_ids);
+        $this->load->vars('curpage', $page);
+        $this->load->vars('video_list', $video_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("md_app_manager/video_list");
+    }
+
+    public function show_item_list($pro_id){
+        $pro_id =isset($_POST['pro_id'])? intval(_pv('pro_id')) :$pro_id;
+        $origin_ids = $this->get_rcmd_ids_by_condition($pro_id,'item_list');
+        if(in_array($pro_id,$origin_ids)){
+            md_common::display_javascript("该项目已经推荐过啦!",site_url("md_app_manager/item_list"));
+        }
+        $this->load->model("product_model");
+        $product_info = $this->product_model->get_product_info($pro_id);
+
+        if(empty($product_info)){
+            md_common::display_javascript("该项目不存在",site_url("md_app_manager/item_list"));
+        }
+        if($product_info['if_show'] != 1){
+            md_common::display_javascript("该项目未通过审核",site_url("md_app_manager/item_list"));
+        }
+        $this->load->vars("pro_id",$pro_id);
+        $this->load->vars('item_info', $product_info);
+        $this->load->view("md_app_manager/item_list");
+    }
+
+    /**
+     * 获取已经推荐的ids
+     * @param int  $pro_id
+     * @param  string $action
+     * @return array()
+     */
+    public function get_rcmd_ids_by_condition($pro_id='',$action=''){
+        $cate_id = $this->cate_ids[$action];
+        $pro_id = intval($pro_id);
+        $this->db->select("pic");
+        $this->db->from(self::MD_APP_RCMD_PRO);
+        $this->db->where("cate_id",$cate_id);
+        if($pro_id){
+            $this->db->where("pro_id",$pro_id);
+        }
+        $result = $this->db->get()->result_array();
+        $origin_ids = array();
+        if(!empty($result)){
+            foreach($result as $item_info){
+                $detail = unserialize($item_info['pic']);
+                if(isset($detail['post_id'])){  //评论
+                    $origin_ids[$detail['post_id']][] = $detail['origin_id'];
+                }else{
+                    $origin_ids[] = $detail['origin_id'];
+                }
+            }
+        }
+        return $origin_ids;
+    }
+
+    //更新序列化后存在pic里的推荐字段
+    public function update_rcmd_field($update_data,$id){
+        if(empty(intval($id)) || !is_array($update_data) ){
+            return false;
+        }
+        $rcmd_info = $this->db->query("SELECT `pic` FROM md_app_rcmd_pro WHERE id={$id}")->row_array();
+        $rcmd_info = unserialize($rcmd_info['pic']);
+        foreach($update_data as $k=>$v){
+            $rcmd_info[$k] = $v;
+        }
+        $rcmd['pic'] = serialize($rcmd_info);
+        $where['id'] = $id;
+        $this->db->where($where);
+        $res = $this->db->update(self::MD_APP_RCMD_PRO,$rcmd);
+        return $res;
+    }
+
+    /**
+     * @param int $page 当前页
+     */
+    private function _render_view($page=1){
+        $action = $this->action;
+        $page = $page ? intval($page) : 1;
+        if($action == 'index'){
+            $cate_id = array_values($this->cate_ids);
+        }else{
+            $cate_id = $this->cate_ids[$action];
+        }
+        $rcmd_lists = $this->get_rcmd_list($cate_id , $page );
+        $total_rows = $this->get_total_rcmd($cate_id);
+        // 当前页的链接，但是缺失 '分页页数'
+        $cur_url = "/md_app_manager/".$action.'/';
+        $pagination = $this->pagination($cur_url,$total_rows);
+        $this->load->vars('curpage', $page);
+        $this->load->vars('rcmd_lists', $rcmd_lists);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("md_app_manager/".$action);
+    }
+
+    /**
+     * 分页函数
+     * @param $cur_url 当前url
+     * @param $total_rows
+     * @param $segment
+     * @param int $perpage
+     *
+     */
+    protected function pagination($cur_url,$total_rows,$segment=3,$perpage=20){
+        $config = array(
+            'uri_segment' => $segment, // 在url的第二段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $total_rows,
+            'per_page' => $perpage,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+            'full_tag_open' => '<ul class="pager">',
+            'full_tag_close' => '</ul>',
+            'first_tag_open' => '<li>',
+            'first_tag_close' => '</li> &nbsp;&nbsp;',
+            'last_tag_open' => '<li>',
+            'last_tag_close' => '</li> &nbsp;&nbsp;',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li> &nbsp;&nbsp;',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li> &nbsp;&nbsp;',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li> &nbsp;&nbsp;',
+            'cur_tag_open' => '<li class="disabled"><a href="javascript:;">',
+            'cur_tag_close' => '</a></li> &nbsp;&nbsp;',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        return $pagination;
+    }
+    /*
+        多次上传图片，不对之前的图片进行删除操作
+     */
+    public function upload($type)
+    {
+        $this->load->library('md_imagick');
+        // 图片上传input框name名
+        $type = (int) $type;
+        $input_file_name = 'upfile';
+        $attachment_path_prefix = 'md_app_rcmd/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $db_path_prefix = 'uploads/' . $attachment_path_prefix;
+        $full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+
+        if(!file_exists($full_upload_path)){
+            mkdir($full_upload_path, 0777, TRUE);
+        }
+        $config = array(
+            'upload_path' => $full_upload_path,
+            'allowed_types' => 'gif|jpg|png|jpeg',
+            'encrypt_name' => TRUE,
+            'max_size' => '10000',
+            'max_width' => '102400',
+            'max_height' => '76800'
+        );
+        $this->load->library('upload', $config);
+        if( ! $this->upload->do_upload($input_file_name)){
+            $errmsg = $this->upload->display_errors();
+            echo "<script>alert('{$errmsg}')</script>";
+        }else{
+            $attachment_data = $this->upload->data();
+            //在首页表中插入路径 jaafar
+//            var_dump($attachment_data);
+            // 得到原图的系统路径
+            $attachment_system_path = $attachment_data['full_path'];
+            //  type 1为项目主题图标 2为APP轮播图
+            switch ($type) {
+                case '1':
+                    $list_size = '690x296';
+                    break;
+                case '2':
+                    $list_size = '690x296';
+                    break;
+            }
+//            attachment_process($attachment_system_path, $this->compress_marker, $this->list_marker, $this->thumb_marker,$list_size,$list_size);
+            thumbnail_image($attachment_system_path,$list_size,$this->thumb_marker,array(),'md_app_rcmd');
+            @unlink($attachment_system_path);
+            // 存储数据表的路径
+            $db_path = $db_path_prefix . $attachment_data['raw_name'].$this->thumb_marker.$attachment_data['file_ext']; 		//这里我们直接存压缩的名字 数据库存储的路径是以 'upload' 开头
+
+            // 原图的URL访问地址
+            $attachment_url =cdn_url($db_path);
+
+            //显示到页面那个预览图片的位置
+            $js = <<<EOT
+                		<script>
+                			top.document.getElementById('preview_cover').setAttribute('src','$attachment_url')
+                			top.document.getElementById('pro_media').value='$db_path';
+                			top.document.getElementById('check_upload').value=1;
+
+                		</script>;
+EOT;
+            echo $js;
+        }
+    }
+
+    public function check_exists($pro_id,$action){
+        $cate_id = $this->cate_ids[$action];
+        $res = $this->db->query("SELECT `pro_id` FROM md_app_rcmd_pro WHERE `pro_id`={$pro_id} AND `cate_id`={$cate_id}")->row_array();
+        if(!empty($res)){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    public function get_swf_url($id){
+        $swf_url = $this->db->query("SELECT `swf_url` FROM md_product_vedio WHERE `id`={$id}")->row_array();
+        return $swf_url['swf_url'];
+    }
+
+    /**
+     * 取[project | comment | update | video]已在推荐列表情况
+     * @param string $condition
+     * @return array array('id'=>$flag) ex:$flag = $post_id-$reply_id or $pro_id or $update_id or $video_id
+     */
+    public function get_app_rcmd_ids_by_condition($condition='project'){
+        $cate_id = $this->cate_ids[$condition];
+        $recm_ids = array();
+        if(!$cate_id) return $recm_ids;
+
+        $item_list = $this->db->select("id,pic")->where("cate_id",$cate_id)->get(self::MD_APP_RCMD_PRO)->result_array();
+        foreach($item_list as $item_info){
+            $detail = unserialize($item_info['pic']);
+            if(isset($detail['post_id']) && $detail['post_id'] != ''){  //评论
+                $recm_ids[$item_info['id']] = $detail['post_id'].'-'.$detail['origin_id'];
+            }else{
+                $recm_ids[$item_info['id']] = $detail['origin_id'];
+            }
+        }
+        return $recm_ids;
+    }
+
+}

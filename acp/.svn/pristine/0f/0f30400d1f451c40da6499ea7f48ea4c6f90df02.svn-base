@@ -1,0 +1,1079 @@
+<?php	
+	class Bbs_post_model extends CI_Model{
+
+		const MD_USER_TABLE = 'md_users';
+		const MD_BBS_POST_TABLE = 'bbs_post';
+		const MD_BBS_POST_CONTENT_TABLE = 'bbs_post_content';
+		const MD_BBS_POST_TAG_MAP_TABLE = 'bbs_post_tag_map';
+		const MD_BBS_POST_MANAGER_LOG_TABLE = 'bbs_post_manager_log';
+		const MD_BBS_TAG_TABLE  = 'bbs_tag';
+		const MD_BBS_TAG_MAP_TABLE  = 'bbs_tag_map';
+		const MD_BBS_ATTACHMENT_TABLE_PREFIX = 'bbs_attachment_';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs/bbs_tag_m');
+		}
+
+		/**
+		 *	通过帖子id获取帖子信息
+		 *
+		 *	@param 		int 		$post_id
+		 * 	@return 	array 		$post_info
+		 *
+		 */
+		public function get_post_by_id($post_id)
+		{
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where('post_id', $post_id);
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+			if(!$post_info){
+				$post_info = array();
+				return $post_info;
+			}
+			$this->load->model('bbs_md_user_model');
+			$user_info = $this->bbs_md_user_model->get_user_by_uid($post_info['author_id']);
+			$post_info['author'] = $user_info['nickname'];
+			$post_info['stick_type'] = $post_info['isstick'] ? 'nostick' : 'stick';
+			$post_info['stick_text'] = $post_info['isstick'] ? '取消置顶' : '置顶';
+			$post_info['digest_type'] = $post_info['isdigest'] ? 'nodigest' : 'digest';
+			$post_info['digest_text'] = $post_info['isdigest'] ? '取消精华' : '加精华';
+			$post_info['time'] = date('Y-m-d H:i:s', $post_info['ctime']);
+			$post_info['tags'] = $this->tagids_to_tags($post_info['tagids']);
+			$post_info['sequence'] = 1; 		// 添加上序号
+			return $post_info;
+		}
+		
+		/**
+		 *	获取帖子列表 
+		 *
+		 * @param 	int 		$perpage
+		 * @param 	int 		$nextpage
+		 * @param 	int 		$tag_id
+		 * @param 	int 		$time
+		 * @param 	string 		$type
+		 * @param 	nickname 	$nickname
+		 * @return 	array 		$post_list
+		 *
+		 */
+		public function get_post_list($perpage, $nextpage, $tag_id = 0, $time = 1, $type = 'all', $nickname = '')
+		{
+			$offset = ($nextpage - 1) * $perpage;
+
+			// 暂时使用like查询啊，不知道和关联查询，效率是否真的很低，不太清楚(post_tag_map表并未进行分表，另外还得进行关联查询，不清楚效率..)
+			if($tag_id){
+				$this->moxi_db->like('CONCAT(",", p.tagids, ",")', "," . $tag_id . ",");
+			}
+				
+			if($time == 2){
+				$order_by = 'p.ctime ASC';
+			}else{
+				$order_by = 'p.ctime DESC';
+			}
+
+			// 这里改为了nickname，我们得去摩点的用户表中取查询
+
+			// 这里也添加上判断 'null' 的条件。
+			if($nickname != 'null' && !empty($nickname)){
+				$this->db->from(self::MD_USER_TABLE);
+				$this->db->where('nickname', $nickname);
+				$this->db->select('id');
+				$md_user_query = $this->db->get();
+				$md_user_list = $md_user_query->result_array();
+				foreach($md_user_list as $row){
+					$uid_array[] = $row['id'];
+				}
+				$this->moxi_db->where_in('p.author_id', $uid_array);
+			}
+
+			$where['p.isshow'] = 1;
+			$where['p.isverified'] = 1;
+
+			if($type == 'stick'){
+				$where['m.isstick'] = 1;
+			}elseif($type == 'digest'){
+				$where['p.isdigest'] = 1;
+			}
+			$this->moxi_db->where($where);
+			// $this->moxi_db->select('m.isstick, p.*');
+			$this->moxi_db->select('MAX(m.isstick) as isstick, p.*');
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE . ' p');
+			$join_condition = 'p.post_id = m.post_id';
+			$this->moxi_db->join(self::MD_BBS_POST_TAG_MAP_TABLE . ' m', $join_condition, 'LEFT');
+
+			/* 
+				这里通过p.post_id来聚合，是不合理的，因为聚合只是以该组中第一条结果为准，当我第一条isstick = 0，但是下面还有 isstick = 1，就错了。
+				// $this->moxi_db->group_by('p.post_id');
+				修正：
+					我们添加查询：max('m.isstick') as isstick 作为是否是置顶
+			 */
+			$this->moxi_db->group_by('p.post_id');
+
+			$this->moxi_db->limit($perpage, $offset);
+			$this->moxi_db->order_by($order_by);
+			$post_query = $this->moxi_db->get();
+			$post_list = $post_query->result_array();
+
+			// 如果查询不到，返回空
+			if(empty($post_list)){
+				return array();
+			}
+
+			// 序号显示
+			$sequence = ($nextpage - 1) * $perpage;
+			foreach($post_list as &$post){
+				$post['digest_type'] = $post['isdigest'] ? 'nodigest' : 'digest';
+				$post['digest_text'] = $post['isdigest'] ? '取消精华' : '加精华';
+				$post['time'] = date('Y-m-d H:i:s', $post['ctime']);
+				$post['tags'] = $this->tagids_to_tags($post['tagids']);
+				$post['sequence'] = ++$sequence; 		// 添加上序号
+				$uid_array[] = $post['author_id'];
+			}
+
+			$this->load->model('bbs_md_user_model');
+			$user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($uid_array);
+
+			foreach($post_list as &$post_info){
+				foreach($user_list as $user_info){
+					if($post_info['author_id'] == $user_info['id']){
+						$post_info['author'] = $user_info['nickname'];
+					}
+				}
+			}
+
+			return $post_list;
+		}
+
+		/**
+		 *	获取帖子列表页 
+		 *
+		 * @param 	int 		$tag_id
+		 * @param 	string 		$type
+		 * @param 	string 		$nickname
+		 * @return 	int 		$total_rows
+		 *
+		 */
+		public function get_total_rows($tag_id = 0, $type = 'all', $nickname = '')
+		{
+
+			/* 
+				上述查询出错！$sql = 'SELECT COUNT(*) AS `numrows` FROM (`bbs_post` p) LEFT JOIN `bbs_post_tag_map` m ON `p`.`post_id` = `m`.`post_id` WHERE `p`.`isshow` = 1 AND `p`.`isverified` = 1 GROUP BY `p`.`post_id`';
+					group by -------------- 并不是查询到所有的条目数，然后去重。而是针对的是 count(*)之后的返回结果才group by的。
+					例如：查询到总数为50条记录，然后才group by ，导致结果为1
+
+				修正：
+					我们得将 bbs_post_tag_map_table 的结果集先根据 post_id 'group by'，保证post_id是唯一的，然后再left join。
+			 */
+
+			$where_map = '';
+			$group_by = ' GROUP BY `post_id`';
+			if($type == 'stick'){
+				$where_map = ' WHERE `isstick` = 1';
+			}
+			$sql_map = '(SELECT `post_id`, `isstick` from `bbs_post_tag_map`' . $where_map . $group_by . ') AS `m_g`';
+
+			if($tag_id){
+				$this->moxi_db->like('CONCAT(",", p.tagids, ",")', "," . $tag_id . ",");
+			}
+
+			// 添加上 null
+			if($nickname != 'null' && !empty($nickname)){
+				$this->db->from(self::MD_USER_TABLE);
+				$this->db->where('nickname', $nickname);
+				$this->db->select('id');
+				$md_user_query = $this->db->get();
+				$md_user_list = $md_user_query->result_array();
+				foreach($md_user_list as $row){
+					$uid_array[] = $row['id'];
+				}
+				$this->moxi_db->where_in('p.author_id', $uid_array);
+			}
+			$where['p.isshow'] = 1;
+			$where['p.isverified'] = 1;
+
+			if($type == 'digest'){
+				$where['p.isdigest'] = 1;
+			}
+			$this->moxi_db->where($where);
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE . ' p');
+			$join_condition = 'p.post_id = m_g.post_id';
+			$this->moxi_db->join($sql_map, $join_condition, 'INNER');
+			$total_rows = $this->moxi_db->count_all_results();
+			return $total_rows;
+		}
+
+		/**
+		 *	获取顶级的tag列表，作为帖子的筛选条件
+		 *
+		 * @return 		array 		$toptag_list
+		 *
+		 */
+		public function get_toptag_list()
+		{
+			$select = 't.tag_id, t.tag_name';
+
+			// 发现CI 2.1.4 应该是不支持 LEFT JOIN USING ()
+			// $join_condition = 't.tag_id';
+			$join_condition = 't.tag_id = m.tag_id';
+			$where = array(
+						'parent_id' => 0
+					);
+			$order_by = 'ctime DESC';
+			$this->moxi_db->select($select);	
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$tag_query = $this->moxi_db->get();
+			$toptag_list = $tag_query->result_array();
+			return $toptag_list;
+		}
+
+		/**
+		 *	帖子的tagids转换为tags
+		 *
+		 * @param 		string 		$tagids
+		 * @return 		string 		$tags
+		 *
+		 */
+		public function tagids_to_tags($tagids)
+		{
+			$tags = '';
+			$tagid_array = explode(',', $tagids);
+			$this->moxi_db->select('tag_name');
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->where_in('tag_id', $tagid_array);
+			$tag_query = $this->moxi_db->get();
+			$tag_list = $tag_query->result_array();
+			foreach($tag_list as $tag){
+				$tags .= $tag['tag_name'] . ' ';
+			}
+			return $tags;
+		}
+
+		/**
+		 * 	获取每个帖子的tag列表数组
+		 *
+		 * 	@param 		string 		$tagids
+		 * 	@return 	array 		$tag_list
+		 */
+		public function get_tag_list($tagids)
+		{
+			$tagid_array = explode(',', $tagids);
+			$this->moxi_db->select('tag_name, tag_id');
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->where_in('tag_id', $tagid_array);
+			$tag_query = $this->moxi_db->get();
+			$tag_list = $tag_query->result_array();
+			return $tag_list;
+		}
+
+		/**
+		 *	获取帖子的标签的对应关系
+		 *
+		 * 	@param 			int 		$post_id
+		 * 	@param 			string  	$type
+		 * 	@return 		array 		$tag_list
+		 *
+		 */
+		public function get_tag_list_by_post_id($post_id, $type)
+		{
+			$where = array('m.post_id' => $post_id);
+			if($type == 'stick'){
+				$where['m.isstick'] = 0;	
+			}elseif($type == 'nostick'){
+				$where['m.isstick'] = 1;	
+			}
+			$join_condition = 'm.tag_id = t.tag_id';
+			$select = 'm.isstick, m.stick_s_time, m.stick_e_time, m.tag_id, t.tag_name';
+			$this->moxi_db->from(self::MD_BBS_POST_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$tag_query = $this->moxi_db->get();
+			$tag_list = $tag_query->result_array();
+			$tag_list = $tag_list ? $tag_list : array();
+			return $tag_list;
+		}
+
+		/**
+		 * 	判断当前标签下的置顶帖数，是否已经达到上限
+		 *
+		 * 	@param 		int 		$tag_id
+		 * 	@param 		int 		$stick_post_upper_limit
+		 * 	@return 	bool
+		 */
+		public function is_stick_post_upper_limit($tag_id, $stick_post_upper_limit)
+		{
+			$tag_id = (int) $tag_id;
+			$where = array(
+						'isstick' => 1,
+						'tag_id' => $tag_id
+					);
+			$this->moxi_db->where($where);
+			$this->moxi_db->from(self::MD_BBS_POST_TAG_MAP_TABLE);
+			$count = $this->moxi_db->count_all_results();
+			return ($count == $stick_post_upper_limit) ? TRUE : FALSE;
+		}
+
+		/**
+		 * 	通过tag_id获取tag信息
+		 *
+		 * 	@param 		string 		$tag_id
+		 * 	@return 	array 		$tag_info
+		 */
+		public function get_tag_info_by_tag_id($tag_id)
+		{
+			$tag_id = (int) $tag_id;
+			$this->moxi_db->where('tag_id', $tag_id);
+			$tag_query = $this->moxi_db->get(self::MD_BBS_TAG_TABLE);
+			return $tag_query->row_array();
+		}
+
+		/**
+		 *	置顶(取消置顶)帖子
+		 *
+		 * @param 		array 		$tag_ids
+		 * @param 		int 		$post_id
+		 * @param 		int 		$stick_time
+		 * @param 		int 		$uid
+		 * @return 		string 		$return 
+		 *
+		 */
+		public function update_stick_post($tag_ids, $post_id, $stick_time, $uid)
+		{
+			$tag_ids_str = trim(join(',', $tag_ids), ',');
+			if($stick_time == 0){
+				$set = array(
+							'isstick' => 0,
+							'stick_s_time' => 0,
+							'stick_e_time' => 0
+						);
+				$manager_type = 2;
+				$manager_reason = "对帖子在标签 $tag_ids_str 下进行了取消置顶";
+			}else{
+				$stick_s_time = time();
+				$stick_e_time = time() + $stick_time;
+				$set = array(
+							'isstick' => 1,
+							'stick_s_time' => $stick_s_time,
+							'stick_e_time' => $stick_e_time
+						);
+				$manager_type = 1;
+				$manager_reason = "对帖子在标签 $tag_ids_str 下进行了置顶";
+			}
+			$where = array(
+						'post_id' => $post_id
+					);
+			$this->moxi_db->where($where);
+			$this->moxi_db->where_in('tag_id', $tag_ids);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TAG_MAP_TABLE, $set);
+				
+			// 增加管理员操作记录
+			if($bool){
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => $manager_type, 
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$manager_bool = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				if(!$manager_bool){
+					return -3; 		// 更新帖子管理操作失败
+				}
+			}
+			if($bool){
+				if($stick_time == 0){
+					return 2;
+				}else{
+					return 1;	
+				}
+			}else{
+				if($stick_time == 0){
+					return -2;
+				}else{
+					return -1;	
+				}
+			}
+		}
+
+		/**
+		 *	置顶(取消置顶)帖子
+		 *
+		 * @param 		int 		$uid
+		 * @param 		int 		$post_id
+		 * @param 		string 		$type
+		 * @return 		int 		$data
+		 *
+		 */
+		public function stick_post($uid, $post_id, $type)
+		{
+			if($type == 'stick'){
+				$set = array(
+							'isstick' => 1
+						);
+				$data = 1;
+				$manager_type = 1;
+				$manager_reason = '置顶';
+			}elseif($type == 'nostick'){
+				$set = array(
+							'isstick' => 0
+						);
+				$data = 2;
+				$manager_type = 2;
+				$manager_reason = '取消置顶';
+			}
+			$where = array(
+						'post_id' => $post_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+
+			if($bool){
+				// 增加管理员操作记录
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => $manager_type, 
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+			}
+			if($bool){
+				return $data;
+			}else{
+				return 0;
+			}
+		}
+
+		/**
+		 *	精华(取消精华)帖子
+		 *
+		 * @param 		int 		$uid
+		 * @param 		int 		$post_id
+		 * @param 		string 		$type
+		 * @return 		int 		$bool
+		 *
+		 */
+		public function digest_post($uid, $post_id, $type)
+		{
+			if($type == 'digest'){
+				$set = array(
+							'isdigest' => 1
+						);
+				$data = 1;
+				$manager_type = 3;
+				$manager_reason = '加精华';
+			}elseif($type == 'nodigest'){
+				$set = array(
+							'isdigest' => 0
+						);
+				$data = 2;
+				$manager_type = 4;
+				$manager_reason = '取消精华';
+			}
+			$where = array(
+						'post_id' => $post_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+
+			if($bool){
+
+				// 添加精华的积分操作
+				if($manager_type == 3){
+
+					// 审核成功的帖子，直接加积分！
+					$author_id = $this->bbs_post_m->get_post_author_id($post_id);
+					$this->md_common->add_user_score($author_id, SCORE_GROUP_ESSENCE, 0, FALSE);
+				}
+
+				// 增加管理员操作记录
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => $manager_type, 			// 操作记录表中，我们将管理员对帖子的编辑的type规定为5
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+			}
+			if($bool){
+				return $data;
+			}else{
+				return 0;
+			}
+		}
+
+		/**
+		 *	推荐帖子
+		 *
+		 * @param 		int 		$uid
+		 * @param 		int 		$post_id
+		 * @return 		int 		$bool
+		 *
+		 */
+		public function recommend_post($uid, $post_id)
+		{
+			$set = array(
+						'isrecommend' => 1,
+						'sortid' => 1
+					);
+			$where = array(
+						'post_id' => $post_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+			if(!$bool) return 0; 		// 表示推荐帖子失败
+			if($bool){
+				// 增加管理员操作记录
+				$manager_type = 10;
+				$manager_reason = '推荐帖子';
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => $manager_type, 			// 操作记录表中，我们将管理员对帖子的推荐的type规定为10
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager) return -1; 		// 表示插入插入操作记录表失败
+			}
+			return 1; 		// 表示成功
+		}
+
+		/**
+		 *	获取帖子相关数据
+		 * 
+		 * @param 		int 		$post_id
+		 *
+		 */
+		public function get_post_info($post_id)
+		{
+			$select = 'p.*, pc.content';
+			// $join_condition = 'post_id';
+			$join_condition = 'p.post_id = pc.post_id';
+			$where = array(
+						'p.post_id' => $post_id
+					);
+			$this->moxi_db->select($select);
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE . ' p');
+			$this->moxi_db->join(self::MD_BBS_POST_CONTENT_TABLE . ' pc', $join_condition, 'LEFT');
+
+			$this->moxi_db->where($where);
+
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+			$post_info['subject'] = htmlspecialchars_decode($post_info['subject']);
+			$post_info['content'] = htmlspecialchars_decode($post_info['content']);
+			$post_info['content'] = str_replace('<br>', "\n", $post_info['content']);
+
+			// 帖子图片查询
+			$attachment_list = $this->get_post_attachments($post_id);
+
+			// 这块咱做修改，将其拿到controller中来处理
+			// foreach($attachment_list as &$attachment){
+			// 	$origin_url = $this->static_url . $attachment['path'];
+			// 	$sys_point_pos = strrpos($origin_url, '.');
+			// 	$thumb_url = substr($origin_url, 0, $sys_point_pos) . $this->thumb_marker . substr($origin_url, $sys_point_pos);
+			// 	$attachment['image_url'] = $thumb_url;
+			// 	$attachment['image_url_origin'] = $origin_url;
+			// }
+			$post_info['attachment_list'] = $attachment_list;
+			return $post_info;
+		}
+		/**
+		 *
+		 * 	获取帖子附件
+		 * 	@param 			int 			$post_id
+		 *	@return 		array 			$attachment_list
+		 */
+		public function get_post_attachments($post_id)
+		{
+			$attachment_table = self::MD_BBS_ATTACHMENT_TABLE_PREFIX . ($post_id % 10);
+			$where = array(
+						'post_id' => $post_id,
+						'reply_id' => 0
+					);
+			$order_by = 'attachment_id DESC';
+			$this->moxi_db->from($attachment_table);
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$attachment_query = $this->moxi_db->get();
+			$attachment_list = $attachment_query->result_array();
+			if(!$attachment_list){
+				$attachment_list = array();
+			}
+			return $attachment_list;
+		}
+
+		/**
+		 * 	帖子内容修改，进行处理
+		 * 
+		 *	@param 		int 		$uid
+		 *	@param 		int 		$post_id
+		 *	@param 		string 		$subject
+		 *	@param 		string 		$content
+		 *	@param 		string 		$pic_url
+		 *	@param 		string 		$update_type
+		 * 	@return 	int 		$status
+		 */
+		public function submit_edit_post($uid, $post_id, $subject, $content, $pic_url, $update_type){
+			$status = 0;
+			if($update_type != 'post'){
+				$abstract = bbs_substr($content, 200);
+				$abstract = str_replace("\n", '<br>', $abstract); 		// 应该在之前截取
+				$abstract = emoji_unified_to_html(htmlspecialchars($abstract, ENT_QUOTES));
+
+				$content = str_replace("\n", '<br>', $content); 		// 切记对于 \n，必须使用 "\n" - 双引号，否则匹配不到
+				$content = emoji_unified_to_html(htmlspecialchars($content, ENT_QUOTES));
+			}else{
+				$subject = emoji_unified_to_html(htmlspecialchars($subject, ENT_QUOTES));
+			}
+			
+			$set_post = array(
+							'subject' => $subject,
+							'pic_url' => $pic_url
+						);
+
+			$set_post_content = array(
+									'content' => $content
+								);
+			$where = array(
+						'post_id' => $post_id
+					);
+			if($update_type == 'post'){
+				$bool_post = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set_post, $where);
+
+			// 凡是对内容进行了修改，就得重新截取 abstract
+			}elseif($update_type == 'content'){
+				$set_post['abstract'] = $abstract;
+				$bool_post = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set_post, $where);
+				$bool_content = $this->moxi_db->update(self::MD_BBS_POST_CONTENT_TABLE, $set_post_content, $where);
+			}else{
+				$set_post['abstract'] = $abstract;
+				$bool_post = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set_post, $where);
+				$bool_content = $this->moxi_db->update(self::MD_BBS_POST_CONTENT_TABLE, $set_post_content, $where);
+			}
+
+			// 记录标题或内容是否被修改。如果管理员也点击了提交，但是并没有进行任何的修改，我们不更新管理状态表
+			$status = ($bool_post || $bool_content) ? 1 : -1;
+			if($status == 1){
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => 5, 			// 操作记录表中，我们将管理员对帖子的编辑的type规定为5
+							'manager_reason' => '对标题，内容，附件进行编辑',
+							'ctime' => time()
+						);
+				$status = (int) $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set); 		// 如果成功转int = 1，失败转int = 0
+			}
+			return $status;
+		}
+
+		/**
+		 *
+		 * 	删除帖子附件
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		array 		$attachment_id_array
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function del_attachment($post_id, $attachment_id_array)
+		{
+			$attachment_table = self::MD_BBS_ATTACHMENT_TABLE_PREFIX . ($post_id % 10);
+			$this->moxi_db->where_in('attachment_id', $attachment_id_array);
+			$bool = $this->moxi_db->delete($attachment_table);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	获取帖子列表的第一条记录
+		 * 	@param 			int 			$post_id
+		 * 	@return 		array 			$attachment_info
+		 *
+		 */
+		public function get_post_attachment_first($post_id)
+		{
+			$attachment_table = self::MD_BBS_ATTACHMENT_TABLE_PREFIX . ($post_id % 10);
+			$where = array(
+						'post_id' => $post_id,
+						'reply_id' => 0
+					);
+			$order_by = 'attachment_id DESC'; 		// 可能顺序都有点颠倒了，就这么走...
+			$this->moxi_db->from($attachment_table);
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$this->moxi_db->limit(1);
+			$attachment_query = $this->moxi_db->get();
+			$attachment_info = $attachment_query->row_array();
+			if(!$attachment_info){
+				$attachment_info = array();
+			}
+			return $attachment_info;
+		}
+
+		/**
+		 *
+		 *	查看附件是否存在
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		string 		$path
+		 *	@return 	bool 		
+		 *
+		 */
+		public function is_attachment_exists_by_path($post_id, $path)
+		{
+			$where = array(
+							'post_id' => $post_id,
+							'reply_id' => 0,
+							'path' => $path
+						);
+			$attachment_table = self::MD_BBS_ATTACHMENT_TABLE_PREFIX . ($post_id % 10);
+			$this->moxi_db->from($attachment_table);
+			$this->moxi_db->where($where);
+			$count = $this->moxi_db->count_all_results();
+			return $count ? TRUE : FALSE;
+		}
+
+		/**
+		 *
+		 * 	查看帖子的tagids
+		 *
+		 *	@param 		int 		$post_id
+		 *	@return 	string 		$tagids 	
+		 *
+		 */
+		public function get_post_tagids($post_id)
+		{
+			$this->moxi_db->select('tagids');
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where(array('post_id' => $post_id));
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+			return $post_info;
+		}
+
+		/**
+		 * 	当前tag名的标签是否存在
+		 *
+		 *	@param 		string 			$tagname
+		 * 	@return 	int 			$tag_id
+		 *
+		 */
+		public function is_tag_exists($tag_name)
+		{
+			$where = array(
+						'tag_name' => $tag_name
+					);
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->select('tag_id');
+			$this->moxi_db->where($where);
+			$tag_query = $this->moxi_db->get();
+			if($tag_query){
+				$tag_info = $tag_query->row_array();
+				$tag_id = $tag_info['tag_id'];
+			}else{
+				$tag_id = 0;
+			}
+			return $tag_id;
+		}
+
+		/**
+		 * 	当前tag名的标签是否存在
+		 *
+		 *	@param 		int 			$post_id
+		 *	@param 		int 			$tag_id
+		 * 	@return 	bool 			$is_exists
+		 *
+		 */
+		public function is_tag_exists_in_post($post_id, $tag_id)
+		{
+			$bool = FALSE;
+			$where = array(
+						'post_id' => $post_id
+					);
+			$this->moxi_db->select('tagids');
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where($where);
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+			$str = ',' . $post_info['tagids'] . ',';
+			$search_str = ',' . $tag_id . ',';
+			if(strpos($str, $search_str) !== FALSE){
+				$is_exists = TRUE;
+			}
+			return $is_exists;
+		}
+
+		/**
+		 * 新增帖子tag
+		 * 
+		 * @param 	int 			$uid
+		 * @param 	int 			$post_id
+		 * @param 	int 			$tag_id
+		 * @return  bool 			$return
+		 *
+		 */
+		public function add_post_tag($uid, $post_id, $tag_id)
+		{
+			$where = array('post_id' => $post_id);
+
+			// 更新帖子的tagids
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->select('tagids');
+			$this->moxi_db->where($where);
+			$query = $this->moxi_db->get();
+			$post_info = $query->row_array();
+			$tag_id_array = explode(',', $post_info['tagids']);
+			if(!$tag_id_array){
+				$tag_id_array = array();
+			}
+			array_push($tag_id_array,$tag_id);
+			$tag_ids_new = rtrim(join(',', $tag_id_array), ',');
+			$set_post = array(
+							'tagids' => $tag_ids_new
+						);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set_post, $where);
+			if($bool){
+
+				// 新增 tag_id 和 post_id 的对应关系
+				$return = $this->_add_post_tag_map($post_id, $tag_id);
+				if(!$return){
+					return -5; 		// 表示新增对应关系失败
+				}
+
+				/* 添加，当前标签下的帖子数 +1 */
+				$return = $this->bbs_tag_m->update_tag_post_num($tag_id);
+				if(!$return){
+					return -6; 		// 表示 '更新帖子数+1失败'
+				}
+
+				// 增加管理员操作记录
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => 5, 			// 操作记录表中，我们将管理员对帖子的编辑的type规定为5
+							'manager_reason' => '进行了新增标签操作，标签ID为'.$tag_id,
+							'ctime' => time()
+						);
+				$bool = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				return ($bool ? 1: -7); 		// -7代表的是 '更新管理员操作失败'
+			}else{
+				return -4;			// 表示更新帖子tagids失败
+			}
+		}
+		/**
+		 * 记录tag_id和post_id的对应关系(仅添加一条记录)
+		 * 
+		 * 	@used-by add_post_tag() 
+		 * 
+		 * 	@param 			int 		$post_id
+		 * 	@param 			int 		$tag_id
+		 * 	@return 		int 		$insert_id
+		 *
+		 */
+		protected function _add_post_tag_map($post_id, $tag_id)
+		{
+			// 构建数据
+				$insert_data = array(
+									'tag_id' => $tag_id, 		// 就不改动原结构了
+									'post_id' => $post_id,
+									'ctime' => time()
+								);
+					
+
+			// 一次性插入多条记录
+			$bool = $this->moxi_db->insert(self::MD_BBS_POST_TAG_MAP_TABLE, $insert_data);	
+			return $bool ? 1 : 0;
+		}	
+
+		/**
+		 *
+		 * 	判断标签是否是顶级标签
+		 *
+		 * 	@param 			int 		$tag_id
+		 * 	@return 		bool 		
+		 *
+		 */
+		public function is_top_tag($tag_id)
+		{
+			$where = array(
+							'tag_id' => $tag_id,
+							'parent_id' => 0
+						);
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where($where);
+			$count = $this->moxi_db->count_all_results();
+			return ($count ? TRUE : FALSE);
+		}
+
+		/**
+		 *
+		 * 	判断标签数组中顶级标签的个数
+		 *
+		 * 	@param 			array 		$tagid_array
+		 * 	@return 		bool 		
+		 *
+		 */
+		public function get_top_tag_num($tagid_array)
+		{
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where('parent_id', 0);
+			$this->moxi_db->where_in('tag_id', $tagid_array);
+			$count = $this->moxi_db->count_all_results();
+			return $count;
+		}
+
+		/**
+		 * 记录tag_id和post_id的对应关系
+		 * 
+		 * @used-by add_post_tag() 
+		 * 
+		 * @param int 			$post_id
+		 * @param array 		$tagid_array
+		 *
+		 */
+		protected function _add_post_tag_map_batch($post_id, $tagid_array)
+		{
+			// 构建数据
+			$insert_data = array();
+
+			foreach($tagid_array as $tag_id){
+				$insert_data[] = array(
+									'tag_id' => $tag_id,
+									'post_id' => $post_id,
+									'ctime' => time()
+								);
+			}
+
+			// 一次性插入多条记录
+			$bool = $this->moxi_db->insert_batch(self::MD_BBS_POST_TAG_MAP_TABLE, $insert_data);	
+			return ($bool ? 1 : 0); 		// 0表示添加对应关系失败
+		}	
+
+
+
+		/**
+		 * 删除帖子tag
+		 * 		warning：删除的时候，当帖子只剩下最后一个tag，不允许删除！
+		 * 
+		 * @param 	int 			$uid
+		 * @param 	int 			$post_id
+		 * @param 	int 			$tag_id
+		 * @return  bool 			$return
+		 *
+		 */
+		public function del_post_tag($uid, $post_id, $tag_id)
+		{
+			$where = array('post_id' => $post_id);
+
+			// 更新帖子的tagids
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->select('tagids');
+			$this->moxi_db->where($where);
+			$query = $this->moxi_db->get();
+			$post_info = $query->row_array();
+			$tag_id_array = explode(',', $post_info['tagids']);
+
+			/* 这里进行判断，查找是否仅剩当前一个tag，如果是的话，则不允许删除! */
+			if(count($tag_id_array) == 1){
+				return -2;
+			}
+
+			$tag_id_array_new = array_diff($tag_id_array,array($tag_id));
+			$tag_ids_new = join(',', $tag_id_array_new);
+			$set_post = array(
+							'tagids' => $tag_ids_new
+						);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set_post, $where);
+
+			// 只有先更新帖子的tagids成功后，才进行下列的操作
+			if($bool){
+
+				/* 删除tag和post的对应关系 */	
+				$return = $this->_del_post_tag_map($post_id, $tag_id);
+				if(!$return){
+					return -4; 		// 表示删除对应关系失败
+				}
+
+				/* 添加，当前标签下的帖子数 -1 */
+				$return = $this->bbs_tag_m->update_tag_post_num($tag_id, -1);
+				if(!$return){
+					return -5; 		// 表示 '更新帖子数-1失败'
+				}
+
+				// 增加管理员操作记录
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => 5, 			// 操作记录表中，我们将管理员对帖子的编辑的type规定为5
+							'manager_reason' => '进行了删除标签操作，标签ID为'.$tag_id,
+							'ctime' => time()
+						);
+				$bool = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				return ($bool ? 1 : -6); 		// -6代表的是 '更新管理员操作失败'
+			}else{
+				return -3; 		// 表示更新帖子tagids失败
+			}
+		}
+
+		/**
+		 * 删除tag_id和post_id的对应关系
+		 * 
+		 * @used-by del_post_tag() 
+		 * 
+		 * @param int 			$post_id
+		 * @param int 			$tag_id
+		 *
+		 */
+		protected function _del_post_tag_map($post_id, $tag_id){
+			$del_row = array(
+							'post_id' => $post_id,
+							'tag_id'  => $tag_id
+						);
+			$bool = $this->moxi_db->delete(self::MD_BBS_POST_TAG_MAP_TABLE, $del_row);
+			return ($bool ? 1 : 0); 		// 0表示删除关系表失败
+		}
+
+		/**
+		 *
+		 * 	更新标签下帖子数 +1
+		 *
+		 * 	@param 		int 		$tag_id
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_tag_postnum_increase($tag_id)
+		{
+			$where = array(
+						'tag_id' => $tag_id
+					);
+			$this->moxi_db->set('post_num', 'post_num + 1', FALSE);
+			$bool = $this->moxi_db->update(self::MD_BBS_TAG_TABLE, NULL, $where);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	更新标签下帖子数 -1
+		 *
+		 * 	@param 		int 		$tag_id
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_tag_postnum_decrease($tag_id)
+		{
+			$where = array(
+						'tag_id' => $tag_id
+					);
+			$this->moxi_db->set('post_num', 'post_num - 1', FALSE);
+			$bool = $this->moxi_db->update(self::MD_BBS_TAG_TABLE, NULL, $where);
+			return $bool;
+		}
+
+	}

@@ -1,0 +1,84 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Easyfund_cron extends CI_Controller {
+	
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $this->load->helper('url');
+        $this->load->model('Easyfund_m','Ef');
+        $this->load->model('Diandian_m');
+                
+    }	
+    function sync_easy(){
+    	$startPage = '0';
+    	$pageSize = '100000';
+    	$pro_list = $this->Diandian_m->get_topic_list($startPage,$pageSize);
+    	for($i=0;$i<count($pro_list);$i++){
+	    	$pro_money = $this->Diandian_m->get_pro_money($pro_list[$i]['id']); 
+	    	if($pro_list[$i]['type'] == '2'){
+	    		if($pro_list[$i]['kind'] ==1){
+	    			$topic_pro_mess = $this->Diandian_m->get_topic_pro_mess($pro_list[$i]['id']);
+	    			$topic_pro_back_nums = $this->Ef->get_backer_total($topic_pro_mess[0]['id']);
+	    			$people_count = isset($topic_pro_back_nums)?$topic_pro_back_nums:"0";
+	    				 
+	    		
+	    		}elseif($pro_list[$i]['kind'] ==0){
+	    			$sub_users_num = $this->Diandian_m->get_sub_users_nums($pro_list[$i]['id']);
+	    			$people_count = isset($sub_users_num['user_num'])?$sub_users_num['user_num']:"0";
+	    		}
+	    	}elseif($pro_list[$i]['type'] == '3'){
+    			$redeallwt_mess = $this->Ef->get_redwallet_mess($pro_list[$i]["topic"]);
+    			$user_nums = $this->Ef->get_sub_nums($redeallwt_mess[0]['id']);
+    			$people_count = isset($user_nums['user_num'])?$user_nums['user_num']:"0";
+	    		
+	    	} 
+	    	$data = array(
+	    		'topic_id' => $pro_list[$i]['id'],
+	    		'people_count' => $people_count,
+	    		'pay_count' => isset($pro_money)?$pro_money:"0"
+	    	);
+	    	$updata_topic = $this->Diandian_m->updata_topic($data);
+    	}
+    	echo('topic更新完成');
+
+    }
+    
+    function sync_easy_status(){
+    	 
+    	$startPage = '0';
+    	$pageSize = '1000000';
+    	$pro_list = $this->Diandian_m->get_topic_lists($startPage,$pageSize);
+    	for($i=0;$i<count($pro_list);$i++){
+    		if (!empty($pro_list[$i]['effect_time']) && $pro_list[$i]['effect_time'] != '0000-00-00 00:00:00'){
+    			$pro_list[$i]['has_started'] = (int) ((time() - strtotime($pro_list[$i]['effect_time'])) / 3600 / 24);
+    			$pro_list[$i]['remaining_hours'] = $pro_list[$i]['effect_day'] * 24 - ceil((time() - strtotime($pro_list[$i]['effect_time'])) / 3600);
+    		}    		
+    		$pro_list[$i]['status'] = '';
+    		if (empty($pro_list[$i]['status'])) {
+    			if($pro_list[$i]['if_show'] == 1){
+    				if($pro_list[$i]['has_started'] >= $pro_list[$i]['effect_day']){
+    					if($pro_list[$i]['pay_count'] >= $pro_list[$i]['goal']){
+    						$pro_list[$i]['status'] = '102';//众筹成功
+    					}else{
+    						$pro_list[$i]['status'] = '101';//众筹结束
+    					}    					
+    				}else{
+    					$pro_list[$i]['status'] = '103';//众筹中
+    				}
+    			}else{
+    				$pro_list[$i]['status'] = '100';
+    			}
+    		}
+	    	$data = array(
+	    		'topic_id' => $pro_list[$i]['id'],
+	    		'status' => $pro_list[$i]['status'],
+	    	);
+	    	$updata_topic = $this->Diandian_m->updata_topic_status($data);
+    		
+    	}
+    	echo('topic状态更新完成'); 
+    }
+}

@@ -1,0 +1,6 @@
+<?php $this->load->view('special_subj/ssubj_editor_head'); ?>
+
+
+
+
+<?php $this->load->view('special_subj/ssubj_editor_foot'); ?>

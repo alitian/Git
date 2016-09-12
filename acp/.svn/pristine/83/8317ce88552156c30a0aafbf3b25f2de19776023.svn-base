@@ -1,0 +1,22 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<div>
+			<h1>
+				禁言用户
+			</h1>
+		</div>
+		<hr>
+		<p class="alert alert-info" title="点击查看"><a href="<?php echo $site_url . 'bbs_user/ban_list'; ?>">已有禁言用户<?php echo $ban_number; ?>个</a></p>
+		<form class="form-inline" action="<?php echo $site_url . 'bbs_user/index'; ?>" method="post">
+			<div class="form-group">
+				<select name="type" class="form-control">
+					<option value="1">用户昵称</option>
+					<option value="2">手机号</option>
+				</select>
+				<input type="text" class="form-control" name="search" placeholder="用户昵称/手机号">
+				<input type="hidden" name="submit" value="1">
+				<button class="btn btn-default" type="submit">查询</button>
+			</div>
+		</form>
+	</div>
+<?php $this->load->view('ckad/footer'); ?>

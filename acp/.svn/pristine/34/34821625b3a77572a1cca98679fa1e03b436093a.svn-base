@@ -1,0 +1,207 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+
+/**
+ * @auther: dingding
+ *
+ */
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Refund_cron extends MD_Controller {
+
+	public function __construct() {
+        parent::__construct();
+
+        $this->load->helper('url');
+        $this->load->model('Prorder_m');
+        $this->load->model('Order_biz');
+        $this->load->model('Common');
+    }
+
+///////////////////////////////////////////////////////////////////////////////
+    // 自动退款前，服务器端生成退款报表，并发送邮件
+    function auto_send_email_before_refund() {
+        $to = 'yjli@modian.com';
+        $path = _gc('main_site_url', 'config').'/uploads/back_file/';
+
+        $failure_pro_lsts = $this->Prorder_m->get_refund_failure_pro_lsts();
+        foreach ($failure_pro_lsts as $i => $v) {
+            $res = $this->Prorder_m->get_refund_lsts($v['id']);
+            $refund_lsts = $res['lsts'];
+
+            $filename = '每日退款明细_'.$v['id'].'_项目_' . date('Ymd_His') . '.xls';
+            $this->Prorder_m->export_ord($refund_lsts, $filename, 1);
+
+            $title = $filename;
+            $contents = '<a href="'.$path.$filename.'">今日下午2点待退款订单明细，点击下载</a>';
+            $this->Common->send_email($to, $title, $contents);
+        }
+        // echo "退款前备份、通知成功";
+    }
+    // 自动批量退款
+    function auto_batch_refund() {
+        $failure_pro_lsts = $this->Prorder_m->get_refund_failure_pro_lsts();
+        foreach ($failure_pro_lsts as $i => $v) {
+            $res = $this->Prorder_m->get_refund_lsts($v['id']);
+            $refund_lsts = $res['lsts'];
+            $this->_cache_refund_lsts($refund_lsts);
+
+            $this->_refund_account($v['id']);
+        }
+
+        // 退款完成后
+        // 待支付订单状态变为已失效
+        $this->_update_unpay_order_status($pro_id);
+        // 赊账未支付订单状态变更已失效
+        $this->_update_debt_order_status($pro_id);
+        
+        // echo "自动批量退款成功";
+    }
+    // 用户主动发起的立即退款
+    function auto_refund_4_user_sub() {
+        $mrols = $this->Prorder_m->get_refund_lsts_4_user_sub();
+        // var_dump($model);
+
+        foreach ($mrols as $i => $v) {
+            $op_type = 11;  // 默认: 请求未成功，待审核
+            $op_reason = '退款请求失败';
+            $back_id = $v['back_id'];
+            $pro_id = $this->Prorder_m->get_proid_by_backid($back_id);
+            $batch_id = $this->Prorder_m->_get_next_batch_no($pro_id);
+
+            // 退款
+            $parm['batch_no'] = $batch_no = date('Ymd') . $pro_id . "A" . sprintf("%05d", $batch_id);   // 正式上线时，这里将位数改大点
+            $parm['refund_date'] = $refund_date = $v['refund_date'];
+            $parm['batch_num'] = 1;
+            $parm['detail_data'] = "{$v['tride_no']}^{$v['refund_amount']}^{$v['refund_rsn']}";  // 在这里在这里在这里在这里在这里在这里在这里在这里
+            $alipayapi_return = $this->Prorder_m->_alipayapi($parm);
+
+            // 更新状态：退款中
+            $success_status = substr($alipayapi_return['return_code'], 9, 1);
+            if ($success_status == "T") {
+                $this->Order_biz->set_oid($back_id)->update_status('302');
+                $op_type = 1;   // 更改: 请求成功，系统已处理
+                $op_reason = '';
+            }
+
+            // 更新、保存退款信息到数据库
+            $this->Prorder_m->update_manual_refund_order_op_info(array('back_id' => $back_id,
+                                                            'batch_no' => $batch_no,
+                                                            'op_type' => $op_type,
+                                                            'op_reason' => $op_reason,
+                                                            'op_time' => '',
+                                                            'op_man' => '系统',));
+            $back_data = $alipayapi_return + array('pro_id' => $pro_id,
+                                                    'batch_id' => $batch_id,
+                                                    'batch_amount' => "{$v['refund_amount']}");
+            $this->Prorder_m->save_refund_req_log($back_data);
+        }
+
+        // echo '用户主动发起的立即退款成功';
+    }
+///////////////////////////////////////////////////////////////////////////////
+
+    // 过滤函数
+    static function _is_alipay($v) {
+        if($v['pay_platform'] == 'alipay' || $v['pay_platform'] == 'alipay_wap')
+            return true;
+        return false;
+    }
+    static function _is_sinapay($v) {
+        if($v['pay_platform'] == 'sina_pay')
+            return true;
+        return false;
+    }
+    // 缓存数据
+    static function _cache_refund_lsts($refund_lsts) {
+        $cache_key = sprintf('%s', "refundlsts4filurepro");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $refund_lsts, 43200);
+
+        $alipay_lsts = array_filter($refund_lsts, "self::_is_alipay");
+        $cache_key = sprintf('%s', "refundlsts4alipay");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $alipay_lsts, 43200);
+
+        $sinapay_lsts = array_filter($refund_lsts, "self::_is_sinapay");
+        $cache_key = sprintf('%s', "refundlsts4sinapay");
+        if(md_memcache::get($cache_key))
+            md_memcache::delete($cache_key);
+        md_memcache::set($cache_key, $sinapay_lsts, 43200);
+    }
+    static function _get_cached_refund_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4filurepro");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+    static function _get_cached_alipay_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4alipay");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+    static function _get_cached_sinapay_lsts() {
+        $cache_key = sprintf('%s', "refundlsts4sinapay");
+        if(md_memcache::get($cache_key))
+            return md_memcache::get($cache_key);
+        return array();
+    }
+
+    // 过滤支付类型，及特定数量的退款订单  
+    function _filter_payway_lsts($way, $batch) {
+        $per_batch = 999;   // 每个退款批次的退款单数，调试时可设置为相应的值
+        $offset = ($batch - 1) * $per_batch;
+
+        if ($way == 'alipay')
+            $refund_lst = $this->_get_cached_alipay_lsts();
+        elseif ($way == 'sina')
+            $refund_lst = $this->_get_cached_sinapay_lsts();
+
+        $refund_lst = array_slice($refund_lst, $offset, $per_batch);
+
+        return $refund_lst;
+    }
+
+    // 待支付订单状态变为已失效
+    function _update_unpay_order_status($pro_id) {
+        $olsts = $this->Prorder_m->get_unpay_order($pro_id);
+        foreach ($olsts as $row) {
+            $this->Order_biz->set_oid($row['back_id'])->update_status('104');
+        }
+    }
+    // 赊账未支付订单状态变更已失效
+    function _update_debt_order_status($pro_id) {
+        $olsts = $this->Prorder_m->get_debt_order($pro_id);
+        foreach ($olsts as $i => $v) {
+            if (($v['back_if_pay'] == 1) && ($v['pay_status'] == 1))
+                continue;
+            else
+                $this->Order_biz->set_oid($v['back_id'])->update_status('104');
+        }
+    }
+
+    // 退款
+    function _refund_account($pro_id) {
+
+        // 退款前，服务器端保存该项目的一份订单明细
+        $filename = '退款订单明细_' . $pro_id . '_退款前_' . date('Ymd_His') . '.xls';
+        $data = $this->Prorder_m->get_order_lsts($pro_id);
+        $this->Prorder_m->export_ord($data, $filename, 1);
+
+        $payways = array('alipay', 'sina');
+        foreach ($payways as $way) {
+            while ($lsts = $this->_filter_payway_lsts($way, ++$batch)) {
+                if ($way == 'alipay') {
+                    $this->Prorder_m->_refund_alipay_account($pro_id, $lsts);
+                } elseif ($way == 'sina') {
+                    // ...
+                } else {}
+            }
+        }
+    }
+
+}

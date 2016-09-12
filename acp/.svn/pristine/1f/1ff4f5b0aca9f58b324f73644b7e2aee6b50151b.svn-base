@@ -1,0 +1,811 @@
+<?php if (!defined('BASEPATH')) exit('No direct script access allowed');
+
+
+/**
+ * @auther: dingding
+ * @update: 2015-11-09
+ */
+
+
+class Statistics extends Acp_Controller {
+    public $redis;
+    public $client;
+    public function __construct() {
+        require_once('libraries/elastic/vendor/autoload.php');
+        parent::__construct();
+        $this->load->helper('date');
+        $this->load->model('Statistics_m');
+        $init = new Redis();
+        $host = $this->config->item('md_redis');
+        $init->connect("{$host['ip']}", "{$host['port']}");
+        $this->redis = $init;unset($host);
+        $host = $this->config->item('md_elasticsearch');
+        $hosts=["{$host['ip']}:{$host['port']}"];
+        $cli = Elasticsearch\ClientBuilder::create()->setHosts($hosts)->build();
+        $this->client = $cli;unset($host);
+    }
+
+    // ---------------------------------------------------------------------
+    // 页面统计
+    public function page_cnt()
+    {
+        $page = array(
+            0 => "摩点首页",
+            1 => "项目页",
+            2 => "支持页",
+            3 => "下单页",
+            4 => "支付页",
+            5 => "支付成功页",
+            6 => "M端首页",
+            7 => "M端项目页",
+            8 => "摩西首页 PC端",
+            9 => "摩西首页 M端",
+            10 => "摩西帖子页 PC端",
+            11 => "摩西帖子页 M端",
+            12 => "摩西列表页 PC端",
+            13 => "摩西列表页 M端"
+        );
+        if(isset($_GET['time']) && isset($_GET['page'])){
+            $field = $_GET['time']."_".$_GET['page'];
+            $str = $this->redis->hGet("acp_page_statistics", $field);
+            $data = unserialize($str);
+            $data['select'] = $_GET['page'];
+            $data['time'] = $_GET['time'];
+            $data['page'] = $page;
+            $this->load->view('statistics/page_cnt', $data);
+        }else{
+            $data = array();
+            $data['page'] = $page;
+            $this->load->view('statistics/page_cnt',$data);
+        }
+    }
+    
+    
+    //用户路径
+    public function user_path(){
+        if(isset($_GET['date'])){
+            $str = $this->redis->hGet("acp_user_path", $_GET['date']);
+            if($str){
+                $arr = unserialize($str);
+                foreach($arr as $k => $v){
+                    $key[] = $k;
+                }
+                $data['domain'] = $arr;
+                $data['date'] = $_GET['date'];
+                $data['str'] = "请选择来源域名";
+                $data['key'] = $key;
+            }else{
+                $data['str'] = "时间选择错误！请重新选择";
+            }
+        }else{
+            $data['str'] = "请选择时间，统计从2016-01-01开始";
+        }
+        $this->load->view('statistics/user_path', $data);
+    }
+    
+    public function ajax_page_cnt()
+    {
+        $day_end = $this->input->post('day_end', true);
+        $page    = intval($this->input->post('page', true));
+
+        $html = '';
+        $errcode = 0;
+        switch ($page) {
+        case 1: // www.modiancom 主页
+            $hkey = strtoupper("{$day_end}:www");
+            $hkey_field_pre = strtoupper('www.modian.com');
+            $hkey_zhenze = '/^((H_[a-zA-Z]+)_.+):PV$/';
+            break;
+        case 2: // pc 项目主页
+            $hkey = strtoupper("{$day_end}:www_pro");
+            $hkey_field_pre = strtoupper('page_pro_detail');
+            $hkey_zhenze = '/^((PRO_[a-zA-Z]+)_.+):PV$/';
+            break;
+        case 3: // m.modiancom 主页
+            $hkey = strtoupper("{$day_end}:m");
+            $hkey_field_pre = strtoupper('m.modian.com');
+            $hkey_zhenze = '/^((H_[a-zA-Z]+)_.+):PV$/';
+            break;
+        case 4: // m 项目主页
+            $hkey = strtoupper("{$day_end}:m_pro");
+            $hkey_field_pre = strtoupper('page_pro_detail');
+            $hkey_zhenze = '/^((PRO_[a-zA-Z]+)_.+):PV$/';
+            break;
+        default:
+            $errcode = 1;
+            break;
+        }
+
+        $redis = new Redis();
+        $redis->pconnect('t1.redis.modianinc.com');
+        $redis->select(15);
+        if ($errcode == 0 && $redis->hget($hkey, "{$hkey_field_pre}:PV") !== false) {
+            $data['page']['name'] = $hkey_field_pre;
+            $data['page']['pv'] = $redis->hget($hkey, "{$hkey_field_pre}:PV");
+            $data['page']['uv'] = $redis->hget($hkey, "{$hkey_field_pre}:UV");
+
+            $the_keys = $redis->hkeys($hkey);
+            foreach ($the_keys as $kk) {
+                if (preg_match($hkey_zhenze, $kk, $ms) == 1) {
+                    $data['ref'][$ms['2']]['ref'][$ms['1']]['name'] = $ms['1'];
+                    $data['ref'][$ms['2']]['ref'][$ms['1']]['pv'] = $redis->hget($hkey, "{$ms['1']}:PV");
+                    $data['ref'][$ms['2']]['ref'][$ms['1']]['uv'] = $redis->hget($hkey, "{$ms['1']}:UV");
+
+                    $data['ref'][$ms['2']]['name'] = $ms['2'];
+                    $data['ref'][$ms['2']]['pv'] += $data['ref'][$ms['2']]['ref'][$ms['1']]['pv'];
+                    $data['ref'][$ms['2']]['uv'] += $data['ref'][$ms['2']]['ref'][$ms['1']]['uv'];
+                }
+            }
+            $html = $this->load->view('statistics/page_cnt_table', $data, true);
+        } else {
+            $html = '<p style="color: #C85448">暂无数据</p>';
+        }
+
+        echo json_encode(array(
+            'errcode' => $errcode,
+            'errmsg' => $html
+        ));
+    }
+
+    // ---------------------------------------------------------------------
+    // 员工统计
+    public function user_back_stis()
+    {
+        $start_t = trim($this->input->post('start_t', true));
+        $end_t = trim($this->input->post('end_t', true));
+
+        $export_data = array();
+        $email = trim($this->input->post('email', true));
+        if (!empty($email)) {
+            $email = explode(',', $email);
+            foreach ($email as $em) {
+                if(!empty($em)) {
+                    $this->db->select('md_users.id AS user_id, md_users.email, md_users.mobile, md_product_back.id AS back_id, md_product_back.pro_id, md_product_back.amount', false);
+                    $this->db->from('md_users');
+                    $this->db->join('md_product_back', 'md_product_back.user_id=md_users.id', 'inner');
+                    $this->db->where('md_users.email', trim($em));
+                    $this->db->where_in('md_product_back.if_pay', array(1,3));
+                    $this->db->where('md_product_back.ctime >', $start_t);
+                    $this->db->where('md_product_back.ctime <', $end_t);
+                    $res = $this->db->get()->result_array();
+                    if(!empty($res)) {
+                        $pro_count = array();
+                        $money_count = 0;
+                        foreach ($res as $row) {
+                            $pro_count[] = $row['pro_id'];
+                            $money_count += $row['amount'];
+                        }
+                        $pro_count = array_unique($pro_count);
+
+                        $export_data[] = array(
+                            'user_id' => $res['0']['user_id'],
+                            'email' => $res['0']['email'],
+                            'mobile' => $res['0']['mobile'],
+                            'back_count' => count($res),
+                            'pro_count' => count($pro_count),
+                            'money_count' => $money_count
+                        );
+                    }
+                }
+            }
+        }
+
+        $mobile = trim($this->input->post('mobile', true));
+        if (!empty($mobile)) {
+            $mobile = explode(',', $mobile);
+            foreach ($mobile as $mo) {
+                if(!empty($mo)) {
+                    $this->db->select('md_users.id AS user_id, md_users.email, md_users.mobile, md_product_back.id AS back_id, md_product_back.pro_id, md_product_back.amount', false);
+                    $this->db->from('md_users');
+                    $this->db->join('md_product_back', 'md_product_back.user_id=md_users.id', 'inner');
+                    $this->db->where('md_users.mobile', trim($mo));
+                    $this->db->where_in('md_product_back.if_pay', array(1,3));
+                    $this->db->where('md_product_back.ctime >', $start_t);
+                    $this->db->where('md_product_back.ctime <', $end_t);
+                    $res = $this->db->get()->result_array();
+                    if(!empty($res)) {
+                        $pro_count = array();
+                        $money_count = 0;
+                        foreach ($res as $row) {
+                            $pro_count[] = $row['pro_id'];
+                            $money_count += $row['amount'];
+                        }
+                        $pro_count = array_unique($pro_count);
+
+                        $export_data[] = array(
+                            'user_id' => $res['0']['user_id'],
+                            'email' => $res['0']['email'],
+                            'mobile' => $res['0']['mobile'],
+                            'back_count' => count($res),
+                            'pro_count' => count($pro_count),
+                            'money_count' => $money_count
+                        );
+                    }
+                }
+            }
+        }
+
+        if (!empty($export_data)) {
+            $this->load->helper('excel');
+            $arr_title = array(
+                'user_id'     => '用户ID',
+                'email'       => '登陆邮箱',
+                'mobile'      => '登陆手机',
+                'back_count'  => '订单数',
+                'pro_count'   => '项目数',
+                'money_count' =>'总支持金额',
+            );
+            $filename = '员工支持情况汇总.csv';
+            export_to_csv($arr_title, $export_data, $filename);
+            exit();
+        }
+
+        $this->load->view('statistics/user_back_stis');
+    }
+
+
+    // ---------------------------------------------------------------------
+    // 摩点统计
+    public function index()
+    {
+        $data['banner'] = '全站概览';
+        $time = date("Y-m-d H:i:s");
+
+        $data['user_reg_today'] = $this->Statistics_m->count_day_num('md_statistics', 'user_register', $time);
+        $data['user_reg_all'] = $data['user_reg_today'] + $this->Statistics_m->count_history_num('md_statistics', 'user_register', $time);
+
+        $data['pro_back_today'] = $this->Statistics_m->count_day_num('md_statistics', 'all_financing', $time);
+        $data['pro_back_all'] = number_format($data['pro_back_today'] + $this->Statistics_m->count_history_num('md_statistics', 'all_financing', $time), 2);
+        $data['back_success_today'] = $this->Statistics_m->count_day_num('md_statistics', 'back_success', $time);
+
+        $data['pro_passed_all'] = $this->Statistics_m->count_day_num('md_statistics', 'pro_passed', $time) + $this->Statistics_m->count_history_num('md_statistics', 'pro_passed', $time);
+
+        $data['pro_finish_all'] = $this->Statistics_m->count_day_num('md_statistics_pro', 'pro_finish', $time) + $this->Statistics_m->count_history_num('md_statistics_pro', 'pro_finish', $time);
+        $data['pro_success_all'] = $this->Statistics_m->count_day_num('md_statistics', 'pro_success', $time) + $this->Statistics_m->count_history_num('md_statistics', 'pro_success', $time);
+        if (empty($data['pro_finish_all']))
+            $data['pro_success_percent'] = 0;
+        else
+            $data['pro_success_percent'] = number_format(($data['pro_success_all'] / $data['pro_finish_all']) * 100, 2);
+
+        $data['pro_online_today'] = $this->Statistics_m->count_online_pro($time);
+
+        $this->load->view('statistics/index', $data);
+    }
+    public function get_stics_detail()
+    {
+        $search_type = intval($this->input->get('search_type', true));
+
+        $data['search_d']['type'] = $search_type;
+        $data['search_d']['data'] = '';
+
+        $data['stics_user_d']['reg_new']   = $this->Statistics_m->get_user_register_info(0, $data['search_d']['type']);
+        $data['stics_user_d']['reg_addup'] = $this->Statistics_m->get_user_register_info(1, $data['search_d']['type']);
+        $data['stics_user_d']['reg_from']  = $this->Statistics_m->get_barchart_from_info($data['search_d']['type'], 'md_statistics_user');
+        $data['stics_user_d']['reg_way']   = $this->Statistics_m->get_user_register_way_info($data['search_d']['type']);
+
+        $data['stics_user_d']['back_info']     = $this->Statistics_m->get_back_barchart_info($data['search_d']['type']);
+        $data['stics_user_d']['back_unit']     = $this->Statistics_m->get_back_barchart_info($data['search_d']['type']);
+        $data['stics_user_d']['back_pay']      = $this->Statistics_m->get_back_pay_way_info($data['search_d']['type']);
+        $data['stics_user_d']['back_from']     = $this->Statistics_m->get_barchart_from_info($data['search_d']['type'], 'md_statistics_back');
+        $data['stics_user_d']['all_financing'] = $this->Statistics_m->get_all_financing_info($data['search_d']['type']);
+
+        echo json_encode($data);
+    }
+
+    // ---------------------------------------------------------------------
+    // 项目统计
+    public function pro_stat_search()
+    {
+        $data['banner'] = '项目统计';
+        $this->load->view('statistics/pro_detail', $data);
+    }
+    // 项目统计::项目数据深度分析
+    public function ajax_pro_stat_deep()
+    {
+        $day_end   = $this->input->post('day_end', true);
+        $mdsf      = trim($this->input->post('mdsf', true));
+        $mdsff     = trim($this->input->post('mdsff', true));
+        $pro_id    = intval($this->input->post('pro_id', true));
+        if (empty($pro_id)) {
+            echo json_encode(array(
+                'errcode' => 1,
+                'errmsg' => '<p style="color: #C85448">没有输入项目</p>'
+            ));
+            return 0;
+        }
+
+        $pif = $this->Statistics_m->get_table_record('md_product', 'id, name, examine_modify_time AS start_time, end_time', array('id' => $pro_id, 'if_show' => 1));
+        if (empty($pif)) {
+           echo json_encode(array(
+                'errcode' => 2,
+                'errmsg' => '<p style="color: #C85448">项目未上线</p>'
+            ));
+            return 0;
+        }
+
+        $select = '*';
+        $table = 'md_statistics_pro_detail_deep';
+        $where = array();
+        $where['pid'] = $pro_id;
+
+        if(empty($day_end) || ($day_end > $pif['end_time']))
+            $day_end = $pif['end_time'];
+        $day_end = date('Y-m-d 23:59:59', strtotime($day_end));
+
+        if (!empty($mdsf))
+            $where['mdsf LIKE'] = str_replace('*', '%', $mdsf);
+        if (!empty($mdsff))
+            $where['mdsff LIKE'] = str_replace('*', '%', $mdsff);
+
+        $where['dtime ='] = date('Y-m-d 00:00:00', strtotime($day_end));
+        $page['pro_stat_data'] = $this->Statistics_m->get_table_list($table, $select, $where, $group_by);
+
+        $app_client['ios'] = $this->Statistics_m->get_real_pro_data($pro_id, 'ios', $day_end);
+        $app_client['android'] = $this->Statistics_m->get_real_pro_data($pro_id, 'android', $day_end);
+        $page['pro_stat_data'] = array_merge($page['pro_stat_data'], $app_client);
+
+        $page['real_stat_data'] = $this->Statistics_m->get_real_pro_data($pro_id, '', $day_end);
+
+        if (!empty($page['pro_stat_data']))
+            $html = $this->load->view('statistics/pro_stat_table', $page, true);
+        else
+            $html = '<p style="color: #C85448">没有数据</p>';
+
+        echo json_encode(array(
+            'errcode' => 0,
+            'errmsg' => $html
+        ));
+    }
+    public function download_pro_stat_deep($pro_id)
+    {
+        $day_end = date('Y-m-d 00:00:00');
+        $pro_id  = intval($pro_id);
+
+        $pif = $this->Statistics_m->get_table_record('md_product', 'id, name, examine_modify_time AS start_time, end_time', array('id' => $pro_id, 'if_show' => 1));
+        if(empty($pif)) {
+            exit('no data need to download.');
+        }
+
+        $select = 'dtime, pid, mdsf, mdsff, pv, uv, cnt_order, cnt_pay, cnt_money, cnt_backer, cnt_backer_new, cnt_backer_new_new';
+        $table = 'md_statistics_pro_detail_deep';
+        $where = array();
+        $where['pid'] = $pro_id;
+        if (empty($day_end) || ($day_end > $pif['end_time'])) {
+            $t_day_end = $pif['end_time'];
+        } else {
+            $t_day_end = date('Y-m-d 23:59:59', strtotime($day_end)-86400);
+        }
+        $where['dtime ='] = date('Y-m-d 00:00:00', strtotime($t_day_end));
+        $pro_data = $this->Statistics_m->get_table_list($table, $select, $where, $group_by);
+
+        if (!empty($pro_data)) {
+            $arr_title = array(
+                'dtime'              => '截至天',
+                'pid'                => '项目ID',
+                'mdsf'               => '渠道',
+                'mdsff'              => '来源',
+                'pv'                 => 'pv',
+                'uv'                 => 'uv',
+                'cnt_order'          => '订单提交量',
+                'cnt_pay'            => '支付数量',
+                'cnt_money'          => '众筹金额',
+                'cnt_backer'         => '支持人数',
+                'cnt_backer_new'     => '首单支持用户',
+                'cnt_backer_new_new' => '支持人数中的新用户',
+            );
+
+            $filename = "{$pro_id}项目深度分析_" . date("YmdHis");
+
+            $this->load->helper('excel');
+            export_to_csv($arr_title, $pro_data, $filename, 0);
+        } else {
+            exit('no data need to download.');
+        }
+    }
+    // 项目统计::项目漏斗
+    public function ajax_pro_stat()
+    {
+        $day_start = $this->input->post('day_start', true);
+        $day_end   = $this->input->post('day_end', true);
+        $mdsf      = trim($this->input->post('mdsf', true));
+        $mdsff     = trim($this->input->post('mdsff', true));
+        $pro_id    = intval($this->input->post('pro_id', true));
+        if (empty($pro_id)) {
+            echo json_encode(array(
+                'errcode' => 1,
+                'errmsg' => '<p style="color: #C85448">没有输入项目</p>'
+            ));
+            return 0;
+        }
+
+        $pif = $this->Statistics_m->get_table_record('md_product', 'id, name, examine_modify_time AS start_time, end_time', array('id' => $pro_id, 'if_show' => 1));
+        if (empty($pif)) {
+           echo json_encode(array(
+                'errcode' => 2,
+                'errmsg' => '<p style="color: #C85448">项目未上线</p>'
+            ));
+            return 0;
+        }
+
+        $select = 'mdsf, mdsff, sum(pv) AS pv, sum(uv) AS uv, sum(cnt_order) AS cnt_order, sum(cnt_pay) AS cnt_pay, sum(cnt_money) AS cnt_money, sum(cnt_backer) AS cnt_backer, sum(cnt_backer_new) AS cnt_backer_new, , sum(cnt_backer_new_new) AS cnt_backer_new_new';
+        $table = 'md_statistics_pro_detail';
+        $where = array();
+        $where['pid'] = $pro_id;
+
+        if(empty($day_start) || ($day_start < $pif['start_time']))
+            $day_start = $pif['start_time'];
+        $day_start = date('Y-m-d 00:00:00', strtotime($day_start));
+        if(empty($day_end) || ($day_end > $pif['end_time']))
+            $day_end = $pif['end_time'];
+        $day_end = date('Y-m-d 23:59:59', strtotime($day_end));
+
+        if (!empty($mdsf))
+            $where['mdsf LIKE'] = str_replace('*', '%', $mdsf);
+        if (!empty($mdsff))
+            $where['mdsff LIKE'] = str_replace('*', '%', $mdsff);
+
+        $where['dtime <='] = $day_end;
+        $where['dtime >='] = $day_start;
+        $group_by = array('mdsf', 'mdsff');
+        $page['pro_stat_data'] = $this->Statistics_m->get_table_list($table, $select, $where, $group_by);
+
+        $app_client['ios'] = $this->Statistics_m->get_real_pro_data($pro_id, 'ios', $day_end, $day_start);
+        $app_client['android'] = $this->Statistics_m->get_real_pro_data($pro_id, 'android', $day_end, $day_start);
+        $page['pro_stat_data'] = array_merge($page['pro_stat_data'], $app_client);
+
+        $page['real_stat_data'] = $this->Statistics_m->get_real_pro_data($pro_id, '', $day_end, $day_start);
+
+        if (!empty($page['pro_stat_data']))
+            $html = $this->load->view('statistics/pro_stat_table', $page, true);
+        else
+            $html = '<p style="color: #C85448">没有数据</p>';
+
+        echo json_encode(array(
+            'errcode' => 0,
+            'errmsg' => $html
+        ));
+    }
+    // 项目统计::项目查询
+    public function get_pro_detail_search($pid=0)
+    {
+        $res = array();
+
+        if (intval($pid) === 0) {
+            $res['status']   = '403';
+            $res['msg']      = '你要干啥';
+            $res['sd']['id'] = $pid;
+
+            echo json_encode($res);
+            exit;
+        }
+
+        $pid = intval($pid);
+        // 获取项目信息
+        $pif = $this->Statistics_m->get_table_record('md_product', 'id, name, examine_modify_time AS start_time, end_time', array('id' => $pid, 'if_show' => 1));
+        if (empty($pif)) {
+            $res['status']   = '404';
+            $res['msg']      = '没找到该项目';
+            $res['sd']['id'] = $pid;
+
+            echo json_encode($res);
+            exit;
+        }
+        $res['sd']['id']   = $pid;
+        $res['sd']['name'] = $pif['name'];
+
+        // 获取项目起止时间段内数据
+        $table = 'md_statistics_pro_detail';
+        $select = 'dtime, pid, mdsf, mdsff, sum(pv) AS pv, sum(uv) AS uv, sum(cnt_order) AS cnt_order, sum(cnt_pay) AS cnt_pay, sum(cnt_money) AS cnt_money, sum(cnt_backer) AS cnt_backer, sum(cnt_backer_new) AS cnt_backer_new';
+        $where = array('pid' => $pid);
+        $group_by = array('dtime');
+        $order_by = 'dtime asc';
+        $ppiiff = $this->Statistics_m->get_table_list($table, $select, $where, $group_by, $order_by);
+        $x          = array();
+        $pv         = array();
+        $uv         = array();
+        $pay        = array();
+        $money      = array();
+        $backer     = array();
+        $backer_new = array(0 => 0);
+        foreach ($ppiiff as $iiff) {
+            $x[]          = date('Y-m-d', strtotime($iiff['dtime']));
+            $pv[]         = intval($iiff['pv']);
+            $uv[]         = intval($iiff['uv']);
+            //$pay[]        = intval($iiff['cnt_pay']);
+            //$money[]      = intval($iiff['cnt_money']);
+            //$backer[]     = intval($iiff['cnt_backer']);
+            //$backer_new[] = intval($iiff['cnt_backer_new']);
+        }
+        $sql = "SELECT DATE_FORMAT(`ctime`, '%Y-%m-%d') AS riqi,COUNT(*) AS form,COUNT(DISTINCT `user_id`) AS backer,SUM(`amount`) AS money FROM `md_product_back` WHERE `pro_id` = '{$pid}' AND (`if_pay` = 1 OR `if_pay` = 3) GROUP BY riqi";
+        $reslut = $this->tongji_db->query($sql);
+        $reslut = $reslut->result_array();
+        $jieguo = array();
+        foreach($reslut as $key => $val){
+            $jieguo[$val['riqi']] = $val;
+        }
+        unset($reslut);
+        foreach($x as $key => $val){
+            if(!isset($jieguo[$val])){
+                $jieguo[$val] = array("riqi" => $val, "form" => 0, "backer" => 0, "money" => 0);
+            }
+        }
+        ksort($jieguo);
+        foreach($jieguo as $key => $val){
+            $pay[]        = intval($val['form']);
+            $money[]      = intval($val['money']);
+            $backer[]     = intval($val['backer']);
+        }
+        $sql = "SELECT `examine_modify_time`,`end_time` FROM `md_product` WHERE `id` = '{$pid}'";
+        $reslut = $this->tongji_db->query($sql);
+        $reslut = $reslut->row_array();
+        $sql = "SELECT `id` FROM `md_users` WHERE `ctime` > '{$reslut['examine_modify_time']}' AND `ctime` < '{$reslut['end_time']}' AND `id` IN (SELECT DISTINCT(`user_id`) FROM `md_product_back` WHERE `pro_id` = '{$pid}' AND (`if_pay` = 1 OR `if_pay` = 3))";
+        $reslut = $this->tongji_db->query($sql);
+        $user_id = $reslut->result_array();
+        foreach($user_id as $key => $val){
+            $sql = "SELECT `pro_id` FROM `md_product_back` WHERE `user_id` = '{$val['id']}' AND (`if_pay` = 1 OR `if_pay` = 3) ORDER BY `ctime` ASC LIMIT 0,1";
+            $reslut = $this->tongji_db->query($sql);
+            $reslut = $reslut->row_array();
+            if(intval($reslut['pro_id']) === intval($pid)){
+                $backer_new[0]++;
+                //echo $val['id']."\n";
+            }
+        }
+        //die();
+        $res['sd']['total_puv']['pv'] = array_sum($pv);
+        $res['sd']['total_puv']['uv'] = array_sum($uv);
+        $res['sd']['puv'] = array(
+            'title'    => '项目P/UV',
+            'subtitle' => '',
+            'xd'       => $x,
+            'yd'       => array(
+                'pv' => array(
+                    'title' => 'pv',
+                    'data' => $pv
+                ),
+                'uv' => array(
+                    'title' => 'uv',
+                    'data' => $uv
+                )
+            )
+        );
+        $res['sd']['total_pay'] = array_sum($pay);
+        $res['sd']['pay'] = array(
+            'title'    => '支付数量',
+            'subtitle' => '',
+            'xd'       => $x,
+            'yd'       => $pay
+        );
+        $res['sd']['total_money'] = array_sum($money);
+        $res['sd']['money'] = array(
+            'title'    => '众筹金额',
+            'subtitle' => '',
+            'xd'       => $x,
+            'yd'       => $money
+        );
+        $res['sd']['total_backer'] = array_sum($backer);
+        $res['sd']['backer'] = array(
+            'title'    => '支持人数',
+            'subtitle' => '',
+            'xd'       => $x,
+            'yd'       => $backer
+        );
+
+        $ccb = 0;
+        $ccbn = 0;
+        /*foreach ($backer as $b) {
+            $ccb += $b;
+        }*/
+        $sql = "SELECT COUNT(DISTINCT `user_id`) AS shu FROM `md_product_back` WHERE `pro_id` = '{$pid}' AND (`if_pay` = 1 OR `if_pay` = 3)";
+        $reslut = $this->tongji_db->query($sql);
+        $reslut = $reslut->row_array();
+        $ccb = intval($reslut['shu']);
+        foreach ($backer_new as $b) {
+            $ccbn += $b;
+        }
+        $res['sd']['user'] = array(
+            'title'    => '新用户占比',
+            'subtitle' => '新用户：该项目上线后注册，且第一个支持该项目的用户',
+            'data'     => array(
+                array('name' => '新用户', 'value' => $ccbn),
+                array('name' => '老用户', 'value' => $ccb-$ccbn)
+            )
+        );
+
+        // 流量来源
+        $tmpf = $this->Statistics_m->get_table_list(
+            'md_statistics_pro_detail',
+            'mdsf AS name, sum(uv) AS value',
+            array(
+                'pid' => $pid,
+                'dtime >=' => $pif['start_time'],
+                'dtime <=' => $pif['end_time']
+            ),
+            'mdsf'
+        );
+        usort($tmpf, function($a, $b) {
+            if($a['value'] == $b['value']) return 0;
+            return ($a['value'] > $b['value']) ? -1 : 1;
+        });
+        $total_ff = 0;
+        foreach ($tmpf as $ff) {
+            $total_ff += intval($ff['value']);
+        }
+        foreach ($tmpf as &$ff) {
+            $ff['per'] = number_format(intval($ff['value']) / $total_ff * 100, 2) . '%';
+        }
+        $res['sd']['from'] = array(
+            'title'    => '流量来源',
+            'subtitle' => '',
+            'caption' => array('渠道', 'uv总量', '百分比'),
+            'data'     => $tmpf
+        );
+
+        $res['status']       = '200';
+        $res['msg']          = 'OK';
+        echo json_encode($res);
+    }
+
+
+    // ---------------------------------------------------------------------
+    // 用户留存
+    public function user_save()
+    {
+        $data['banner'] = '项目统计';
+        $this->load->view('statistics/user_save', $data);
+    }
+    public function ajax_user_save()
+    {
+        $date_type = intval($this->input->post('date_type', null));
+        $acc_type = intval($this->input->post('acc_type', null));
+
+        $page['type'] = $acc_type;
+        $page['d_type'] = $date_type;
+        $page['user_save_data'] = $this->_get_user_save_data($acc_type, $date_type);
+
+        if (!empty($page['user_save_data']))
+            $html = $this->load->view('statistics/user_save_table', $page, true);
+        else
+            $html = '<p style="color: #C85448">没有数据</p>';
+
+        unset($page);
+        echo json_encode(array(
+            'errcode' => 0,
+            'errmsg' => $html
+        ));
+    }
+    //
+    public function _get_user_save_data($acc_type, $date_type)
+    {
+        $end_t = date('Y-m-d H:i:s');
+        switch ($date_type) {
+            case 1: // 日留存時間，最近14天
+                $begin_t = date('Y-m-d 00:00:00', strtotime($end_t) - 14 * 86400); // 14天
+                $step_t['i'] = 0;
+                $step_t['k'] = 86400;
+                // $filename = '用户留存-日-login';
+                // $add_time = 'd';
+                break;
+            case 2: // 周留存時間，最近12周
+                $this_w = time_2_week($end_t);
+                $begin_t = date('Y-m-d 00:00:00', strtotime($this_w['start']) - 12 * 604800); // 12周
+                $step_t['i'] = 518400;
+                $step_t['k'] = 604800;
+                // $filename = '用户留存-周-login';
+                // $add_time = 'w';
+                break;
+            default:
+                # code...
+                break;
+        }
+
+        if ($acc_type == 1)
+            $if_user = false;
+        else
+            $if_user = true;
+
+        $ii = 0;
+        do {
+            $reg_time = array(
+                'start_t' => $begin_t,
+                'end_t' => date('Y-m-d 23:59:59', strtotime($begin_t) + $step_t['i'])
+            );
+
+            $excel_d[$ii] = array(
+                'date' => date('Y-m-d', strtotime($begin_t)),
+                'reg' => $this->_count_reg_user($reg_time, $if_user)
+            );
+
+            $kk = 1;
+            $acc_time = array(
+                'start_t' => date('Y-m-d 00:00:00', strtotime($begin_t) + $kk * $step_t['k']),
+                'end_t' => date('Y-m-d 23:59:59', strtotime($begin_t) + $kk * $step_t['k'] + $step_t['i'])
+            );
+            while($acc_time['start_t'] <= $end_t) {
+                $excel_d[$ii]["a{$kk}"] = $this->_count_live_user($reg_time, $acc_time, $if_user);
+                if ($excel_d[$ii]['reg'] == 0)
+                    $excel_d[$ii]["a{$kk}"] = 0;
+                else
+                    $excel_d[$ii]["a{$kk}"] = round($excel_d[$ii]["a{$kk}"] / $excel_d[$ii]['reg'] * 100, 2) . '%';
+
+                $kk++;
+                $acc_time = array(
+                    'start_t' => date('Y-m-d 00:00:00', strtotime($begin_t) + $kk * $step_t['k']),
+                    'end_t' => date('Y-m-d 23:59:59', strtotime($begin_t) + $kk * $step_t['k'] + $step_t['i'])
+                );
+            }
+
+            $ii++;
+            $begin_t = date('Y-m-d 00:00:00', strtotime($begin_t) + $step_t['k']);
+        } while($begin_t <= $end_t);
+
+        return $excel_d;
+
+        // $this->load->helper('excel');
+        // $arr_title = array(
+        //     'date' => '日期',
+        //     'reg'  => $if_user ? '新增注册数' : '新增访问数',
+        //     'a1'   => $add_time.'+1',
+        //     'a2'   => $add_time.'+2',
+        //     'a3'   => $add_time.'+3',
+        //     'a4'   => $add_time.'+4',
+        //     'a5'   => $add_time.'+5',
+        //     'a6'   => $add_time.'+6',
+        //     'a7'   => $add_time.'+7',
+        //     'a8'   => $add_time.'+8',
+        //     'a9'   => $add_time.'+9',
+        //     'a10'  => $add_time.'+10',
+        //     'a11'  => $add_time.'+11',
+        //     'a12'  => $add_time.'+12',
+        //     'a13'  => $add_time.'+13',
+        //     'a14'  => $add_time.'+14'
+        // );
+        // export_to_csv($arr_title, $excel_d, $filename);
+    }
+    // 统计指定时间的注册用户在给定时间内的访问人数
+    private function _count_live_user($reg_time, $acc_time, $if_user=true)
+    {
+        if ($if_user) {
+            $sql = "SELECT uid
+                    FROM (SELECT id AS user_id FROM `md_users` WHERE '{$reg_time['start_t']}'<=ctime AND ctime<='{$reg_time['end_t']}') AS tmp1
+                        JOIN (SELECT uid FROM `md_statistics_stay_acc_log` WHERE uid!=0 AND '{$acc_time['start_t']}'<=aatime AND aatime<='{$acc_time['end_t']}' GROUP BY uid) AS tmp2
+                            ON tmp1.user_id=tmp2.uid";
+        } else {
+            $sql = "SELECT user_id
+                    FROM (SELECT aid AS user_id FROM `md_statistics_stay_acc_log` WHERE mdss='1-n' AND '{$reg_time['start_t']}'<=aatime AND aatime<='{$reg_time['end_t']}' GROUP BY user_id) AS tmp1
+                        JOIN (SELECT aid FROM `md_statistics_stay_acc_log` WHERE '{$acc_time['start_t']}'<=aatime AND aatime<='{$acc_time['end_t']}' GROUP BY aid) AS tmp2
+                            ON tmp1.user_id=tmp2.aid";
+        }
+
+        $the_count = $this->tongji_db->query($sql)->num_rows();
+
+        return $the_count;
+
+    }
+    // 统计指定时间内的注册用户数
+    private function _count_reg_user($reg_time, $if_user=true)
+    {
+        if (!isset($reg_time['start_t']) || !isset($reg_time['end_t']))
+            return 0;
+
+        if ($if_user) { // 新的注册人数
+            $this->tongji_db->select('id');
+            $this->tongji_db->from('md_users');
+            $this->tongji_db->where('ctime >=', $reg_time['start_t']);
+            $this->tongji_db->where('ctime <=', $reg_time['end_t']);
+            $res = $this->tongji_db->get()->result_array();
+        } else { // 新的访问人数
+            $this->tongji_db->select('aid AS id', false);
+            $this->tongji_db->from('md_statistics_stay_acc_log');
+            $this->tongji_db->where('mdss', '1-n');
+            $this->tongji_db->where('aatime >=', $reg_time['start_t']);
+            $this->tongji_db->where('aatime <=', $reg_time['end_t']);
+            $res = $this->tongji_db->get()->result_array();
+        }
+
+        return count($res);
+    }
+
+
+}
+
+

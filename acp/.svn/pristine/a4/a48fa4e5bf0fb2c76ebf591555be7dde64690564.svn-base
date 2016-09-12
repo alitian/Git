@@ -1,0 +1,23 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<style type="text/css">
+    td,tr{
+        white-space: nowrap;
+    }
+</style>
+<script type="text/javascript">
+    $(function() {
+        $("table").tablesorter({debug: true});
+    });
+</script>
+<?php $this->load->view('pay_ad/tabs'); ?>
+<?php if($type=='refund'): ?>
+<form method="POST" name='form1' id="form1" action="">
+    <input type="hidden" value="798" name="SfeN32d" />
+    <button type="submit" class="btn btn-success" id="btn_confirm"><i class="icon-hand-down"></i>确认退账</button>
+</form>
+<?php endif; ?>
+<?php $this->load->view('pay_ad/alipay_normal'); ?>
+<?php
+$this->load->view('ckad/footer')?>

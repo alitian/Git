@@ -1,0 +1,227 @@
+<?php	
+	class Bbs_main_model extends CI_Model{
+
+		const MD_BBS_POST_TABLE = 'bbs_post';
+		const MD_BBS_RECOMMEND_TABLE = 'bbs_recommend';  //首页推荐表
+		const MD_BBS_POST_MANAGER_LOG_TABLE = 'bbs_post_manager_log';
+		const MD_BBS_TAG_TABLE  = 'bbs_tag';
+		const MD_BBS_TAG_MAP_TABLE  = 'bbs_tag_map';
+		const MD_BBS_REPLY_RECOMMEND_TABLE = 'bbs_reply_recommend';
+		const MD_BBS_REPLY_MANAGER_LOG_TABLE = 'bbs_reply_manager_log';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+		}
+
+		/**
+		 *	获取全部的非推荐状态的精华帖
+		 *
+		 * @return 	array 		$digest_post_list
+		 *
+		 */
+		public function get_digest_post_list()
+		{
+			$where = array(
+						'isdigest' => 1,
+						'isshow' => 1,
+						'isverified' => 1,
+						'isrecommend != ' => 1 		// 排除已经是推荐的帖子
+					);
+			$order_by = 'ctime DESC';
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$post_query = $this->moxi_db->get();
+			$stick_post_list = $post_query->result_array();
+			return $stick_post_list;
+		}
+
+		/**
+		 * 	获取推荐帖(推荐帖满足的条件：1.必须是精华帖(因为只有来源是精华帖) 2.sortid权重>0(我们只有将sortid设置为>0才可) 3.isrecommend=1)
+		 *
+		 * @return 	array 		$recommend_post_list
+		 *
+		 */
+		public function get_recommend_post_list()
+		{
+			$where = array(
+						'isshow' => 1,
+						'isverified' => 1,
+						'isrecommend' => 1
+					);
+			$order_by = 'sortid DESC';
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$post_query = $this->moxi_db->get();
+			$recommend_post_list = $post_query->result_array();
+			return $recommend_post_list;
+		}
+
+		/**
+		 *
+		 * 	获取推荐回复 - 新增了推荐回复表
+		 *
+		 */
+		public function get_recommend_reply_list()
+		{
+			$this->moxi_db->from(self::MD_BBS_REPLY_RECOMMEND_TABLE);
+			$this->moxi_db->order_by('sortid DESC, ctime DESC');
+			$reply_query = $this->moxi_db->get();
+			$recommend_reply_list = $reply_query->result_array();
+			if(empty($recommend_reply_list))
+				return array();
+			return $recommend_reply_list;
+		}
+
+		/**
+		 *	改变帖子的推荐权重 | 新增推荐帖
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$sortid
+		 * 	@param 		int 		$uid
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function change_recommend_weight($postid, $sortid, $uid)
+		{
+			if($sortid){
+				$set = array(
+							'weight' => $sortid,
+							// 'isrecommend' => 1
+						);
+			}else{
+				$set = array(
+							'weight' => 0,
+							// 'isrecommend' => 0
+						);
+			}
+			$where = array(
+							'id' => $postid
+						);
+			$bool = $this->moxi_db->update(self::MD_BBS_RECOMMEND_TABLE, $set, $where);
+			if(!$bool) return 0; 		// 表示更改推荐顺序失败
+			if($bool){
+				// 增加管理员操作记录
+				$manager_reason = '更改推荐帖子排序为' . $sortid;
+				$manager_type = 11; 			// 更改帖子的推荐排序
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $postid,
+							'manager_type' => $manager_type, 			// 操作记录表中，我们将管理员对帖子的推荐的type规定为10
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager) return -1; 		// 表示插入插入操作记录表失败
+			}
+			return 1;
+		}
+
+		/**
+		 *	改变回复的推荐权重
+		 *
+		 * 	@param 		int 		$recommend_id
+		 * 	@param 		int 		$sortid
+		 * 	@param 		int 		$uid
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function change_reply_recommend_weight($recommend_id, $sortid, $uid)
+		{
+
+			// 首先得查询推荐回复的post_id, reply_id
+			$this->moxi_db->from(self::MD_BBS_REPLY_RECOMMEND_TABLE);
+			$this->moxi_db->where('id', $recommend_id);
+			$recommend_info = $this->moxi_db->get()->row_array();
+			
+			$set = array(
+						'id' => $recommend_id,
+						'sortid' => $sortid
+					);
+			$where = array(
+							'id' => $recommend_id
+						);
+			if($sortid){
+				$bool = $this->moxi_db->update(self::MD_BBS_REPLY_RECOMMEND_TABLE, $set, $where);
+			}else{
+				$bool = $this->moxi_db->delete(self::MD_BBS_REPLY_RECOMMEND_TABLE, $where);
+			}
+			if(!$bool) return 0; 		// 表示更改推荐顺序失败
+			if($bool){
+
+				// 增加管理员操作记录
+				$manager_reason = '更改推荐回复排序为' . $sortid;
+				$manager_type = 6; 			// 更改帖子的推荐排序
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $recommend_info['post_id'],
+							'manager_reply_id' => $recommend_info['reply_id'],
+							'manager_type' => $manager_type, 			// 操作记录表中，我们将管理员对回复的推荐的type规定为5
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_REPLY_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager) return -1; 		// 表示插入插入回复操作记录表失败
+			}
+			return 1;
+		}
+
+		//jaafar 这个为之前的帖子推荐 修改权重 ，临时保留
+		public function change_recommend_weight_old($post_id, $sortid, $uid)
+		{
+			if($sortid){
+				$set = array(
+							'sortid' => $sortid,
+							'isrecommend' => 1
+						);
+			}else{
+				$set = array(
+							'sortid' => 0,
+							'isrecommend' => 0
+						);
+			}
+			$where = array(
+							'post_id' => $post_id
+						);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+			if(!$bool) return 0; 		// 表示更改推荐顺序失败
+			if($bool){
+				// 增加管理员操作记录
+				$manager_reason = '更改推荐帖子排序为' . $sortid;
+				$manager_type = 11; 			// 更改帖子的推荐排序
+				$set = array(
+							'manager_uid' => $uid,
+							'manager_post_id' => $post_id,
+							'manager_type' => $manager_type, 			// 操作记录表中，我们将管理员对帖子的推荐的type规定为10
+							'manager_reason' => $manager_reason,
+							'ctime' => time()
+						);
+				$bool_manager = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+				if(!$bool_manager) return -1; 		// 表示插入插入操作记录表失败
+			}
+			return 1;
+		}
+		/**
+		 * 获取帖子推荐纪录
+		 * @param  [type] $post_id [description]
+		 * @return [type]          [description]
+		 */
+		public function get_recommend_post_record($post_id,$type){
+			$where=array(
+				'type'     =>$type,
+				'object_id'=>$post_id,
+				'status'   => 0
+			);
+			$this->moxi_db->from(self::MD_BBS_RECOMMEND_TABLE);
+			$this->moxi_db->where($where);
+			$query=$this->moxi_db->get();
+			if(!empty($query->row_array())){
+				return ture;
+			}else{
+				return false;
+			}
+		}
+	}

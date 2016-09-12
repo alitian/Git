@@ -1,0 +1,141 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <ul class="nav nav-tabs">
+        <li role="presentation" <?php if ($type==1) echo 'class="active"'; ?>><a href="<?php echo $site_url . 'md_app_rcmd/item_topic_list/1'; ?>">APP首页-项目推荐区</a></li>
+        <li role="presentation" <?php if ($type==2) echo 'class="active"'; ?> ><a href="<?php echo $site_url . 'md_app_rcmd/app_rcmd_list/2'; ?>">APP首页-轮播图</a></li>
+        <li role="presentation" <?php if ($type==4) echo 'class="active"'; ?> ><a href="<?php echo $site_url . 'md_app_rcmd/item_topic_list/4'; ?>">APP文字帮助</a></li>
+    </ul>
+    <div>
+        <h2>
+            <!-- 根据  22类型来显示  -->
+            <?php
+            switch ($type) {
+                case '1':
+                    echo 'APP首页-项目推荐区';
+                    break;
+                case '2':
+                    echo 'APP首页-轮播图';
+                    break;
+            }
+            ?>
+
+        </h2>
+    </div>
+    <div>
+        <div>
+                <form action="" class="form-inline">
+                            <a href="<?php echo $site_url . 'md_app_rcmd/add_item_topic/' . $type; ?>" class="btn btn-info btn-sm">
+                                <?php
+                                switch ($type) {
+                                    case '1':
+                                        echo ' 新增推荐主题';
+                                        break;
+                                    case '4':
+                                        echo '新增帮助主题';
+                                        break;
+                                }
+                                ?>
+                            </a>
+                </form>
+            <!--                <form action="/bbs_main/change_weight/--><?//=$type?><!--" method="post" style="margin-top: -46px;margin-left: 100px;">-->
+            <!--                    <input type="hidden" name="post_id_array">-->
+            <!--                    <input type="hidden" name="post_sortid_array">-->
+            <!--                    <button id="edit_sortid" type="submit" class="btn btn-info btn-sm">批量修改权重</button>-->
+            <!--                </form>-->
+        </div>
+        <p></p>
+        <?php if($item_topic_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="5%">权重</th>
+                        <?php if($type==1):?>
+                            <th>推荐标题</th>
+                            <th width="50%">操作</th>
+                        <?php else:?>
+                            <th>标题</th>
+                            <th>创建时间</th>
+                            <th>链接</th>
+                            <th width="30%">操作</th>
+                        <?php endif;?>
+                    </tr>
+                    <?php foreach($item_topic_list as $topic_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $topic_info['weight'] ?>" data-id="<?php if($type==1){echo $topic_info['cate_id'];}else{ echo $topic_info['id'];}?>" type="text" class="sortid" value="<?= $topic_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?= $topic_info['title'] ?></td>
+                            <?php if($type==4):?>
+                                <td><?= $topic_info['ctime'] ?></td>
+                                <td><?= $topic_info['links'] ?></td>
+                                <td><a class="del" href="/md_app_rcmd/edit_rcmd_intro/<?= $topic_info['id'] ?>">编辑</a> | <a href="javascript:;" class="del_intro" data-id="<?=$topic_info['id']?>">删除</a></td>
+                            <?php else:?>
+                                <td><a class="del" href="/md_app_rcmd/edit_item_topic/<?= $topic_info['cate_id'] ?>">编辑主题</a> | <a href="/md_app_rcmd/app_rcmd_list/<?=$type?>/<?= $topic_info['cate_id'] ?>/<?= $curpage ?>">管理项目</a></td>
+                            <?php endif;?>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<script>
+
+    $(".sortid").blur(function(){
+        var weight = $(this).val();
+        var that = $(this);
+        var cate_id = that.data('id');
+        var type = <?=$type?>;
+        if(isNaN(weight)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_app_rcmd/change_weight')?>",
+            data : {'id':cate_id,'weight':weight,'type':type}, //这儿type 1表示为推荐主题权重编辑
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+
+    });
+    $(".del_intro").click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        var type = <?=$type?>;
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_app_rcmd/del_app_rcmd')?>",
+            data:{'id':id,'type':type},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+//                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

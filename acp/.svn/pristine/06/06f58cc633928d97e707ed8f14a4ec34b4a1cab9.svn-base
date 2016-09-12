@@ -1,0 +1,77 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div class="row">
+        <div>
+            <h1>编辑器白名单管理</h1>
+            <hr>
+            <div class="form-container">
+                <form action="/main/add_editor_white" method="post" enctype="multipart/form-data" role="form" id="editor_form">
+                    <div class="form-group">
+                        <label for="name">中文名称:</label>
+                        <input type="text" class="form-control chname first_chname" id="name" placeholder="请输入中文名称(十五字以内)" name="ch_name[]" value="<?=$editor_info["ch_name"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="editor">域名:</label>
+                        <input type="text" class="form-control domain first_domain" id="editor" placeholder="请输入域名" name="domain[]" value="<?=$editor_info["domain"]?>">
+                    </div>
+                    <?php if(!$editor_info):?>
+                        <div class="do_clone">
+                            <hr>
+                            <div class="form-group">
+                                <label for="name">中文名称:</label>
+                                <input type="text" class="form-control chname" id="name" placeholder="请输入中文名称(十五字以内)" name="ch_name[]">
+                            </div>
+                            <div class="form-group">
+                                <label for="editor">域名:</label>
+                                <input type="text" class="form-control domain" id="editor" placeholder="请输入域名" name="domain[]">
+                                <button id="add_rule" class="btn btn-danger btn-lg" style="margin-left:10px;" type="button">+新增</button>
+                            </div>
+                        </div>
+                    <?php endif;?>
+                    <div style="height:40px;"></div>
+                    <input type="hidden" name="id" value="<?=$editor_info["id"]?>">
+                    <input type="hidden" name="is_new" value="1">
+                    <button type="button" class="btn btn-primary btn-lg" id="do_submit">保存</button>
+                    <button type="reset" class="btn btn- btn-lg">取消</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    $(function(){
+       $(document).on('click','#add_rule',function(){
+           var append_html = $(".do_clone").last().clone();
+           $(this).remove();
+           $(".do_clone").last().after(append_html);
+       });
+    });
+    var is_submit=1;
+    $("#do_submit").click(function(){
+        $(".chname").each(function(){
+            var ch_name = $(this).val();
+            if(ch_name.length>15){
+                alert("十五字以内");
+                is_submit=0;
+                $(this).focus();
+                return false;
+            }
+        });
+        if(!is_submit){
+            is_submit=1;
+            return false;
+        }
+        if(!$.trim($(".first_chname").val())){
+            alert("请填写中文名称");
+            $(".first_chname").focus();
+            return false;
+        }
+        if(!$.trim($(".first_domain").val())){
+            alert("请填写域名");
+            $(".first_domain").focus();
+            return false;
+        }
+        $("#editor_form").submit();
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,84 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('weidashang/tabs') ?>
+
+<p>说明：本页面仅供阅览系统发起的退款请求信息。</p>
+<div class="row-fluid">
+	<div class="box span12">
+		<div id="p" class="easyui-panel" title="信息统计" style="height:100px;padding:10px;margin:0;" data-options="collapsible:true">
+			<p>退款请求总批次数：<span id="total">total</span> (成功：<span id="success">success</span>; 失败：<span id="failure">failure</span>)</p>
+			<p>蓝色：今天的退款请求数据；红色：请求金额于通知退款金额不符。</p>
+		</div>
+		<div class="box-content">
+			<table id="tt" class="easyui-datagrid" style="margin:0;height:600px"
+					url="/weidashang/load_batch_log"
+					rownumbers="true" pagination="true" pageSize=20>
+				<thead>
+					<tr>
+						<th field="batch_no" width="130" align="center">退款批次号</th>
+						<th field="refund_date" width="130" align="center">退款请求时间</th>
+						<th field="batch_num" width="70" align="center">退款总笔数</th>
+						<th field="batch_amount" width="70" align="right">退款总额</th>
+						<th field="detail_data" width="210">单笔数据集</th>
+						<th field="service" width="70">service</th>
+						<th field="partner" width="70" align="center">合作身份者id</th>
+						<th field="notify_url" width="70">服务器异步通知页面路径</th>
+						<th field="_input_charset" width="70" align="center">字符编码格式</th>
+						<th field="return_code" width="130" align="center">退款请求结果</th>
+						<th field="result_date" width="130" align="center">退款结果通知时间</th>
+						<th field="success_num" width="70" align="center">退款成功总数</th>
+						<th field="result_details" width="210" align="center">处理结果详情</th>
+						<th field="unfreezed_deta" width="70" align="center">解冻结果明细</th>
+						<th field="batch_id" width="50" align="center">项目批次号ID</th>
+						<th field="pro_id" width="50" align="center">项目ID</th>
+		            </tr>
+				</thead>
+			</table>
+		</div><!-- end of box-content -->
+	</div><!-- end of span12 -->
+</div><!-- end of row-fluid -->
+
+
+<script>
+    $(function(){
+		$('#tt').datagrid({
+		    rowStyler:function(index,row){
+		    	color = 'color:black;';
+
+		    	var date_f = row.refund_date;
+		    	date_f = new Date(date_f);
+		    	date_f = date_f.getFullYear() +'年'+ date_f.getMonth()+1 +'月'+ date_f.getDate();
+		    	var date_t = new Date();
+		    	date_t = date_t.getFullYear() +'年'+ date_t.getMonth()+1 +'月'+ date_t.getDate();
+		    	if (date_t == date_f)
+		    		var color = 'color: blue';
+
+		    	if (row.success_num != row.batch_num)
+		            color = 'color:red;';
+
+		        return color;
+		    },
+		    loadFilter: function(data) {
+                if (data.total)
+                	$('#total').text(data.total);
+                else
+                	$('#total').text(0);
+
+                if (data.success)
+                    $('#success').text(data.success);
+                else
+                	$('#success').text(0);
+
+                if (data.failure)
+                    $('#failure').text(data.failure);
+                else
+                	$('#failure').text(0);
+                
+                return data;
+            }
+		});
+    });
+</script>
+<?php
+$this->load->view('ckad/footer')?>
+
+

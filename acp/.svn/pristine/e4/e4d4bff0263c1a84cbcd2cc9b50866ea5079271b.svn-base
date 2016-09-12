@@ -1,0 +1,49 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class User_cron extends CI_Controller {
+		
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $this->load->helper('url');
+		$this->load->model('User_m');
+		$this->load->model ( 'Common' );
+		$this->load->model ( 'Weixin_msg_m' );
+		$this->load->library('md_common');
+                        
+    }
+   	/**
+   	 * 批量处理用户标签
+   	 * Enter description here ...
+   	 */
+   	function batch_usertags(){
+   		//$date = date("Y-m-d H:i:s", time() - 3600 * 24);
+   		$date = "2015-09-01 23:00:00";
+   		$sql = 'SELECT DISTINCT(`pro_id`),`user_id` FROM `md_product_back` WHERE `if_pay`=1 AND `ctime` > "'.$date.'"';
+        $pro_mess = $this->db->query($sql)->result_array();
+   		for($i=0;$i<count($pro_mess);$i++){//循环取出每个项目的tag
+   			$sql = 'SELECT `pro_tag` FROM `md_product` WHERE `id`="'.$pro_mess[$i]['pro_id'].'"';
+   			$sql_res = $this->db->query($sql)->result_array();
+   			$pro_mess[$i]['pro_tag'] = $sql_res[0]['pro_tag'];
+   		}
+   		foreach($pro_mess as $item){
+   			$user_sql = 'SELECT `sys_tags` FROM `md_users` WHERE `id`="'.$item['user_id'].'"';
+   			$result = $this->db->query($sql)->result_array();
+   			$user_tagstr = $result[0]['sys_tags'];
+   			$user_tag_arr = explode(",", $user_tagstr);
+   			$pro_tag_arr = explode(",", $item['pro_tag']);   			
+			$user_tags = array_merge($user_tag_arr,$pro_tag_arr);//合并
+			$new_user_tags = array_unique($user_tags);//去重
+			$user_systags = implode(",", $new_user_tags);
+			$sys_tags = trim($user_systags,",");			
+			$up_user_tags = 'UPDATE `md_users` SET `sys_tags`="'.$sys_tags.'" WHERE `id`="'.$item['user_id'].'"';
+			$result = $this->db->query ( $up_user_tags );	
+			
+   		}
+   		echo ("用户更新系统标签完成!");
+   		exit;		
+   	}
+	
+}

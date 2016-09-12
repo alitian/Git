@@ -1,0 +1,172 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('weidashang/tabs') ?>
+<script type="text/javascript" src="<?= static_url(); ?>js/layer/layer.min.js"></script>
+<p style="color:red">说明：本页面提供查看微打赏众筹失败项目的退款订单信息，并按项目进行批量退款，请谨慎操作。</p>
+<div class="row-fluid">
+	<div class="box span12">
+		<div id="p" class="easyui-panel" title="操作" style="height:150px;padding:10px;margin:0;" data-options="collapsible:true">
+			<form id="form1" name="form1" method="POST" action="" onkeydown="if(event.keyCode==13){return false;}">
+				<div class="row-fluid">
+					<div class="span3">
+						<select id="pro_id" name ="pro_id" style="margin-top:5px;width:100%;">
+							<option value="">---项目 ID---</option>
+							<?php foreach ($failure_pro_lsts as $k=>$v): ?>
+			                <option value="<?php echo $v['id'];?>"><?php echo "{$v['id']}: {$v['name']}";?></option>
+			                <?php endforeach; ?>
+						</select>
+					</div>
+					<div class="span1">
+						<button id="search" class="btn btn-large btn-success" type="button" iconCls="icon-search" style="width:60px;">查找</button>
+					</div>
+					<div class="span2">
+						<button id="export2excel" class="btn btn-large btn-success" type="button" iconCls="icon-save" onclick="form1.action='/weidashang/export_wds_order';form1.submit()" style="width:110px;">导出excel</button>
+					</div>
+					<div class="span2">
+						<button id="sure_refund" class="btn btn-large btn-default" type="button" iconCls="icon-search" style="width:110px;" disabled="disabled">确认退款</button>
+					</div>
+				</div>
+                                <div class="row-fluid" style="margin-top:20px;margin-bottom:0;padding:0;">
+                                    <span class="label label-success">注：批量退款前，请到<a href="/wds_reconcil/index/abnormal"> 对账系统 </a>查看该项目是否有异常订单。若有异常订单，请修复后再执行批量退款操作。</span>
+                                </div>
+			</form>
+		</div>
+		<div class="box-content">
+			<div id='tb'>
+			<div class="btn-group">
+			  <button id="search_1" type="button" class="btn btn-default">待退款</button>
+			</div>
+			</div>
+			<table id="tt" class="easyui-datagrid" style="margin:0;height:600px"
+					url="/weidashang/ajax_refund"
+					toolbar="#tb" fitColumns="false" singleSelect="true"
+		            rownumbers="true" pagination="true" pageSize=20 showFooter="true">
+				<thead>
+					<tr>
+						<th rowspan="2" field="pro_id" width="50" align="right">项目ID</th>
+
+						<th rowspan="2" field="back_id" width="50" align="center">订单ID</th>
+						<th rowspan="2" field="pay_out_trade_no" width="200" align="center">外部订单号</th>
+
+						<th rowspan="2" field="trade_no" width="130" align="center">原支付宝交易号</th>
+						<th rowspan="2" field="refund_amount" width="70" align="right">退款金额</th>
+						<th rowspan="2" field="refund_rsn" width="100">退款理由</th>
+
+						<th rowspan="2" field="back_amount" width="70" align="right">订单金额</th>
+						<th rowspan="2" field="pay_amount" width="70" align="right">支付金额</th>
+						<th rowspan="2" field="back_if_pay" width="70" align="center">订单支付</th>
+						<th rowspan="2" field="back_status" width="70" align="center">订单状态</th>
+						<th rowspan="2" field="pay_platform" width="70" align="center">支付平台</th>
+						<th rowspan="2" field="pay_bank_type" width="70" align="center">银行类型</th>
+						<th rowspan="2" field="pay_status" width="70" align="center">支付状态</th>
+
+						<th rowspan="2" field="pay_id" width="50" align="center">支付ID</th>
+						<th rowspan="2" field="rew_id" width="50" align="center">回报ID</th>
+
+						<th colspan="2">收件人信息</th>
+					</tr>
+		            <tr>
+						<th field="user_nickname" width="100" align="center">姓名</th>
+						<th field="user_reg_mobile" width="100" align="center">手机</th>
+		            </tr>
+				</thead>
+			</table>
+		</div><!-- end of box-content -->
+	</div><!-- end of span12 -->
+</div><!-- end of row-fluid -->
+
+
+
+<div id="agree_content" style="display:none;">
+	<div style="margin: 30px auto;width:430px;text-align:center">
+		<h2>确定为【<span>xxx</span>】项目进行退款吗？</h2>
+		<div style="margin-top: 30px;">
+			<button name="agree" class="btn btn-success btn-large" type="button" style="margin-right:10px;">同意</button>
+			<button name="cancel" class="btn btn-success btn-large" type="button" style="margin-left:10px;">取消</button>
+		</div>
+	</div>
+</div>
+
+<script>
+    $(function(){
+		$('#tt').datagrid({
+		    rowStyler:function(index,row){
+		        if (row.back_status != '103'){
+		            return 'color:red;';
+		        }
+		    },
+		    loadFilter: function(data){
+				$("#search_1").attr("class", "btn btn-default");
+		    	$("#sure_refund").attr('disabled',true);
+				$("#sure_refund").attr("class", "btn btn-large btn-default");
+                                 if (data.lst_type == 1) {
+					$("#search_1").attr("class", "btn btn-success");
+					
+					var pro_id = $('#pro_id').val();
+					if (pro_id) {
+						$("#sure_refund").attr('disabled',false);
+						$("#sure_refund").attr("class", "btn btn-large btn-danger");
+					}
+				} 
+
+				return data;
+			}
+		});
+
+    	$("#search").click(function() {
+			$('#tt').datagrid('load',{
+				pro_id: $('#pro_id').val(),
+				lst_type: 1,
+			});
+		});
+    	$("#search_1").click(function() {
+			$('#tt').datagrid('load',{
+				pro_id: $('#pro_id').val(),
+				lst_type: 1,
+			});
+		});
+
+		$("button#sure_refund").click(function() {
+			$('#agree_content h2 span').text($('#pro_id').find("option:selected").text());
+	    	$.layer({
+				type: 1,
+			    title: '确定同意退款',
+			    border: [0],
+			    closeBtn: [0],
+			    shadeClose: false,
+			    area: ['460px', '200px'],
+			    page: {
+			        dom : '#agree_content'
+			    }
+			});
+
+	        return false;
+	    });
+
+    });
+	$('#agree_content button[name="agree"]').click(function() {
+		form1.action='/weidashang/ajax_batch_refund';
+		form1.submit();
+		layer.closeAll();
+	});
+	$('#agree_content button[name="cancel"]').click(function() {
+		layer.closeAll();
+	});
+
+    if(document.attachEvent){
+         document.attachEvent("onkeydown",function(e){
+            if(e.keyCode == 13) {
+                // alert("a");
+                ;
+            }
+        });
+    } else {
+        document.addEventListener("keydown",function(e){
+            if(e.keyCode == 13)
+            document.getElementById("search").click();
+        });
+    }
+</script>
+<?php
+$this->load->view('ckad/footer')?>
+
+

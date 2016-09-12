@@ -1,0 +1,31 @@
+<style>
+    .btn-group a {
+        width: 70px;
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="/main/site">主页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/md_app_manager/index">APP首页管理</a>
+        </li>
+    </ul>
+</div>
+<?php $cur_func = $this->uri->segment(2); ?>
+<div class="btn-toolbar">
+    <div class="btn-group">
+        <a class="btn btn-large <?php if($cur_func == 'index'){ echo 'active'; }?>" href="/md_app_manager/index" >首页推荐</a>
+        <a class="btn btn-large <?php if($cur_func == 'item_list'){ echo 'active'; }?>" href="/md_app_manager/item_list">项目</a>
+        <a class="btn btn-large <?php if(($cur_func == 'comment_list')|| ($cur_func== 'show_reply_list')){ echo 'active'; }?>" href="/md_app_manager/comment_list">评论</a>
+        <a class="btn btn-large <?php if(($cur_func == 'video_list') || ($cur_func== 'show_video_list')){ echo 'active'; }?>" href="/md_app_manager/video_list">视频</a>
+        <a class="btn btn-large <?php if(($cur_func == 'update_list') || ($cur_func== 'show_update_list')){ echo 'active'; }?>" href="/md_app_manager/update_list">更新</a>
+    </div>
+</div>
+
+<div id="prompt_box" style="display: none">
+    <ul class="breadcrumb" width="80%" style="background: #ffffff">
+        <h3 style="font-family: italic;color: #aae87b"><i class="icon icon-ok"></i>&nbsp;修改成功</h3>
+    </ul>
+</div>

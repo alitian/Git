@@ -1,0 +1,75 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <ul class="nav nav-tabs">
+        <li role="presentation" class="<?php if(_uk(2)!='item_promotion_list'){echo 'active';}?>"><a href="<?php echo $site_url . 'bbs_tag_promotion/tag_promotion_list'; ?>">标签文字广告区</a></li>
+        <li role="presentation" class="<?php if(_uk(2)!='tag_promotion_list'){echo 'active';}?>"><a href="<?php echo $site_url . 'bbs_tag_promotion/item_promotion_list'; ?>">右侧手工推荐</a></li>
+    </ul>
+    <div>
+        <h2>
+        </h2>
+    </div>
+    <hr>
+    <div>
+            <div>
+                <form action="/bbs_tag_promotion/tag_promotion_list" method="post" class="form-inline">
+                    <input type="text" name="tag_name" placeholder="输入要投放广告的标签">
+                    <button id="tag_search" type="submit" class="btn btn-info btn-sm">搜索</button>
+                </form>
+                <?php if($tag_info['tag_id']):?>
+                    <form action="" class="form-inline"  style="float: right;margin-top: -50px;">
+                        <span style="margin-left:20px;">
+                            <a href="<?php echo $site_url . 'bbs_tag_promotion/add_tag_promotion?t='.$tag_info['tag_id']; ?>" class="btn btn-info btn-sm">新增</a>
+                        </span>
+                    </form>
+                <?php endif;?>
+
+            </div>
+        <p><h2><?=$tag_info['tag_name']?></h2></p>
+        <?php if($promotion_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="5%">编号</th>
+                        <th width="15%">推荐标题</th>
+                        <th>推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($promotion_list as $promotion_info): ?>
+                        <tr>
+                            <td><?=$promotion_info['id']?></td>
+                            <td><?= $promotion_info['title'] ?></td>
+                             <td><a href="<?=$promotion_info['links'] ?>" target="_blank"><?=$promotion_info['links'] ?></a></td>
+                            <td><a class="del" href="/bbs_tag_promotion/del_promotion/<?=$promotion_info['id']?>/<?=$promotion_info['object_id']?>">删除</a> | <a href="/bbs_tag_promotion/edit_promotion/<?= $promotion_info['id'] ?>">修改</a></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+
+            <!-- 显示帖子内容模态框 -->
+            <div id="view_post" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                    </div>
+                </div>
+            </div>
+
+
+
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<?php $this->load->view('ckad/footer'); ?>

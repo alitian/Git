@@ -1,0 +1,609 @@
+<?php
+/*
+ * 功能:主要实现ajax请求的功能函数
+ * */
+if (!defined('BASEPATH'))
+	exit('No direct script access allowed');
+class User_ajax extends Acp_Controller {
+	
+	public function __construct() {
+		parent::__construct();
+		$this->load->model('Edm_user_m');
+		$this->load->model('Edm_product_m');
+		$this->load->model('Common');
+		$this->load->library('md_imagick');
+	}
+	/*
+	*根据条件获取全部用户个数
+	* return 成功返回用户个数，失败返回0
+	*/
+    public function alluser(){
+    	$usercount = 0;
+    	$project = isset($_POST['project']) ? intval($_POST['project']) : '';
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	if($project == 1){
+    		//单项目全部用户个数
+    		$userArr = $this->Edm_user_m->get_all_user_product($productId);
+    	}elseif ($project == 2){
+    		//多项目全部用户个数
+    		$userArr = $this->Edm_user_m->get_all_user();
+    	}
+    	if($userArr){
+    		$usercount = count($userArr);
+    	}
+    	echo $usercount;
+    }
+    
+    
+    /*
+     *根据条件获取注册用户个数
+    * return 成功返回用户个数，失败返回0
+    */
+    public function only_registeruser(){
+    	$usercount = 0;
+    	//单项目全部用户个数
+    	$userArr = $this->Edm_user_m->get_only_register_user();
+    	if($userArr){
+    		$user_count = count($userArr);
+    	}else{
+    		$user_count = $usercount;
+    	}
+    	echo $user_count;
+    }
+    
+    
+    /*
+     *根据条件获取关注用户个数
+    * return 成功返回关注用户个数，失败返回0
+    */
+    public function favorsuser(){
+    	$usercount = 0;
+    	$project = isset($_POST['project']) ? intval($_POST['project']) : '';
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	if($project == 1){
+    		$userArr = $this->Edm_user_m->get_favors_user_product($productId);
+    	}elseif ($project ==2){
+    		$userArr = $this->Edm_user_m->get_favors_all_user();
+    	}
+    	if($userArr){
+    		$usercount = count($userArr);
+    	}
+    	
+    	echo $usercount;
+    }
+    
+    
+    /*
+     *根据条件获取评论用户个数
+    * return 成功返回关注用户个数，失败返回0
+    */
+    public function commentsuser(){
+    	$usercount = 0;
+    	$userArr = array();
+    	$project = isset($_POST['project']) ? intval($_POST['project']) : '';
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	if($project == 1){
+    		$userArr = $this->Edm_user_m->get_comments_user_product($productId);
+    	}elseif ($project ==2){
+    		$userArr = $this->Edm_user_m->get_comments_all_user();
+    	}
+    	if($userArr){
+    		$usercount = count($userArr);
+    	}
+    	echo $usercount;
+    }
+    
+    
+    /*
+     *根据条件获取支持用户个数
+    * return 成功返回支持用户个数，失败返回0
+    */
+    public function supportuser(){
+    	$usercount = 0;
+    	$userArr = array();
+    	$project = isset($_POST['project']) ? intval($_POST['project']) : '';
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	$supporttype = isset($_POST['supporttype']) ? intval($_POST['supporttype']) : '';
+    	if($project == 1){
+    	    if($supporttype == 1){
+    			$userArr = $this->Edm_user_m->get_one_support_user_product($productId);
+    		}elseif ($supporttype == 2){
+    			$userArr = $this->Edm_user_m->get_many_support_user_product($productId);
+    		}
+    	}elseif ($project == 2){
+    		if($supporttype == 1){
+    			$userArr = $this->Edm_user_m->get_one_support_user();
+    		}elseif ($supporttype == 2){
+    			$userArr = $this->Edm_user_m->get_many_support_user();
+    		}
+    	}
+    	if($userArr){
+    		$usercount = count($userArr);
+    	}
+    	echo $usercount;
+    }
+    
+    
+    /*
+     *根据条件获取支持用户个数
+    * return 成功返回支持用户个数，失败返回-1
+    */
+    public function productname(){
+    	$product_name = -1;
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	$name = $this->Edm_product_m->get_name_by_product($productId);
+    	if($name){
+    		echo json_encode(array('name'=>$name));
+    	}else{
+    		echo $product_name;
+    	}
+    }
+    public function productpic(){
+        $product_name = -1;
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	$picture = $this->Edm_product_m->get_pic_by_product($productId);
+    	if($picture){
+    		echo json_encode(array('picture'=>$picture));
+    	}else{
+    		echo $product_name;
+    	}    	
+    }
+    public function productcontent(){
+    	
+        $product_des = -1;
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	$picture = $this->Edm_product_m->get_content_by_product($productId);
+    	if($picture){
+    		echo json_encode(array('des'=>$picture));
+    	}else{
+    		echo $product_des;
+    	}      	
+    }
+    /*
+     *根据条件获取支持用户个数
+    * return 成功返回支持用户个数，失败返回-1
+    */
+    public function rewardscontent(){
+    	$rewards_content = -1;
+    	$pro_id = isset($_POST['pro_id']) ? intval($_POST['pro_id']) : '';
+    	$rewardsId = isset($_POST['rewards_id']) ? intval($_POST['rewards_id']) : '';
+    	
+    	$pro_info = $this->Edm_product_m->get_rewards_by_product($pro_id);
+    	foreach($pro_info as $key=>$val){
+    		$info[] = $val["id"];
+    	}
+    	if(in_array($rewardsId,$info)){
+    		$content = $this->Edm_product_m->get_rewards_content_by_id($rewardsId);
+    		if($content){
+    			echo json_encode(array("statue"=>3,"content"=>$content));
+    		}else{
+    			echo json_encode(array("statue"=>2,"content"=>""));
+    		}
+    	}else{
+    		echo json_encode(array("statue"=>1,"content"=>""));
+    	}
+    	
+    	
+    }
+    
+    
+    /*
+     *根据条件返回确认选择后的多项目用户信息
+    * return 成功返回json数组，失败返回-1
+    */
+    public function get_final_all_user(){
+    	$result = -1;
+    	$res = array();
+    	$all_num = isset($_POST['all_user']) ? intval($_POST['all_user']) : '';
+    	
+    	$register_num = isset($_POST['register_user']) ? intval($_POST['register_user']) : '';
+    	$favors_num = isset($_POST['favors_user']) ? intval($_POST['favors_user']) : '';
+    	$comments_num = isset($_POST['comments_user']) ? intval($_POST['comments_user']) : '';
+    	$support_one_num = isset($_POST['support_user_one']) ? intval($_POST['support_user_one']) : '';
+    	$support_many_num = isset($_POST['support_user_many']) ? intval($_POST['support_user_many']) : '';
+    	
+    	if(!empty($all_num)){
+    		$res = $this->Edm_user_m->get_all_user($all_num);
+    	}else{
+    		$res = $this->Edm_user_m->get_final_user_info($register_num,$favors_num,$comments_num,$support_one_num,$support_many_num);
+    	}
+    	if(!empty($res)){
+    		echo json_encode(array('num'=>count($res)));
+    	}else{
+    		echo $result;
+    	}
+    }
+    
+    /*
+     *根据条件返回确认选择后的单项目用户信息
+    * return 成功返回json数组，失败返回0
+    */
+    public function get_final_single_user(){
+    	$result = 0;
+    	$res = array();
+    	$pro_id = isset($_POST['pro_id']) ? $_POST['pro_id'] : '';
+    	
+    	$all_num = isset($_POST['all_user']) ? intval($_POST['all_user']) : '';
+    	$favors_num = isset($_POST['favors_user']) ? intval($_POST['favors_user']) : '';
+    	$comments_num = isset($_POST['comments_user']) ? intval($_POST['comments_user']) : '';
+    	$support_one_num = isset($_POST['support_user_one']) ? intval($_POST['support_user_one']) : '';
+    	$support_many_num = isset($_POST['support_user_many']) ? intval($_POST['support_user_many']) : '';
+    	 
+    	if(!empty($all_num)){
+    		$res = $this->Edm_user_m->get_all_user_product($pro_id,$all_num);
+    	}else{
+    		$res = $this->Edm_user_m->get_final_single_user($pro_id,$favors_num,$comments_num,$support_one_num,$support_many_num);
+    	}
+    	if(false !== $res){
+    		if(is_array($res)){
+    			echo json_encode(array('num'=>count($res)));
+    		}else {
+    			echo json_encode(array('num'=>$res));//空数据
+    		}
+    	}else{
+    		echo json_encode(array('num'=>"-1"));//失败数据
+    	}
+    }
+    
+    /*
+     *根据条件返回确认选择后的单项目用户信息
+    * return 成功返回json数组，失败返回0
+    */
+    public function get_rewards_product(){
+    	$result = 0;
+    	$res = array();
+    	$pro_id = isset($_POST['productId']) ? intval($_POST['productId']) : '';
+    	
+    	$productInfo = $this->Edm_product_m->get_info_by_product($pro_id);
+    	
+    	$html = "";
+    	$html .= '<thead>';
+	    	$html .= '<tr>';
+	    	$html .= '<th  width="150" align="center">排序</th>';
+	    	$html .= '<th  width="150" align="center">回报ID</th>';
+	    	$html .= '<th  width="300" align="center">回报内容</th>';
+	    	$html .= '<th  width="30" align="center">操作</th>';
+	    	$html .= '</tr>';
+    	if(!empty($pro_id)){
+    		$res = $this->Edm_product_m->get_rewards_by_product($pro_id);
+    		if(!empty($res)){
+    			foreach($res as $key=>$val){
+    				$html .= '<tr>';
+    				$html .= '<th align="center"><input type="text" id="rewards_asc_'.($key+1).'" name="rewards_asc[]" value="'.($key+1).'" ></th>';
+    				$html .= '<th align="center"><input type="text" id="rewards_id_'.($key+1).'" name="rewards_id[]" value="'.$val['id'].'" onBlur="get_rewards('.($key+1).');"></th>';
+    				$html .= '<th align="center"><input type="text" id="rewards_content_'.($key+1).'" name="rewards_content[]" value="'.$val['content'].'" readonly></th>';
+    				$html .= '<th align="center"><input type="button" value="删除" onclick="deltr(this)"></th>';
+    				$html .= '</tr>';
+    			}
+    		}
+    	}
+    	$html .= '</thead>';
+    	
+    	$hiddennum = count($res) + 1;
+    	echo json_encode(array("name"=>$productInfo["name"],"project_des"=>$productInfo["des"],"html"=>$html,"hiddennum"=>$hiddennum));
+    }
+    
+    
+    /*
+     *校验用户是否打开过邮件 未打开新增数据  打开过直接更新打开次数
+    * return 成功返回json数组，失败返回-1
+    */
+    public function insert_sendmail_info(){
+    	
+    	$data["user_email"] = isset($_POST['email']) ? $_POST['email'] : '';
+    	$data["theme_id"] = isset($_POST['theme']) ? intval($_POST['theme']) : '';
+    	$data["side"] = isset($_POST['side']) ? intval($_POST['side']) : '';
+    	
+    	$data["send_time"] = date("Y-m-d H:i:s");
+    	$data["is_open"] = 1;
+    	$data["open_time"] = date("Y-m-d H:i:s");
+    	$data["open_num"] = 1;
+    	
+    	$res = $this->Edm_user_m->get_sendmail($data);
+    	if($res){
+    		$result = $this->Edm_user_m->insert_sendmail($data);//记录打开邮件信息
+    		if($result){
+    			$this->Edm_user_m->update_sendnum($data["theme_id"]);
+    		}
+    	}else{
+    		$result = $this->Edm_user_m->update_sendmail($data);
+    	}
+    	if($result){
+    		echo json_encode(array('num'=> 1));
+    	}else{
+    		echo json_encode(array('num'=> 0));
+    	}
+    }
+    
+    public function upload_pic(){
+    	$picture = "";
+    	if ($_FILES["topic_picture"]) {
+    		if ($_FILES["topic_picture"]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["topic_picture"]["name"]);
+    			$str = date("Ymd");
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'edm/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["topic_picture"]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>str_replace("uploads/","",$data["pro_picture"])));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}
+    	
+    }
+    
+    
+    public function upload_topic_pic(){
+    	$picture = "";
+    	if ($_FILES["topic_pic"]) {
+    		if ($_FILES["topic_pic"]["name"][0]) {
+    			$exten = $this->Common->get_extension($_FILES["topic_pic"]["name"][0]);
+    			$str = date("Ymd");
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'uploads/edm/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["topic_pic"]["tmp_name"][0], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}
+    	 
+    }
+    
+    public function upload_custom_top_pic(){
+        $picture = "";
+    	if ($_FILES["custom_top_picture"]) {
+    		if ($_FILES["custom_top_picture"]["name"][0]) {
+    			$exten = $this->Common->get_extension($_FILES["custom_top_picture"]["name"][0]);
+    			$str = date("Ymd");
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'uploads/edm/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["custom_top_picture"]["tmp_name"][0], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}    	
+    }
+    /**
+     *上传红包标题图片
+     * Enter description here ...
+     */
+    public function upload_diandian_red_title(){
+        $picture = "";
+    	if ($_FILES["title_picture"]) {
+    		if ($_FILES["title_picture"]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["title_picture"]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "diandian/title/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "diandian/title/{$t1}" ,0755,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'diandian/title/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["title_picture"]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    	
+    }
+        
+    public function upload_diandian_pic(){
+        $picture = "";
+    	if ($_FILES["topic_picture"]) {
+    		if ($_FILES["topic_picture"]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["topic_picture"]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "diandian/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "diandian/{$t1}" ,0755,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'diandian/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["topic_picture"]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    }
+    
+    /**
+     * 上传推荐图
+     * Enter description here ...
+     */
+    public function upload_diandian_recom(){
+        $picture = "";
+    	if ($_FILES["topic_recom_picture"]) {
+    		if ($_FILES["topic_recom_picture"]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["topic_recom_picture"]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path')."diandian/recom/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "diandian/recom/{$t1}" ,0755,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'diandian/recom/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["topic_recom_picture"]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    }    
+
+    /**
+     * 上传logo
+     * Enter description here ...
+     */
+    public function upload_diandian_logo(){
+        $picture = "";
+    	if ($_FILES["topic_logo_picture"]) {
+    		if ($_FILES["topic_logo_picture"]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["topic_logo_picture"]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "diandian/logo/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "diandian/logo/{$t1}" ,0755,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'diandian/logo/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["topic_logo_picture"]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    }
+    /**
+     * 上传奖品图
+     * Enter description here ...
+     */
+    public function upload_diandian_prize_pic($j){
+        $picture = "";
+    	if ($_FILES["topic_prize_".$j]) {
+    		if ($_FILES["topic_prize_".$j]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["topic_prize_".$j]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "diandian/prize/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "diandian/prize/{$t1}" ,0755,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'diandian/prize/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["topic_prize_".$j]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    }
+    /**
+     * 上传分享图片
+     * Enter description here ...
+     */
+    public function upload_diandian_share_pic(){
+        $picture = "";
+    	if ($_FILES["share_picture"]) {
+    		if ($_FILES["share_picture"]["name"]) {
+    			$exten = $this->Common->get_extension($_FILES["share_picture"]["name"]);
+    			$str = date("Ymd");
+    			$t1 = date("Ymd", time());
+		        if (!is_dir(config_item('uploads_path') . "diandian/share/{$t1}")) {
+		            mkdir(config_item('uploads_path') . "diandian/share/{$t1}" ,0755,true);
+		        }    	    			
+    			$filename = 'focus_'.$str."_".time()."_".rand(1000,9999);
+    			$to = 'diandian/share/'.$t1.'/'.$filename.$exten;
+    			$picture = md_imagick::do_upload($_FILES["share_picture"]["tmp_name"], config_item('uploads_path') . $to);
+    			//echo "<script>parent.callback('right|" . $logo . "')</script>";
+    			//exit;
+    		} else {
+    			md_common::display_javascript("请选择正确的文件", "reload");
+    			//echo "<script>parent.callback('error|请选择正确的文件')</script>";
+    			//exit;
+    		}
+    	}
+    	//var_dump($_FILES["topic_picture"]);
+    	if($picture){
+    		$data["pro_picture"] = str_replace(config_item('uploads_path'),"",$picture);
+    		echo json_encode(array("num"=>"1","pic"=>$data["pro_picture"]));
+    	}else{
+    		echo json_encode(array("num"=>"2","pic"=>""));
+    	}   	
+    }
+
+    public function get_pro_mess(){
+    	
+    	$productId = isset($_POST['productId']) ? $_POST['productId'] : '';
+    	$pro_mess = $this->Edm_product_m->get_info_by_product(intval($productId));
+    	if(!empty($pro_mess)){
+    		echo json_encode(array("status"=>'1','pro_title'=>$pro_mess['name'],'pro_goal'=>$pro_mess['goal'],'end_time'=>$pro_mess['end_time'],'pro_des'=>$pro_mess['des']));
+    	}else{
+    		echo json_encode(array("status"=>'0'));
+    	}
+    	
+    }
+}

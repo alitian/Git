@@ -1,0 +1,44 @@
+
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" id="all" name="all" value="1"/>全部用户：</label>
+		<div class="controls"><input type="text" name="all_user" id="all_user" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" name="register" value="1"/>仅注册用户：</label>
+		<div class="controls"><input type="text" name="register_user" id="register_user" value=""  placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" name="favors" value="1"/>关注用户：</label>
+		<div class="controls"><input type="text" name="favors_user" id="favors_user" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" name="comments" value="1"/>评论用户：</label>
+		<div class="controls"><input type="text" name="comments_user" id="comments_user" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+	    <label class="control-label"><input type="radio" name="support" value="1"/>支持过一个项目：</label>
+		<div class="controls"><input type="text" name="support_user_one" id="support_user_one" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+	    <label class="control-label"><input type="radio" name="support" value="2"/>支持过多个项目：</label>
+	    <div class="controls"><input type="text" name="support_user_many" id="support_user_many" value="" placeholder="用户数" /></div>
+	 </div>
+	   	
+	<div class="control-group">
+   		<label class="control-label">发送用户数总计：</label>
+   		<div class="controls"><input type="text" name="totalnum" id="totalnum" value=""/></div>
+   	</div>
+
+   	<div class="control-group">
+   		<div class="controls"><input class="btn btn-primary" type="button" name="more_project_btn" id="more_project_btn" value="确认选择"/></div>
+   	</div>
+   	
+   	
+   	<input type="hidden" name="all_user_hidden" id="all_user_hidden" value=""/>
+   	<input type="hidden" name="register_user_hidden" id="register_user_hidden" value=""/>
+   	<input type="hidden" name="favors_user_hidden" id="favors_user_hidden" value=""/>
+   	<input type="hidden" name="comments_user_hidden" id="comments_user_hidden" value=""/>
+   	<input type="hidden" name="support_user_one_hidden" id="support_user_one_hidden" value=""/>
+   	<input type="hidden" name="support_user_many_hidden" id="support_user_many_hidden" value=""/>
+   	
+   	

@@ -1,0 +1,269 @@
+
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<!--<a href='http://m.modian.com/index/set_to_html' target="_blank">刷新首页</a>-->
+<?php $this->load->view('weidashang/recom_tabs') ?>
+<style type="text/css">
+.black_overlay{  
+    display: block;  
+    position: absolute;  
+    top: 0%;  
+    left: 0%;  
+    width: 100%;  
+    height: 2000px;  
+    background-color: black;  
+    z-index:1001;  
+    -moz-opacity: 0.8;  
+    opacity:.80;  
+    filter: alpha(opacity=80);  
+}  
+.white_content {  
+	display: block;  
+	position: absolute;  
+	top: 25%;  
+	left: 25%;  
+	width: 50%;  
+	height: auto;  
+	padding: 16px;  
+	border: 2px solid rgba(68, 218, 224, 0.5);  
+	background-color: white;  
+	z-index:1002;  
+}
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/weidashang/choudiandian_pro">筹点点活动管理</a>
+        </li>
+    </ul>
+</div>
+<div>
+    <h2>首页活动区</h2>
+</div>
+<div>
+    <div>
+        <form action="" class="form-inline" method="post">
+            <span>
+                输入活动ID：<input type="text" value="" placeholder="请输入活动ID" class="form-control" id="topic_id" name="topic_id"/>
+                <input type="submit" class="btn btn-info btn-sm" value="添加" />
+            </span>
+            <span  style="margin-left:20px;" class="btn btn-info"><a href="/weidashang/wds_first_recom?hide_topic=0" style="color:#EEEEEE;text-decoration:none;">隐藏活动专区</a></span>
+            <span  style="margin-left:20px;" class="btn btn-info"><a href="/weidashang/wds_first_recom?hide_topic=1" style="color:#EEEEEE;text-decoration:none;">显示活动专区</a></span>
+            <span  style="margin-left:20px;" class="btn btn-info"><a href="/weidashang/wds_first_recom?del_mem=1" style="color:#EEEEEE;text-decoration:none;">立即生效</a></span>
+            <span  style="margin-left:20px;" class="btn btn-info"><a href="<?php echo _gc('domain_weidashang', 'domain')?>" target="_blank" style="color:#EEEEEE;text-decoration:none;">预览</a></span>
+        </form>
+    </div>
+    <?php if ($projects): ?>
+    <form action="" method="post">
+        <div>
+            <style>
+                td, th{
+                    vertical-align:middle !important;
+                    text-align:center !important;
+                }
+            </style>
+            <table id="topic-recom" class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th width="5%">权重</th>
+                        <th width="5%">推荐活动ID</th>
+                        <th width="15%">推荐活动时间</th>
+                        <th width="20%">推荐图</th>
+                        <th width="20%">推荐标题</th>
+                        <th width="20%">推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <?php if (count($projects) > 10) { ?>
+                <div class="m-pager">
+                    <div id="pagination" class="page_list"></div>
+                </div>
+            <?php } ?>
+        </div>
+    <?php endif; ?>
+    </form>
+</div>
+<div>
+        <button id="edit_sortid_t"  type="submit" class="btn btn-info btn-sm">批量修改权重</button>
+</div>
+<!-- 某一个活动的修改弹窗 -->
+<?php if(!empty($topic_mes)) {?>
+<div id="light" class="white_content">
+    <form class="forms addform" name="addform" id="addform"  action="" method="post"> 
+        <h3>修改活动<a href="javascript:;" id="close" class="close">Close</a></h3>
+        <div style="width:100%;height:1px; background:#E0E0E0;"></div>
+        <div id="pro_mess" class="pro_mess">
+            <p style="margin-top:20px;"><input type="hidden" id="edit_topic_id" name="edit_topic_id" value="<?php echo $topic_mes['id'] ;?>"/></p>
+            <p style="margin-top:20px;"><img width='200px' height='200px' src="<?php echo $topic_mes['rec_pic'] ;?>"/></p>
+            <p style="margin-top:20px;">推荐图:<input style="margin-left:20px;" type="text" name="topic_pic_hidden" id="topic_pic_hidden" value="<?php echo $topic_mes['logo'] ;?>" placeholder="图片尺寸请控制为306 * 306"><input type="file" id="topic_picture" name="topic_picture" value="" ><input type="button" value="上传图片" id="topic_up"></p>
+            <p style="margin-top:20px;">标题:<input style="margin-left:20px;" type="text" id='new_topic_name' name='new_topic_name' value="<?php echo $topic_mes['topic'] ;?>" /></p>
+        </div>
+        <div>
+            <a style="margin-left:40%" class="btn btn-primary" id="btn_add_pro" name="btn_add_pro">保存</a>              
+        </div>
+    </form>
+</div> 
+<div id="fade" class="black_overlay"> 
+</div> 
+<?php }?>
+
+<?php $this->load->view('ckad/footer'); ?>
+
+<script type="text/javascript" src="<?= static_url(); ?>new/js/jquery.paginate.js?20160324"></script>
+<script  type="text/javascript">
+    var datas = eval(<?php echo "(" . json_encode($projects) . ")" ?>);
+    $(function() {
+        createTableReport();
+    });
+///////////////创建表格/////////////////////////////
+    function createTableReport() {
+
+        $('#topic-recom tbody').html("");
+        pageselectCallback(0, null);
+        if (datas.length > 10) {
+            initPagination();
+        }
+    }
+    function pageselectCallback(page_index, jq) {
+
+        page_index = arguments[0] ? arguments[0] : "0";
+        var num = datas.length / 10;
+        if (page_index == Math.ceil(num))
+            page_index--;
+        if (page_index == -1)
+            page_index = 0;
+        page = page_index;
+        jq = arguments[1] ? arguments[1] : "0";
+        var index = page_index * 10;
+        var pagenum = 10;
+        var msg = "";
+        for (i = 0; i < pagenum && (index + i) < datas.length; i++)
+        {
+            var record = datas[i + index];
+            msg = msg + "<tr>";
+            msg = msg + "<td><input max='3' maxlength='3' style='width:20px;' type='text' value='" + record['sort'] + "' name='top_sort[" + record['id'] + "]' id='top_sort_"+record['id']+"' class='top_sort' topic_id='"+record['id']+"' /></td>";
+            msg = msg + "<td>" + record['id'] + "</td>";
+            msg = msg + "<td>" + record['ctime'] + "</td>";
+            msg = msg + "<td><img src='" + record['recom_pic'] + "' width='170px' height='80px'/></td>";
+            msg = msg + "<td>" + record['topic'] + "</td>";
+            msg = msg + "<td><a href='"+ record['link'] +"'>" + record['link'] + "</a></td>";
+            msg = msg + "<td><a href='/weidashang/wds_first_recom?id=" + record['id'] + "&type=wap_homepage' onclick=\"if(confirm('确实要取消<"+record['topic']+">的推荐吗')) return true;else return false;\">取消</a>| <a href='/weidashang/wds_first_recom?edit_id=" + record['id'] +"' class='edit_topic_recom'>修改</a></td>";
+            msg = msg + "</tr>";                     
+        }
+        //document.getElementById('projects-list').innerHTML = msg;
+        $('#topic-recom tbody').html(msg);
+        
+    }
+    /**
+     * Callback function for the AJAX content loader.
+     */
+    function initPagination() {
+
+        var num_entries = datas.length;
+        //alert(num_entries);
+        // Create pagination element
+        $("#pagination").pagination(num_entries, {
+            num_edge_entries: 2,
+            prev_text: '前一页 ',
+            next_text: '后一页 ',
+            num_display_entries: 10,
+            callback: pageselectCallback,
+            items_per_page: 10
+        });
+    }
+/////////////////////////TABLE END//////////////////////////////////
+$("#btn_add_pro").click(function(){
+    var edit_topic_id = $("#edit_topic_id").val();
+    var new_topic_name = $("#new_topic_name").val();
+    var topic_pic_hidden = $("#topic_pic_hidden").val();
+    $.ajax({
+        type:"POST",
+        url:"/weidashang/add_edit_topic",
+        data: {
+            edit_topic_id:edit_topic_id,
+            new_topic_name:new_topic_name,
+            topic_pic_hidden:topic_pic_hidden,          
+        },
+        dataType:'json',
+        success:function(data){
+            if(data.status == 1){
+                location.replace("weidashang/wds_first_recom");
+            }
+        }
+    });
+})
+    
+$('#close').click(function(e) {
+            $('#light').css('display', 'none');
+            $('#fade').css('display', 'none');
+        });
+$('#topic_up').click(function() {
+            var url = "<?php $upload_url = _gc('cdn_url', 'config');
+                                echo $upload_url ?>";
+            $.ajaxFileUpload({
+                url: '/weidashang/upload_topic_pic', //你处理上传文件的服务端
+                secureuri: false,
+                fileElementId: 'topic_picture',
+                dataType: 'json',
+                success: function(data) {
+                    url = url + data.pic;
+                    if (data.num == 1) {
+                        $('#topic_pic_hidden').val(data.pic);
+                    } else {
+                        alert("文件上传失败");
+                        return false;
+                    }
+                },
+            })
+        });
+        
+$("#edit_sortid_t").click(function(){
+    var sort_input = $('#topic-recom .top_sort');
+    var length = sort_input.length;
+    var topic_id_arr = [];
+    var topic_sort_arr = [];
+    for(var i = 0;i <length ; i++){
+        var sort = $.trim(sort_input[i].value);
+        var topic_id = parseInt(sort_input[i].getAttribute('topic_id'));
+        var num = i+1;
+        if(sort == ''){
+            alert('第' +num+'行排序为空！' );
+            return false;
+        }
+        if(isNaN(sort)){
+            alert('第' +num+'行排序非数字！' );
+            return false;
+        }
+        topic_id_arr[i] = topic_id;
+        topic_sort_arr[i] = sort;      
+    }
+    var topic_id = JSON.stringify(topic_id_arr);
+    var topic_sort = JSON.stringify(topic_sort_arr);
+    $.ajax({
+                    type:"POST",
+                    traditional :true,
+                    url:"/weidashang/ajax_topic_sort",
+                    dataType: "json",
+                    data: {
+                        topic_sort_arr:topic_sort,
+                        topic_id_arr:topic_id,
+                    },
+                    dataType:'json',
+                    success:function(data){
+                        if(data.status == -1){
+                            alert("更新异常");
+                            return false;
+                        }
+                        if(data.status == 1){
+                            location.replace("weidashang/wds_first_recom");
+                        }
+                    }
+                });
+});
+</script>

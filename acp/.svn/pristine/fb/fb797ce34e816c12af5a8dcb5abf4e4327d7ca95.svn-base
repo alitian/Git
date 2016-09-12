@@ -1,0 +1,60 @@
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+
+
+<form class="form-horizontal" action="" method="post">
+    <div class="control-group">
+        <label class="control-label">邮箱</label>
+        <div class="controls">
+            <textarea name="email" rows="7"></textarea>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">手机</label>
+        <div class="controls">
+            <textarea name="mobile" rows="7"></textarea>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <label class="control-label">开始截止时间</label>
+        <div class="controls">
+            <div class="input-append date form_datetime">
+                <input type="text" name='start_t' placeholder="开始时间">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+            </div>
+            <div class="input-append date form_datetime">
+                <input type="text" name='end_t' placeholder="截止时间">
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="controls">
+            <button type="submit" class="btn">好</button>
+        </div>
+    </div>
+</form>
+
+
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd hh:mm:ss",
+            pickTime: true
+        });
+        $('.form_datetime_day').datetimepicker({
+            language: 'zh-CN',
+            format: "hh:mm:ss",
+            pickTime: true,
+            pickDate: false
+        });
+    });
+</script>
+
+<?php $this->load->view('ckad/footer'); ?>

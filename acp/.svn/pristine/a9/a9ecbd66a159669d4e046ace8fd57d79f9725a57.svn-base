@@ -1,0 +1,618 @@
+<?php
+
+   /*
+	* edm 脚本发送注意事项 ：
+	*
+	* 邮件发送业务逻辑处理较为复杂，发送数据基数也较大，经常会造成数据库连接超时，特将业务逻辑拆分为以下几个步骤:
+	* 第一步:在acp后台edm邮件发送模块提交发送的邮件信息，同时将md_edm_info的状态更改为3(3为待发送状态) (此时邮件并未真正的发送，只是更改了状态)---->此步骤利用acp后台实现
+	* 第二步:利用定时脚本查询出 md_edm_info待发送状态的信息，将数据保存到文本中分批次发送
+	* 第三步:利用定时脚本发送邮件
+	*
+	*/
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Edm_cron extends Deamon_Controller {
+		
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $this->load->helper('url');
+        $this->load->model('Common');
+                
+    }
+       
+    public function custom_single_template($info_id, $user) {
+    	$data = array();
+    	$info_id = isset($info_id) ? intval($info_id) : "";
+    	//$email_info = $this->Edm_user_m->get_edm_info($info_id);
+    
+    	$cache_key = sprintf('%s', "modiancustomsingle" . $info_id . "info");
+    	if (md_memcache::get($cache_key)) {
+    		$email_info = md_memcache::get($cache_key);
+    	} else {
+    		$email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+    		md_memcache::set($cache_key, $email_info_arr, 3600 * 2);
+    		$email_info = md_memcache::get($cache_key);
+    	}
+    	$pro_id = intval($email_info["pro_id"]);
+    	$pro_name = $email_info["pro_name"];
+    	$pro_content = $email_info["item_content"];
+    	$pro_des = mb_strimwidth($pro_content, 0, 230, '...');
+    	$reward_id = $email_info["item_num"]; //项目排版样式
+    	$rewards_asc = $email_info["serial_num"]; //项目排序
+    
+    	$title = $email_info["email_title"];
+    
+    	//$data = $this->Edm_product_m->get_product_rewards_by_product($pro_id,$reward_id,$rewards_asc);
+    
+    	$cache_key = sprintf('%s', "modiancustomsingle" . $pro_id . "" . $reward_id . "edm");
+    	if (md_memcache::get($cache_key)) {
+    		$data = md_memcache::get($cache_key);
+    	} else {
+    		$data_arr = $this->Edm_product_m->get_product_rewards_by_product($pro_id, "", $rewards_asc);
+    		md_memcache::set($cache_key, $data_arr, 3600 * 2);
+    		$data = md_memcache::get($cache_key);
+    	}
+    
+    	//预览邮件时默认不显示用户昵称,用XXX代替
+    	if (isset($user)) {
+    		//站内用户调取用户昵称，站外用户直接用邮箱
+    		$data["send_user_email"] = $user;
+    		if ($email_info["user_side"] == 1) {
+    			$user_temp = $this->Edm_user_m->get_username_email($user);
+    			if ($user_temp) {
+    				$data["send_user"] = $user_temp;
+    			}
+    		} else {
+    			$data["send_user"] = $user;
+    		}
+    	} else {
+    		$data["send_user"] = "XXX";
+    	}
+    	$mo_pass = "modianedm1234";
+    	$unit_key = md5($user . '_' . $mo_pass);
+    
+    	$data["theme_id"] = $info_id;
+    	$data["side"] = $email_info["user_side"];
+    	$data["email_contents"] = $email_info["email_contents"];
+    	$data["tag"] = isset($email_info["tag"]) ? $email_info["tag"] : "";
+    	$tag = str_replace(";", "-", $data["tag"]);
+    	$pro_tag = str_replace(",", "-", $tag);
+    	$upload_url = _gc('cdn_url', 'config');
+    
+    	$str_content = '<!DOCTYPE html>';
+    	$str_content .='<html>';
+    	$str_content .='<head>';
+    	if (!empty($title)) {
+    
+    		$str_content .='<title>' . $title . '</title>';
+    	}
+    	$str_content .='</head>';
+    	$str_content .='<body style="display: block;  margin: 8px;">';
+    	$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url(http://www.modian.com/static/new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left top;"></div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+    	$str_content .='<a href="http://www.modian.com"><img src="http://www.modian.com/static/new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+    	$str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+    	$str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width: 700px;">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	if (!empty($data["email_contents"])) {
+    		$str_content .='<tr><td>';
+    		$str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">' . $data["email_contents"] . '</div>';
+    		$str_content .='</tr></td>';
+    		$str_content .='<tr><td>';
+    		$str_content .='<div style="width: 100%;text-align: center;margin-top: 2px;">';
+    		$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="width:700px">';
+    		$str_content .='</div>';
+    		$str_content .='</tr></td>';
+    	}
+    
+    	if (!empty($email_info)) {
+    		if ($email_info["item_num"] == 1) {
+    			$str_content .='<tr>';
+    			$str_content .='<th><a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '"><img style="width:700px; height:500px;margin-top: 30;" src="http://i2.modian.com/' . $data['logo'] . '"></a></th>';
+    			$str_content .='</tr>';
+    			$str_content .='<tr><td>';
+    			$str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">' . $pro_name . '</p>';
+    			$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">' . $pro_des . '</p>';
+    			$str_content .='<a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '" style="height: 21px;width:81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding:8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+    			$str_content .='</td></tr>';
+    		} elseif ($email_info["item_num"] == 2) {
+    			$str_content .='<tr>';
+    			$str_content .='<td>';
+    			$str_content .='<div style="float:left;margin-top: 10px"><a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '"><img style="width:330px; height:261px;margin-left: 123px; margin-top: 17px;" src="http://i2.modian.com/' . $data['logo'] . '"></a></div>';
+    			$str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height:54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600;line-height: 1.5;margin-top:10px">' . $pro_name . '</p>';
+    			$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top: 13px;line-height: 2;">' . $pro_des . '</p>';
+    			$str_content .='<a href="http://www.modian.com/project/' . $pro_id . '.html?utm_source=edm&utm_medium=single-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $pro_id . '"  style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding:8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+    			$str_content .='</td>';
+    			$str_content .='</tr>';
+    		}
+    	}
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+    	$str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+    	$str_content .='<footer style="margin-top: 0px;">';
+    	$str_content .='<section class="container setOn">';
+    	$str_content .='<div class="outher setOn">';
+    	$str_content .='<p class="icp">拒收摩点网信息，请';
+    	$str_content .='<a href="http://www.modian.com/user/email_refund?email=' . $user . '&unit_key=' . $unit_key . '" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+    	$str_content .='</div>';
+    	$str_content .='<div class="outher setOn" style="margin-top:30px">';
+    	$str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+    	$str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+    	$str_content .='</div>';
+    	$str_content .='</section>';
+    	$str_content .='</footer>';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="margin-top:40px;width: 100%;height:1.5%;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left bottom;"></div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='</table>';
+    	$str_content .='</body>';
+    	$str_content .='</html>';
+    
+    	if (isset($user)) {
+    		return $str_content;
+    	} else {
+    		echo $str_content;
+    	}
+    }
+    
+    public function custom_more_template($info_id, $user) {
+    	$data = array();
+    	$product_list = array();
+    	//$email_info = $this->Edm_user_m->get_edm_info($info_id);
+    
+    	$cache_key = sprintf('%s', "modiancustommore" . $info_id . "info");
+    	if (md_memcache::get($cache_key)) {
+    		$email_info = md_memcache::get($cache_key);
+    	} else {
+    		$email_info_arr = $this->Edm_user_m->get_edm_info($info_id);
+    		md_memcache::set($cache_key, $email_info_arr, 3600 * 2);
+    		$email_info = md_memcache::get($cache_key);
+    	}
+    
+    	$proId_str = $email_info["pro_id"];
+    	$proId_name = $email_info["pro_name"];
+    	$proId_asc = $email_info["serial_num"];
+    	$proId_ui = $email_info["item_num"];
+    	$prId_des = $email_info["item_content"];
+    	$side = $email_info["user_side"];
+    
+    	$cache_key = sprintf('%s', "modiancustommore" . $info_id . "edm");
+    	if (md_memcache::get($cache_key)) {
+    		$data["product_list"] = md_memcache::get($cache_key);
+    	} else {
+    		$product_list = $this->Edm_product_m->get_product_arr($proId_str, $proId_asc, $proId_ui, $prId_des, $proId_name);
+    		md_memcache::set($cache_key, $product_list, 3600 * 2);
+    		$data["product_list"] = md_memcache::get($cache_key);
+    	}
+    
+    	//预览邮件时默认不显示用户昵称,用XXXX代替
+    	if (isset($user)) {
+    		$data["send_user_email"] = $user;
+    		if ($side == 1) {
+    			$user_temp = $this->Edm_user_m->get_username_email($user);
+    			if ($user_temp) {
+    				$data["send_user"] = $user_temp;
+    			} else {
+    				$data["send_user"] = $user;
+    			}
+    		} elseif ($side == 2) {
+    			$data["send_user"] = $user;
+    		}
+    	} else {
+    		$data["send_user"] = "XXXX";
+    	}
+    	$mo_pass = "modianedm1234";
+    	$unit_key = md5($user . '_' . $mo_pass);
+    
+    	$data["email_title"] = $email_info["email_title"];
+    	$data["email_contents"] = $email_info["email_contents"];
+    	$data["theme_id"] = $info_id;
+    	$data["side"] = $email_info["user_side"];
+    	$data["tag"] = isset($email_info["tag"]) ? $email_info["tag"] : "";
+    	$tag = str_replace(";", "-", $data["tag"]);
+    	$pro_tag = str_replace(",", "-", $tag);
+    	$upload_url = _gc('cdn_url', 'config');
+    
+    	$str_content = '<!DOCTYPE html>';
+    	$str_content .='<html>';
+    	$str_content .='<head>';
+    
+    	if (!empty($data["email_title"])) {
+    
+    		$str_content .='<title>' . $data["email_title"] . '</title>';
+    	}
+    
+    	$str_content .='</head>';
+    	$str_content .='<body style="display: block;  margin: 8px;">';
+    	$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url(http://www.modian.com/static/new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left top;"></div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+    	$str_content .='<a href="http://www.modian.com"><img src="http://www.modian.com/static/new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+    	$str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+    	$str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px;">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	if (!empty($data["email_contents"])) {
+    		$str_content .='<tr><td>';
+    		$str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">' . $data["email_contents"] . '</div>';
+    		$str_content .='</tr></td>';
+    		$str_content .='<tr><td>';
+    		$str_content .='<div style="width: 100%;text-align: center;margin-top: 2px;">';
+    		$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="width:700px">';
+    		$str_content .='</div>';
+    		$str_content .='</tr></td>';
+    	}
+    	if (!empty($data["product_list"])) {
+    		foreach ($data["product_list"] as $key => $val) {
+    			if ($key == 0) {
+    				if ($val['product_ui'] == 1) {
+    					$str_content .='<tr>';
+    					$str_content .='<th><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" ><img style="width:700px; height:500px;margin-top: 30;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></th>';
+    					$str_content .='</tr>';
+    					$str_content .='<tr><td>';
+    					$str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">' . $val['product_name'] . '</p>';
+    					$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">' . $val['product_des'] . '</p>';
+    					$str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" style="height: 21px;width: 81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+    					$str_content .='</td></tr>';
+    				} elseif ($val['product_ui'] == 2) {
+    					$str_content .='<tr>';
+    					$str_content .='<td>';
+    					$str_content .='<div style="float: left;margin-top: 10px"><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"><img style="width:330px; height:261px;margin-left: 123px;  margin-top: 17px;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></div>';
+    					$str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height: 54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600;line-height: 1.5;margin-top: 10px;">' . $val['product_name'] . '</p>';
+    					$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top:13px;line-height: 2;">' . $val['product_des'] . '</p>';
+    					$str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"  style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+    					$str_content .='</td>';
+    					$str_content .='</tr>';
+    				}
+    			} else {
+    				$str_content .='<tr>';
+    				$str_content .='<td style="text-align: center;">';
+    				$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top:33px;width:700px">';
+    				$str_content .='</td></tr>';
+    				if ($val['product_ui'] == 1) {
+    					$str_content .='<tr>';
+    					$str_content .='<th><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"><img style="margin-top:30px;width:700px; height:500px;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></th>';
+    					$str_content .='</tr>';
+    					$str_content .='<tr><td>';
+    					$str_content .='<p style="font-family:微软雅黑;font-size:18px;font-weight:600; margin-left: 125px;margin-top: 40px;width:700px">' . $val['product_name'] . '</p>';
+    					$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400; margin-left: 125px;margin-top: 30px;line-height: 2;width:700px">' . $val['product_des'] . '</p>';
+    					$str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" style="height: 21px;width: 81px;display: block;margin: 0 auto;margin-top: 20px;  background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a>';
+    					$str_content .='</td></tr>';
+    				} elseif ($val['product_ui'] == 2) {
+    					$str_content .='<tr>';
+    					$str_content .='<td>';
+    					$str_content .='<div style="float:left;margin-top: 10px"><a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '"><img style="width:330px; height:261px;margin-left: 123px;  margin-top: 17px;" src="http://i2.modian.com/' . $val['product_logo'] . '"></a></div>';
+    					$str_content .='<div style="float: left;margin-left: 40px;margin-top: 10px;height:267px"><p style="height: 54px;width:360px;font-family:微软雅黑;font-size:18px;font-weight:600; width:360px;line-height: 1.5;margin-top: 10px;">' . $val['product_name'] . '</p>';
+    					$str_content .='<p style="font-family:微软雅黑;font-size:14px;font-weight:400;width:360px;height:146px;margin-top: 13px;line-height: 2;">' . $val['product_des'] . '</p>';
+    					$str_content .='<a href="http://www.modian.com/project/' . $val['pro_id'] . '.html?utm_source=edm&utm_medium=more-' . $info_id . '&user=' . $user . '&theme=' . $data["theme_id"] . '&side=' . $data["side"] . '&tag=' . $pro_tag . '&_mdsf=md_edm_' . $val['pro_id'] . '" style="height: 21px;width: 81px;display: block;background-color: #37cb58;text-align: center;border: 1px solid #37cb58;  color: #fff;padding: 8px 33px;font-weight: bold;  text-decoration: none;">点击查看</a></div>';
+    					$str_content .='</td>';
+    					$str_content .='</tr>';
+    				}
+    			}
+    		}
+    	}
+    
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+    	$str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+    	$str_content .='<footer style="margin-top: 0px;">';
+    	$str_content .='<section class="container setOn">';
+    	$str_content .='<div class="outher setOn">';
+    	$str_content .='<p class="icp">拒收摩点网信息，请';
+    	$str_content .='<a href="http://www.modian.com/user/email_refund?email=' . $user . '&unit_key=' . $unit_key . '" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+    	$str_content .='</div>';
+    	$str_content .='<div class="outher setOn" style="margin-top:30px">';
+    	$str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+    	$str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+    	$str_content .='</div>';
+    	$str_content .='</section>';
+    	$str_content .='</footer>';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="margin-top:40px;width: 100%;height:10px%;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left bottom;"></div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='</table>';
+    	$str_content .='</body>';
+    	$str_content .='</html>';
+    
+    	if (isset($user)) {
+    		return $str_content;
+    	} else {
+    		echo $str_content;
+    	}
+    }
+    
+    public function custom_topic_template($edm_id, $user) {
+    	$data = array();
+    	//$edm_info = $this->Edm_user_m->get_edm_info($edm_id);
+    
+    	$cache_key = sprintf('%s', "modiancustomtopic" . $edm_id . "info");
+    	if (md_memcache::get($cache_key)) {
+    		$edm_info = md_memcache::get($cache_key);
+    	} else {
+    		$edm_info_arr = $this->Edm_user_m->get_edm_info($edm_id);
+    		md_memcache::set($cache_key, $edm_info_arr, 3600 * 2);
+    		$edm_info = md_memcache::get($cache_key);
+    	}
+    	$topic_content = isset($edm_info["email_content"]) ? $edm_info["email_content"] : "";
+    
+    	$side = $edm_info["user_side"];
+    	$data = $edm_info;
+    	$data["send_user_email"] = $user;
+    	if ($side == 1) {
+    		$user_temp = $this->Edm_user_m->get_username_email($user);
+    		if ($user_temp) {
+    			$data["send_user"] = $user_temp;
+    		} else {
+    			$data["send_user"] = $user;
+    		}
+    	} elseif ($side == 2) {
+    		$data["send_user"] = $user;
+    	}
+    	$mo_pass = "modianedm1234";
+    	$unit_key = md5($user . '_' . $mo_pass);
+    	$data["theme_id"] = $edm_id;
+    	$data["side"] = $edm_info["user_side"];
+    
+    	$upload_url = _gc('cdn_url', 'config');
+    
+    	$str_content = '<!DOCTYPE html>';
+    	$str_content .='<html>';
+    	$str_content .='<head>';
+    
+    	if (!empty($data["email_title"])) {
+    
+    		$str_content .='<title>' . $data["email_title"] . '</title>';
+    	}
+    
+    	$str_content .='</head>';
+    	$str_content .='<body style="display: block;  margin: 8px;">';
+    	$str_content .='<table cellpadding="0" cellspacing="0" border="0" width="945" align="center" style="border: 1px solid #e3e2e2;box-shadow: 0 0 20px rgba(0, 0, 0, .1);background: url(http://www.modian.com/static/new/images/edm_back.png) no-repeat right 95% #f8fcfd;">';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left top;"></div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div class="site-logo fl" style="width: 100%;text-align: center;margin-top:60px">';
+    	$str_content .='<a href="http://www.modian.com"><img src="http://www.modian.com/static/new/images/edm_logo.png" alt="logo" class="md-logo" ></a><br/>';
+    	$str_content .='<p style="display: inline-block;margin-top:40px;font-family:微软雅黑;font-weight:600;font-size:18" >摩点网是国内首家游戏动漫众筹平台</p><br/>';
+    	$str_content .='<p style="display: inline-block;margin-top:20px;font-family:微软雅黑;font-weight:600;font-size:14" >—— 为有诚意的作品说话  ——</p>';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px;">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	if (!empty($data["email_contents"])) {
+    		$str_content .='<tr><td>';
+    		$str_content .='<div id="text_in" class="text_in"  style="width: 700px;margin: 0 auto; font-weight:400;font-size: 16;line-height:1.5;font-family:微软雅黑;padding:25 25 25 25px;readonly">' . html_entity_decode($data["email_contents"]) . '</div>';
+    		$str_content .='<style>.text_in img{max-width:100% !important}</style>';
+    		$str_content .='</tr></td>';
+    	}
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 33px;width:700px">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;margin-top: 25px; ">';
+    	$str_content .='<p style="font-family:微软雅黑;font-weight:600;font-size:18">关注摩点</p>';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/weibo.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-right: 83px;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/weixin.png" style="margin-top: 40px;max-width:152px; max-height:176px;margin-left: 83px;">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;">';
+    	$str_content .='<img src="http://www.modian.com/static/new/images/edm_fenge.png" alt="fenge" class="fenge" style="margin-top: 30px;width:700px">';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="width: 100%;text-align: center;margin-top:30px">';
+    	$str_content .='<footer style="margin-top: 0px;">';
+    	$str_content .='<section class="container setOn">';
+    	$str_content .='<div class="outher setOn">';
+    	$str_content .='<p class="icp">拒收摩点网信息，请';
+    	$str_content .='<a href="http://www.modian.com/user/email_refund?email=' . $user . '&unit_key=' . $unit_key . '" target="_blank" onclick="if(confirm(\'确实要退订摩点网邮箱吗？\')) return true;else return false;">点击退订</a></p>';
+    	$str_content .='</div>';
+    	$str_content .='<div class="outher setOn" style="margin-top:30px">';
+    	$str_content .='<p class="copyright">Copyright&nbsp;©&nbsp;2015&nbsp;MoDian&nbsp;All&nbsp;Rights&nbsp;Reserved</p>';
+    	$str_content .='<p class="icp">北京摩点众筹科技有限公司</p>';
+    	$str_content .='</div>';
+    	$str_content .='</section>';
+    	$str_content .='</footer>';
+    	$str_content .='</div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='<tr><td>';
+    	$str_content .='<div style="margin-top:40px;width: 100%;height:10px;background:url(http://www.modian.com/static/new/images/edm_slider.png);repeat-x left bottom;"></div>';
+    	$str_content .='</tr></td>';
+    	$str_content .='</table>';
+    	$str_content .='</body>';
+    	$str_content .='</html>';
+    
+    	if (isset($user)) {
+    		return $str_content;
+    	} else {
+    		echo $str_content;
+    	}
+    }
+    
+    public function send_edm_mail() {
+    	$ci = &get_instance();
+    	$ci->load->model('Common');
+    	$state = 3; //邮件待发送
+    	$edm_info = $this->Edm_user_m->get_edm_sendstate($state);
+    	if (empty($edm_info)) {
+    		$state = 4; //邮件待发送
+    		$edm_info = $this->Edm_user_m->get_edm_sendstate($state);
+    		if (!$edm_info) {
+    			echo '未查询到要发送的邮件信息';
+    			return false;
+    		} else {
+    			$info_id = $edm_info["id"];
+    			$send_user = $edm_info["send_user"];
+    			$title = $edm_info["email_title"];
+    			$file = LOG_DIR . "edm/edm_" . $info_id . ".text";
+    		}
+    	} else {
+    		$info_id = $edm_info["id"];
+    		$send_user = $edm_info["send_user"];
+    		$title = $edm_info["email_title"];
+    		$file = LOG_DIR . "edm/edm_" . $info_id . ".text";
+    		file_put_contents($file, $send_user);
+    	}
+    
+    	$pro_arr = explode(",", $edm_info["pro_id"]);
+    	$template = $edm_info["content_template"];
+    
+    	$refund_email = $this->Edm_user_m->get_refund_email();
+    	$send_user_arr = explode(",", $send_user);
+    
+    	$effect_alluser_arr = array();
+    	$effect_user_arr = array();
+    	$effect_leftuser_arr = array();
+    	foreach ($send_user_arr as $key => $val) {
+    		//退订邮件不再发送
+    		if (!empty($val) && !in_array($val, $refund_email) && valid_email($val)) {
+    			$effect_alluser_arr[] = $val;
+    		}
+    	}
+    	$per_page = 8000;
+    	$max_num = count($effect_alluser_arr);
+    	$total_num = ceil($max_num / $per_page) > 1 ? ceil($max_num / $per_page) : "1";
+    	if ($total_num > 1) {
+    		$effect_user_arr = array_slice($effect_alluser_arr, 0, $per_page);
+    		$effect_leftuser_arr = array_slice($effect_alluser_arr, $per_page, $max_num);
+    	} else {
+    		$effect_user_arr = $effect_alluser_arr;
+    	}
+    
+    	foreach ($effect_user_arr as $k => $v) {
+    		if ($edm_info ["pro_id"] == '全部') {
+    			$sub_content = $this->custom_topic_template($info_id, $v);
+    		} else {
+    			if (count($pro_arr) > 1) {
+    				$sub_content = $this->custom_more_template($info_id, $v);
+    			} elseif (count($pro_arr) == 1) {
+    				$sub_content = $this->custom_single_template($info_id, $v);
+    			}
+    		}
+    		$ci->Common->edm_send_email($v, $title, $sub_content, 1, $info_id);
+    	}
+    
+    	$this->load->database();
+    
+    	if ($total_num == 1) {
+    		$this->Edm_user_m->update_edm_statue($info_id, 2);
+    		$file_handle = fopen($file, "r");
+    
+    		if($file_handle){
+    			while (!feof($file_handle)) {
+    				$line = fgets($file_handle);
+    			}
+    			fclose($file_handle);
+    			$this->Edm_user_m->update_send_user($info_id, $line);
+    		}
+    	} else {
+    		$user_str = implode(",", $effect_leftuser_arr);
+    		$this->Edm_user_m->update_send_user($info_id, $user_str);
+    		$this->Edm_user_m->update_edm_statue($info_id, 4);
+    	}
+    
+    	echo 'hh ' . count($effect_user_arr);
+    }
+    
+    function new_sendmail_edm($type = 'tg') {
+    	echo $start = date("Y-m-d H:i:s");
+    	$edm = $this->load->database('edm', true);
+    	$this->load->library('mailer');
+    	$where = $type == 'tg' ? " AND type=1 " : " AND type=0 ";
+    	$sql = "SELECT * FROM md_sendmail WHERE status=0 {$where} LIMIT 200";
+    	$result = $edm->query($sql)->result_array();
+    	$black_mail = $this->config->item('email_black');
+    	$black_mail = $black_mail ? $black_mail : array();
+    	$i = 1;
+    	foreach ($result as $item) {
+    		if (!in_array($item['email'], $black_mail)) {
+    			$r = $this->mailer->sendmail_custom($item['email'], $item['subject'], $item['content'], $type);
+    			if ('success' == $r) {
+    				$data['status'] = 1;
+    			} else {
+    				$data['status'] = 2;
+    				$data['error'] = json_encode($r);
+    			}
+    		} else {
+    			$data['status'] = 2;
+    			$data['error'] = '黑名单中邮件';
+    		}
+    		$data['send_time'] = date("Y-m-d H:i:s");
+    		echo "{$i}:{$item['email']}\n";
+//            $edm->update('md_sendmail', array('id' => $item['id']), $data);
+    		$update_sql = "update `md_sendmail` set status=" . $data["status"] . ",error='" . $data["error"] . "',send_time='" . $data['send_time'] . "' where id=" . $item['id'] . "";
+    		$edm->query($update_sql);
+                $update_logsql = "UPDATE `md_notify_log` SET `status`={$data["status"]},`error`={$data["error"]},`stime`={$data['send_time']} WHERE `send_id`={$item['id']} AND `platform`='email'";
+    		echo $update_logsql;
+                $edm->query($update_logsql);
+    		$i++;
+    	}
+    	echo $start . " ==> " . date("Y-m-d H:i:s");
+    		echo 'hh ' . count($result);
+    }
+    
+}

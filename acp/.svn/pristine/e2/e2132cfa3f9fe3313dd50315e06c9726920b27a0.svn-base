@@ -1,0 +1,186 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Homepage extends Acp_Controller {
+
+    public function comment() {
+        $this->load->helper('py');
+        $sql = "SELECT * FROM md_product WHERE if_show=1 ORDER BY id DESC";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        $page = 1;
+        if (isset($_GET['page']) && $p = intval($_GET['page'])) {
+            $page = $p;
+        }
+        if (isset($_GET['pro_id']) && $pro_id = intval($_GET['pro_id'])) {
+            $this->load->library('md_model_cache');
+            $data['comments'] = $this->md_model_cache->set_model('product')->page($page, 50)->cache(1)->get_comment_list($pro_id);
+        }
+        $this->load->view('homepage/comment', $data);
+    }
+
+    public function recommend() {
+        set_time_limit(0);
+        $this->load->library('md_model_cache');
+        $this->load->model('product');
+        $this->load->model('base/product_base');
+        if ($_POST) {
+            if (isset($_POST['list_num']) && count($_POST['list_num']) > 0) {
+                foreach ($_POST['list_num'] as $id => $item) {
+                    $id = intval($id);
+                    $item = intval($item);
+                    $sql = "update md_product SET list_num='{$item}'  WHERE id ='{$id}';";
+                    $this->db->query($sql);
+                    $this->product_base->refresh_cache($id);
+                }
+            }
+            if (isset($_POST['preheat'])) {
+                $sql = "update md_product SET flag=REPLACE(flag,',homepage_preheat','')  WHERE id ='" . $_POST['preheat'] . "';";
+                $this->db->query($sql);
+                $sql = "update md_product SET flag=CONCAT(flag,',homepage_preheat')  WHERE id ='" . $_POST['preheat'] . "';";
+                $this->db->query($sql);
+                $this->product_base->refresh_cache($_POST['preheat']);
+            }
+            if (isset($_POST['going'])) {
+
+                $sql = "update md_product SET flag=REPLACE(flag,',homepage_going','')  WHERE id ='" . $_POST['going'] . "';";
+                $this->db->query($sql);
+                $sql = "update md_product SET flag=CONCAT(flag,',homepage_going')  WHERE id ='" . $_POST['going'] . "';";
+                $this->db->query($sql);
+                $this->product_base->refresh_cache($_POST['going']);
+            }
+            if (isset($_POST['success'])) {
+                $sql = "update md_product SET flag=REPLACE(flag,',homepage_success','')  WHERE id ='" . $_POST['success'] . "';";
+                $this->db->query($sql);
+                $sql = "update md_product SET flag=CONCAT(flag,',homepage_success')  WHERE id ='" . $_POST['success'] . "';";
+                $this->db->query($sql);
+                $this->product_base->refresh_cache($_POST['success']);
+            }
+        }
+        if (isset($_GET['id']) && isset($_GET['type'])) {
+            $sql = "update md_product SET flag=REPLACE(flag,',{$_GET['type']}','')  WHERE id ='" . $_GET['id'] . "';";
+            $this->db->query($sql);
+            $this->product_base->refresh_cache($_GET['id']);
+            redirect('homepage/recommend');
+        }
+        $sql = "SELECT id,name,start_time,end_time,short_title,if_show,flag,category,install_money,list_num FROM md_product WHERE if_show='1' AND flag LIKE '%homepage_%' ORDER BY list_num DESC,id DESC";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        foreach ($data['projects'] as $key => $value) {
+            $pro_id = $value['id'];
+            $archive = $this->md_model_cache->set_model('product')->cache(300)->get_archive($pro_id);
+            //归档数据
+            if ($archive) {
+                $data['projects'][$key]['end_time'] = $archive['end_time'];
+                $data['projects'][$key]['backer_money'] = $archive['amount_total'];
+            } else {
+                $data['projects'][$key]['backer_money'] = $this->md_model_cache->set_model('product')->cache(300)->get_backer_money($pro_id);
+            }
+            if (isset($data['projects'][$key]['install_money'])) {
+                $data['projects'][$key]['install_money'] = explode('|', $data['projects'][$key]['install_money']);
+                $data['projects'][$key]['install_money'] = $data['projects'][$key]['install_money'][0];
+            }
+            $data['projects'][$key]['status'] = $this->md_model_cache->set_model('product')->cache(300)->get_product_status($data['projects'][$key], $data['projects'][$key]['backer_money']);
+        }
+        $this->load->view('homepage/recommend', $data);
+    }
+
+    public function partner() {
+        $type = 50;
+        if (isset($_GET['del'])) {
+            $this->db->where('id', $_GET['del']);
+            $this->db->where('type', $type);
+            $this->db->delete('md_about');
+        }
+        if ($_POST) {
+            if (isset($_FILES['image']['name'])) {
+                $exten = $this->Common->get_extension($_FILES['image']['name']);
+                $local_path = "sliders/partner_" . uniqid() . "{$exten}";
+                copy($_FILES['image']['tmp_name'], _gc('uploads_path') . $local_path);
+                $insert = array();
+                $insert['type'] = $type;
+                $insert['title'] = $local_path;
+                $insert['content'] = $_POST['link'];
+                $insert['list_num'] = $_POST['list_num'];
+                $this->db->insert('md_about', $insert);
+            }
+            if (isset($_POST['list_nums']) && count($_POST['list_nums']) > 1) {
+                foreach ($_POST['list_nums'] as $id => $val) {
+                    $this->db->where("id", $id);
+                    $this->db->update('md_about', array('list_num' => $val));
+                }
+            }
+        }
+        $sql = "SELECT * FROM md_about WHERE `type`={$type} ORDER BY list_num DESC";
+        $data['partners'] = $this->db->query($sql)->result_array();
+        $this->load->view('homepage/partner', $data);
+    }
+
+    public function subject() {
+        if ($_POST) {
+            $config['subject_id'] = $_POST['active_id'];
+            $config['pro_ids'] = $_POST['pro_ids'] ? $_POST['pro_ids'] : array();
+            $config['link_url'] = $_POST['link_url'];
+            $update['value'] = json_encode($config);
+            $update['muid'] = $_SERVER['admin_id'];
+            $this->db->update("md_index_config", $update, array('key' => '1'));
+            redirect('/homepage/subject');
+        }
+        $sql = "SELECT * FROM md_index_config WHERE `key`='1'";
+        $config = $this->db->query($sql)->row_array();
+        if ($config) {
+            $config = json_decode($config['value'], true);
+        } else {
+            $config = array(
+                'subject_id' => '',
+                'pro_ids' => array(),
+            );
+
+            $data['name'] = '活动聚焦配置 ';
+            $data['key'] = '1';
+            $data['value'] = json_encode($config);
+            $data['ctime'] = $data['mtime'] = date("Y-m-d H:i:s");
+            $data['cuid'] = $data['muid'] = 0;
+            $this->db->insert('md_index_config', $data);
+        }
+        $sql = "SELECT * FROM md_special_subject ORDER BY id DESC";
+        $data['subjects'] = $this->db->query($sql)->result_array();
+        if (isset($_GET['active_id'])) {
+            $config['subject_id'] = $_GET['active_id'];
+        }
+        if ($config['subject_id']) {
+            $data['projects'] = $this->get_sub_pro($config['subject_id']);
+        }
+        $data['cfg'] = $config;
+        $this->load->view('homepage/active', $data);
+    }
+
+    public function get_sub_pro($active_id) {
+        $sql = "SELECT * FROM md_special_subject WHERE `id`='{$active_id}'";
+        $active = $this->db->query($sql)->row_array();
+        if ($active) {
+            $ids = json_decode($active['sub_pro_id']);
+            $sql = "select id,`name` from md_product WHERE if_show=1 AND id IN('" . implode("','", $ids) . "')";
+            $projects = $this->db->query($sql)->result_array();
+            return $projects;
+        }
+        return array();
+    }
+
+    public function ajax_update() {
+        $result = array('result' => false, 'error' => '参数错误');
+        if ($_POST) {
+            $sql = "update md_product_comments SET tags=REPLACE(tags,',homepage','')  WHERE id IN ('" . $_POST['comment_id'] . "');";
+            $this->db->query($sql);
+            if ($_POST['val'] == 'true') {
+                $result['res'] = 'true';
+                $sql = "update md_product_comments SET tags=CONCAT(tags,',homepage')  WHERE id IN ('" . $_POST['comment_id'] . "');";
+                $this->db->query($sql);
+            }
+            $result['result'] = true;
+            unset($result['error']);
+        }
+        echo json_encode($result);
+    }
+
+}

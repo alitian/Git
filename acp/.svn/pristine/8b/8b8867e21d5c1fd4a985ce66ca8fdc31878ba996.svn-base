@@ -1,0 +1,622 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: modian
+ * Date: 2016/3/7
+ * Time: 10:19
+ */
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+class Md_app_rcmd extends Acp_Controller
+{
+    const MD_APP_RCMD_PRO    = "md_app_rcmd_pro";
+    const MD_APP_RCMD_CATE   = "md_app_rcmd_cate";
+    const MD_APP_RCMD_BANNER = "md_app_rcmd_banner";
+    const MD_APP_RCMD_INTRO   = "md_app_rcmd_intro";
+    public $uid;
+    public $perpage = 20;
+    public $icon_size = "100x100";
+    public $thumb_marker = "_app_rcmd";
+    public $find_product;
+    public $preview_url;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->helper('url');
+        $this->load->helper('bbs_common');
+        $this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+        $this->find_product 	  = _gc('domain_zhongchou', 'domain');
+
+    }
+
+    //通过type取app推荐表的数据
+    public  function get_app_rcmd_list($type,$nextpage,$perpage,$cate_id)
+    {
+        $type     = $type ? (int)$type : 1;
+        $cate_id  = $cate_id ? (int)$cate_id : '';
+        $nextpage = $nextpage ? (int)$nextpage : 1;
+        $perpage  = (int) $perpage;
+        $offset   = ($nextpage-1)*$perpage;
+        if($type==1) {
+            $this->db->from(self::MD_APP_RCMD_PRO);
+            $this->db->where('cate_id',$cate_id);
+        }else{
+            $this->db->from(self::MD_APP_RCMD_BANNER);
+        }
+        $this->db->order_by('weight','DESC');
+        $this->db->limit($perpage,$offset);
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+    //通过cate_id取单个推荐主题的信息
+    public function get_item_topic_info($cate_id)
+    {
+        $cate_id = (int) $cate_id;
+        $this->db->from(self::MD_APP_RCMD_CATE);
+        $this->db->where('cate_id',$cate_id);
+        $res = $this->db->get()->row_array();
+        return $res;
+    }
+    //通过pro_id 和type取项目推荐的纪录
+    public function get_item_promotion_record($type,$pro_id,$cate_id)
+    {
+        $pro_id = (int) $pro_id;
+        $type   = (int) $type;
+        $cate_id = (int) $cate_id;
+        if($type==1){
+            $this->db->from(self::MD_APP_RCMD_PRO);
+            $this->db->where('pro_id',$pro_id);
+            $this->db->where('cate_id',$cate_id);
+        }else{
+            $this->db->from(self::MD_APP_RCMD_BANNER);
+        }
+        $res = $this->db->get()->row_array();
+        return $res;
+    }
+
+    //取各个type的推荐总数
+    public function get_total_app_rcmd($type,$cate_id="")
+    {
+        $type     = $type ? (int)$type : 1;
+        $cate_id  = (int) $cate_id;
+        if($type==1){
+            $this->db->from(self::MD_APP_RCMD_PRO);
+            $this->db->where('cate_id',$cate_id);
+        }else{
+            $this->db->from(self::MD_APP_RCMD_BANNER);
+        }
+        $num_rows = $this->db->get()->num_rows();
+        return $num_rows;
+    }
+    //获取总的项目推荐主题数
+    public function get_total_item_topic($type)
+    {
+        switch($type){
+            case 1:
+                $db_table = self::MD_APP_RCMD_CATE;
+                break;
+            case 4:                                        //type表示文字帮助
+                $db_table = self::MD_APP_RCMD_INTRO;
+                break;
+            case 5:                                     //type5表示wds文字帮助
+                $db_table = self::MD_APP_RCMD_INTRO;
+        }
+        $this->db->from($db_table);
+        if($type==4 ||$type==5){
+            $this->db->where("type",$type);
+        }
+        $total_rows = $this->db->get()->num_rows();
+        return $total_rows;
+    }
+    //获取项目推荐主题列表 和文字帮助 微打赏文字帮助
+    public function get_item_topic_list($type,$nextpage,$perpage)
+    {
+        $nextpage = $nextpage ? (int)$nextpage : 1;
+        $perpage  = (int) $perpage;
+        $offset   = ($nextpage-1)*$perpage;
+        $type = intval($type);
+        switch($type){
+            case 1:
+                $db_table = self::MD_APP_RCMD_CATE;
+                break;
+            case 4:                                     //type4表示app文字帮助
+                $db_table = self::MD_APP_RCMD_INTRO;
+                break;
+            case 5:                                     //type5表示wds文字帮助
+                $db_table = self::MD_APP_RCMD_INTRO;
+        }
+        $this->db->from($db_table);
+        $this->db->order_by("weight","DESC");
+        if($type==4 ||$type==5){
+            $this->db->where("type",$type);
+        }
+        $this->db->limit($perpage,$offset);
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+
+    //根据id获取推荐表的项目/banner信息
+    public function get_rcmd_info_by_id($id)
+    {
+        $id    = (int) $id;
+        $this->db->from(self::MD_APP_RCMD_BANNER);
+        $this->db->where('id',$id);
+        $res = $this->db->get()->row_array();
+        return $res;
+    }
+
+
+
+    //++++++++++++++++++文字介绍相关+++++++++++++++++++
+    public function get_rcmd_intro_by_id($id)
+    {
+        $id    = (int) $id;
+        $this->db->from(self::MD_APP_RCMD_INTRO);
+        $this->db->where('id',$id);
+        $res = $this->db->get()->row_array();
+        return $res;
+    }
+    //===================END=========================
+
+    public function item_topic_list($type,$curpage)
+    {
+        $type           = $type ? (int) $type :1;
+        $curpage        = $curpage ? (int)$curpage :1;
+        $item_topic_list  = $this->get_item_topic_list($type,$curpage,$this->perpage);
+        $total_rows     = $this->get_total_item_topic($type);
+        $cur_url = "/md_app_rcmd/item_topic_list/$type";
+        $config = array(
+            'uri_segment' => 4, // 在url的第二段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $total_rows,
+            'per_page' => $this->perpage,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+            'full_tag_open' => '<ul class="pagination">',
+            'full_tag_close' => '</ul>',
+            'first_tag_open' => '<li>',
+            'first_tag_close' => '</li> &nbsp;&nbsp;',
+            'last_tag_open' => '<li>',
+            'last_tag_close' => '</li> &nbsp;&nbsp;',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li> &nbsp;&nbsp;',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li> &nbsp;&nbsp;',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li> &nbsp;&nbsp;',
+            'cur_tag_open' => '<strong>',
+            'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $this->load->vars('type',$type);
+        $this->load->vars('curpage', $curpage);
+        $this->load->vars('item_topic_list', $item_topic_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view('md_app_rcmd/item_topic_index');
+
+    }
+    public function app_rcmd_list($type,$cate_id,$curpage)
+    {
+        $type           = $type ? (int) $type :1;
+        $curpage        = $curpage ? (int)$curpage :1;
+
+        $cate_id        = $cate_id ? (int)$cate_id : '';
+        $app_rcmd_list  = $this->get_app_rcmd_list($type,$curpage,$this->perpage,$cate_id);
+        $total_rows     = $this->get_total_app_rcmd($type,$cate_id);
+        if($type==1){
+            $cate_name = $this->get_item_topic_info($cate_id)['title'];
+            $this->load->vars('cate_name',$cate_name);
+//            $this->load->model('edm_product_m');
+//            foreach($app_rcmd_list as &$item_info){
+//                $item = $this->edm_product_m->get_info_by_product(intval($item_info['pro_id']));
+//                $item_info['pic'] = $item['logo'];
+//                unset($item);
+//            }
+        }
+        $cur_url = "/md_app_rcmd/app_rcmd_list/$type/$cate_id";
+        $config = array(
+            'uri_segment' => 5, // 在url的第5段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $total_rows,
+            'per_page' => $this->perpage,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+            'full_tag_open' => '<ul class="pagination">',
+            'full_tag_close' => '</ul>',
+            'first_tag_open' => '<li>',
+            'first_tag_close' => '</li> &nbsp;&nbsp;',
+            'last_tag_open' => '<li>',
+            'last_tag_close' => '</li> &nbsp;&nbsp;',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li> &nbsp;&nbsp;',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li> &nbsp;&nbsp;',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li> &nbsp;&nbsp;',
+            'cur_tag_open' => '<strong>',
+            'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $this->load->vars('type',$type);
+        $this->load->vars('curpage', $curpage);
+        $this->load->vars('cate_id',$cate_id);
+        $this->load->vars('app_rcmd_list', $app_rcmd_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view('md_app_rcmd/rcmd_index');
+    }
+    //    添加项目推荐主题
+    public function add_item_topic($type)
+    {
+        $is_new  = _pv('new') ?_pv('new'):'';
+        $cate_id = isset($_POST['cate_id'])?$_POST['cate_id']:0;
+        $type    = $type?$type:1;
+        if(!$is_new){
+            $this->load->vars('type',$type);
+            $this->load->view('md_app_rcmd/item_topic');
+        }else{
+            if($type==1){   //type 1推荐主题相关
+                $data['title'] = _pv('title');
+                $data['icon']  = _pv('cover') ;
+                if($cate_id){  //有cate_id表示修改
+                    $this->db->where('cate_id',$cate_id);
+                    $this->db->update(self::MD_APP_RCMD_CATE,$data);
+                    $res = $this->db->affected_rows();
+                    if($res)
+                        md_common::display_javascript('修改成功',site_url('md_app_rcmd/item_topic_list/1'));
+                    else
+                        redirect('md_app_rcmd/item_topic_list/1');
+                }else{    //否则新增
+                    $this->db->insert(self::MD_APP_RCMD_CATE,$data);
+                    $last_id = $this->db->insert_id();
+                    if($last_id)
+                        md_common::display_javascript('添加成功',site_url('md_app_rcmd/item_topic_list/1'));
+                }
+            }else{   // type 4 文字相关操作
+                $id = isset($_POST['id'])?$_POST['id']:0;
+                $data['title'] = _pv('title');
+                $data['links'] = _pv('links');
+                $data['type']  = (int)$type;
+                if($id){                            //有id表示修改
+                    $this->db->where('id',$id);
+                    $this->db->update(self::MD_APP_RCMD_INTRO,$data);
+                    $res = $this->db->affected_rows();
+                    if($res)
+                        md_common::display_javascript('修改成功',site_url('md_app_rcmd/item_topic_list/'.$type));
+                    else
+                        redirect('md_app_rcmd/item_topic_list/'.$type);
+                }else{                  //否则新增
+                    $this->db->insert(self::MD_APP_RCMD_INTRO,$data);
+                    $last_id = $this->db->insert_id();
+                    if($last_id)
+                        md_common::display_javascript('添加成功',site_url('md_app_rcmd/item_topic_list/'.$type));
+                }
+            }
+        }
+
+    }
+
+    /*
+        多次上传图片，不对之前的图片进行删除操作
+     */
+    public function upload($type)
+    {
+        $this->load->library('md_imagick');
+        // 图片上传input框name名
+        $type = (int) $type;
+        $input_file_name = 'upfile';
+        $attachment_path_prefix = 'md_app_rcmd/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $db_path_prefix = 'uploads/' . $attachment_path_prefix;
+        $full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+
+        if(!file_exists($full_upload_path)){
+            mkdir($full_upload_path, 0777, TRUE);
+        }
+        $config = array(
+            'upload_path' => $full_upload_path,
+            'allowed_types' => 'gif|jpg|png|jpeg',
+            'encrypt_name' => TRUE,
+            'max_size' => '10000',
+            'max_width' => '102400',
+            'max_height' => '76800'
+        );
+        $this->load->library('upload', $config);
+        if( ! $this->upload->do_upload($input_file_name)){
+            $errmsg = $this->upload->display_errors();
+            echo "<script>alert('{$errmsg}')</script>";
+        }else{
+            $attachment_data = $this->upload->data();
+            //在首页表中插入路径 jaafar
+//            var_dump($attachment_data);
+            // 得到原图的系统路径
+            $attachment_system_path = $attachment_data['full_path'];
+        //  type 1为项目主题图标 2为APP轮播图
+            switch ($type) {
+                case '1':
+                    $list_size = '690x296';
+                    break;
+                case '2':
+                    $list_size = '690x296';
+                    break;
+                case '3':
+                    $list_size = '100x100';
+                    break;
+            }
+//            attachment_process($attachment_system_path, $this->compress_marker, $this->list_marker, $this->thumb_marker,$list_size,$list_size);
+            thumbnail_image($attachment_system_path,$list_size,$this->thumb_marker,array(),'md_app_rcmd');
+            @unlink($attachment_system_path);
+            // 存储数据表的路径
+            $db_path = $db_path_prefix . $attachment_data['raw_name'].$this->thumb_marker.$attachment_data['file_ext']; 		//这里我们直接存压缩的名字 数据库存储的路径是以 'upload' 开头
+
+            // 原图的URL访问地址
+            $attachment_url =cdn_url($db_path);
+
+
+            //显示到页面那个预览图片的位置
+            $js = <<<EOT
+                		<script>
+                			top.document.getElementById('img_preview').setAttribute('src',' $attachment_url')
+                			top.document.getElementById('img_preview').style.display='inline-block';
+                			top.document.getElementById('default_text').style.display='none';
+                			top.document.getElementById('pro_img').value='$db_path';
+                			top.document.getElementById('check_upload').value=1;
+
+                		</script>;
+EOT;
+            echo $js;
+        }
+    }
+    //编辑项目推荐主题
+    public function edit_item_topic($cate_id)
+    {
+        $cate_id = (int) $cate_id;
+        $topic_info = $this->get_item_topic_info($cate_id);
+        $this->load->vars('topic_info',$topic_info);
+        $this->load->vars('type',1);
+        $this->load->view('md_app_rcmd/item_topic');
+    }
+    //添加项目
+    public function do_add_pro($type,$cate_id,$curpage)
+    {
+        $type = $type ? (int)$type : '';
+        if($type==1){
+            $pro_id = (int)_pv('pro_id');
+            $cate_id = (int)$cate_id;
+            $curpage = (int)$curpage;
+            $this->load->model('edm_product_m');
+            $item_info = $this->edm_product_m->get_info_by_product($pro_id);
+            $item_record =  $this->get_item_promotion_record($type,$pro_id,$cate_id);
+            if(!$item_info){
+                md_common::display_javascript('项目不存在!');
+            }else{
+                if(!$item_record){
+
+                    $data['pro_id']    = $pro_id;
+                    $data['title']     = $item_info['name'];
+                    $data['pic']       = $item_info['logo'];
+                    $data['links']      = $this->find_product.'/item/'.$pro_id;
+//                    $data['type']      = 1;
+                    $data['weight']    = 0;
+                    $data['cate_id']   = $cate_id;
+                    $this->db->insert(self::MD_APP_RCMD_PRO,$data);
+                    md_common::display_javascript('添加成功!',site_url('md_app_rcmd/app_rcmd_list/'.$type.'/'.$cate_id.'/'.$curpage));
+                }else{
+                    md_common::display_javascript('项目已存在!',site_url('md_app_rcmd/app_rcmd_list/'.$type.'/'.$cate_id.'/'.$curpage));
+                }
+            }
+        } else if($type==2){
+            $total_rows = $this -> get_total_app_rcmd($type);
+            if($total_rows<5){
+                $this->load->view('md_app_rcmd/add_banner_rcmd');
+            }else{
+                md_common::display_javascript("最多允许五张轮播图");
+            }
+
+        }
+    }
+
+//    ajax 删除
+    public function del_app_rcmd()
+    {
+        $id = (int) _pv('id');
+        $type = (int)_pv('type');
+        $this->db->where('id',$id);
+        if($type==2){
+            $this->db->delete(self::MD_APP_RCMD_PRO);
+        }elseif($type==4||$type==5){
+            $this->db->delete(self::MD_APP_RCMD_INTRO);
+        }else{
+            $this->db->delete(self::MD_APP_RCMD_BANNER);
+        }
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status' => 1,
+                'msg'    => '删除成功'
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+                'msg'    => '删除异常'
+            );
+        }
+        echo json_encode($return_data);
+    }
+
+    //编辑轮播图信息
+    public function edit_banner($id,$type,$cate)
+    {
+        $id = (int) $id;
+        if($type==2){
+            $banner_info = $this->get_rcmd_info_by_id($id);
+        }else{
+            $this->db->from(self::MD_APP_RCMD_PRO);
+            $this->db->where('id',$id);
+            $banner_info = $this->db->get()->row_array();
+        }
+        $this->load->vars('cate',$cate);
+        $this->load->vars('type',$type);
+        $this->load->vars('banner_info',$banner_info);
+        $this->load->view('md_app_rcmd/add_banner_rcmd');
+    }
+
+    //添加轮播图  --add 项目编辑功能也放这里面了
+    public function do_add_banner($type)
+    {
+        $id = isset($_POST['id'])? (int)_pv('id'):'';
+        $type  = (int) $type;
+        $links = _pv('links');
+        $pic   = _pv('pic');
+        $title = _pv('title');
+        $data  = array(
+            'links' => $links,
+            'pic'   => $pic,
+            'title' => $title
+        );
+        if($id){
+            $this->db->where('id',$id);
+            if($type==1){
+                unset($data['links']);
+                $cate= _pv('cate');
+                $this->db->update(self::MD_APP_RCMD_PRO,$data);  //项目 增加项目编辑功能
+                $res = $this->db->affected_rows();
+                if($res)
+                    md_common::display_javascript("修改成功",site_url('md_app_rcmd/app_rcmd_list/'.$type."/".$cate));
+                else
+                    md_common::display_javascript("没有修改修改内容",site_url('md_app_rcmd/app_rcmd_list/'.$type."/".$cate));
+            }else{
+                $this->db->update(self::MD_APP_RCMD_BANNER,$data);  //轮播图
+                $res = $this->db->affected_rows();
+                if($res)
+                    md_common::display_javascript("修改成功",site_url('md_app_rcmd/app_rcmd_list/'.$type));
+                else
+                    md_common::display_javascript("没有修改修改内容",site_url('md_app_rcmd/app_rcmd_list/'.$type));
+            }
+
+        }else{
+            $this->db->insert(self::MD_APP_RCMD_BANNER,$data);
+            $res = $this->db->insert_id();
+            if($res)
+                md_common::display_javascript('新增成功',site_url('md_app_rcmd/app_rcmd_list/'.$type));
+        }
+    }
+
+    //更改权重
+    public function change_weight()
+    {
+        $type = (int) _pv('type');
+        $id = (int) _pv('id');
+        $weight = (int) _pv('weight');
+        $data['weight'] = $weight;
+        if($type==1){
+            $this->db->from(self::MD_APP_RCMD_CATE);
+            $this->db->where('cate_id',$id);
+            $this->db->update(self::MD_APP_RCMD_CATE,$data);
+        }elseif($type==2){
+            $this->db->where('id',$id);
+            $this->db->update(self::MD_APP_RCMD_PRO,$data);
+        }elseif($type==4||$type==5){
+            $this->db->where('id',$id);
+            $this->db->update(self::MD_APP_RCMD_INTRO,$data);
+        }else{
+            $this->db->where('id',$id);
+            $this->db->update(self::MD_APP_RCMD_BANNER,$data);
+        }
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status' => 1,
+                'msg'    => "更改成功"
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+                'msg'    => "更改异常"
+            );
+        }
+        echo json_encode($return_data);
+    }
+
+    public function update_all_record_by_type($type,$cate_id)
+    {
+        $type = (int) $type;
+        $cate_id = $cate_id ? (int)$cate_id :0;
+        $this->load->model("bbs/bbs_m");
+        $data = array(
+            'isshow' => 1
+        );
+
+        $this->db->where('weight !=',0);
+        $this->db->where('isshow',0);
+
+        if($type==2){
+            $this->db->where('cate_id',$cate_id);
+            $this->db->update(self::MD_APP_RCMD_PRO,$data);
+            $res = $this->db->affected_rows();
+            if($this->bbs_m->get_keys("app_recommend_list")){
+                $this->del_some_key("app_recommend_list");
+            }
+        }else{
+            $this->db->update(self::MD_APP_RCMD_BANNER,$data);
+            $res = $this->db->affected_rows();
+        }
+        if($res)
+            md_common::display_javascript("同步成功");
+        else
+            md_common::display_javascript("没有更新任何数据");
+    }
+    public function del_some_key($pattern)
+    {
+        $this->load->model("bbs/bbs_m");
+        $keys = $this->bbs_m->get_keys($pattern);
+        if(!empty($keys)){
+            foreach($keys as $key){
+                $this->bbs_m->delete($key);
+            }
+        }
+        return;
+    }
+
+    //+++++++++++++++++++++文字帮助相关
+    //编辑项目推荐主题
+    public function edit_rcmd_intro($id,$type)
+    {
+        $id   = (int) $id;
+        $type = (int) $type;
+        $intro_info = $this->get_rcmd_intro_by_id($id);
+        $this->load->vars('intro_info',$intro_info);
+        $this->load->vars('type',$type);
+        $this->load->view('md_app_rcmd/item_topic');
+    }
+
+//    public function get_wds_intro_list($nextpage,$perpage)
+//    {
+//        $nextpage = $nextpage ? (int)$nextpage : 1;
+//        $perpage  = (int) $perpage;
+//        $offset   = ($nextpage-1)*$perpage;
+//        $this->db->from(self::MD_APP_RCMD_PRO);
+//        $this->db->order_by('weight','DESC');
+//        $this->db->limit($perpage,$offset);
+//        $result = $this->db->get()->result_array();
+//        return $result;
+//    }
+//
+//    public function get_wds_intro_num()
+//    {
+//        $this->db->from(self::MD_APP_RCMD_PRO);
+//        $this->db->where();
+//        $result = $this->db->get()->result_array();
+//        return $result;
+//    }
+}

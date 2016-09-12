@@ -1,0 +1,717 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script type="text/javascript" charset="utf-8" src="<?= static_url(); ?>js/jquery.js"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.config.js?t=20150421"></script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.all.min.js?t=20150421"></script>
+<script type="text/javascript">
+	$(function() {
+		$("#JEditor").show();
+		var ue = UE.getEditor('JEditor');
+	})
+</script>
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+    });
+</script>
+<style type="text/css">
+    #ssubj-subpro-id-list {
+        margin-left: 70px;
+    }
+    #ssubj-subpro-id-list .pro-id-item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+    }
+    #ssubj-subpro-id-list .pro-id-item input.input-mini {
+        margin: 0;
+    }
+    
+    #money-list {
+        margin-left: 70px;
+    }
+    #money-list .money-item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+    }
+    #money-list .money-item input.input-mini {
+        margin: 0;
+    }
+    td,tr{
+        white-space: nowrap;
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/easyfund/choudiandian_pro">微众筹--红包管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+		<form class="forms addform" name="addform" id="addform" action="" method="post">
+			<input type="hidden" id='easy_id' name='easy_id' value="<?php echo $easy_id;?>" />
+			<input type="hidden" id='create_type' name='create_type' value="3" /> 
+        	<div id="p1" class="easyui-panel" title="基本信息" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">
+				<div id="edit_pro" class="edit_pro">
+					<div class="span10">
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">活动标题:</span>
+								<input type="text" id='new_wallet_title' name='new_wallet_title' value="<?php echo $pro_mess[0]['title'];?>" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>
+							</div>
+							<div class="input-prepend input-append">
+								<span class="add-on">标题图片:</span>
+	    						<input style="margin-left:20px;" type="text" name="wallet_title_logo" id="wallet_title_logo" value="<?php echo $pro_mess[0]['title_pic'];?>" placeholder="png无背景格式，573 * 185"><input type="file" id="title_picture" name="title_picture" value="" ><input type="button" value="上传图片" id="title_up">
+							</div>
+							
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">标签:</span>
+						        <input  type="text" id='redwallet_tag' name='redwallet_tag' value="<?php echo $pro_mess[0]['tag'];?>" placeholder="多个标签以,分隔" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>
+						    </div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">选择模板:</span>
+								<?php if($pro_mess[0]['if_show']==1){?>
+						        	<input  type="hidden" id='wallet_template' name='wallet_template' value="<?php echo $pro_mess[0]["template"]?>"/>																
+						        	<input  type="text" id='wallet_template_show' name='wallet_template_show' value="<?php if($pro_mess[0]["template"]==1){?>整图模板<?php }elseif($pro_mess[0]["template"]==2){?>半图模板<?php }else{?>砍价模板<?php }?>" readOnly="true" />								
+								<?php }else{?>
+									<select id="wallet_template" name="wallet_template">
+										<option value=""></option>
+										<option value="1">整图模板</option>
+										<option value="2">半图模板</option>
+										<option value="3">砍价模板</option>
+									</select>
+									<span style="color:red;">(整图模板->背景图中不包含选择方框&nbsp;&nbsp;半图模板->背景图中有按钮选择方框&nbsp;&nbsp;砍价模板->戳红包为用户砍价)</span>
+								<?php }?>																
+						    </div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">背景图:</span>
+	    						<input style="margin-left:20px;" type="text" name="topic_pic_hidden" id="topic_pic_hidden" value="<?php echo $pro_mess[0]['back_pic'];?>" placeholder="图片尺寸请控制为640 * 1008" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>>
+	    						<input type="file" id="topic_picture" name="topic_picture" value="" >
+	    						<input type="button" value="上传图片" id="topic_up">
+						    </div>
+						</div>																																									
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">推荐图:</span>
+	    						<input style="margin-left:20px;" type="text" name="topic_recom_hidden" id="topic_recom_hidden" value="<?php echo $pro_mess[0]['recomment_pic'];?>" placeholder="图片尺寸请控制为640 * 200">
+	    						<input type="file" id="topic_recom_picture" name="topic_recom_picture" value="" >
+	    						<input type="button" value="上传图片" id="topic_recom_up">
+						    </div>
+						</div>
+																		
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">LOGO:</span>
+	    						<input style="margin-left:20px;" type="text" name="topic_logo_hidden" id="topic_logo_hidden" value="<?php echo $pro_mess[0]['logo'];?>" placeholder="png无背景格式，312 * 118">
+	    						<input type="file" id="topic_logo_picture" name="topic_logo_picture" value="" >
+	    						<input type="button" value="上传图片" id="topic_logo_up">
+						    </div>
+						</div>
+																		
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">开始时间:</span>
+								<span id="datetimepicker" class="input-append">
+									<input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" name='prostart_time' id='prostart_time' value='<?php echo $pro_mess[0]['effect_time'];?>' <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>
+									<span class="add-on">
+										<i data-time-icon="icon-time" data-date-icon="icon-calendar"></i>
+									</span>
+								</span>
+						    </div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">限时:</span>
+								<input  type="text" id='effect_day' name='effect_day' value="<?php echo $pro_mess[0]['effect_day'];?>" />&nbsp;天
+						    </div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">活动简介:</span>
+								<input type="text" id="content_text" name="content_text" value="" style="display:none;"/>
+								<textarea id="text" name="text"><?php echo $easy_mess[0]['des'];?></textarea>
+						    </div>
+						</div>						
+						
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">活动介绍:</span>
+								<div class="item">
+									<div class="mm-group clearfix noMarB">
+										<textarea id="JEditor" name="content" class="content" data-validation-engine="validate[required]" >
+											<div style="padding: 10px; -webkit-font-smoothing: antialiased; font-family: \5FAE\8F6F\96C5\9ED1, tahoma, arial, "Hiragino Sans GB", \5b8b\4f53, sans-serif;">
+											</div>
+											<?php echo htmlspecialchars_decode($pro_mess[0]['des']);?>											
+										</textarea>
+									</div>
+								</div>								
+						    </div>
+						</div>						
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">介绍链接:</span>
+	    						<input style="margin-left:20px;" type="text" id='new_pro_des' name='new_pro_des' value="<?php echo $pro_mess[0]['intro'];?>" />
+						    </div>
+						</div>						
+					</div>
+				</div>
+			</div>
+        	<div id="p2" class="easyui-panel" title="活动规则及奖品分配方案" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">
+				<div id="edit_pro" class="edit_pro">
+					<div class="span10">					
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">累计方式:</span>
+								<?php if($pro_mess[0]['if_show']==1){?>
+						        	<input  type="hidden" id='open_meth' name='open_meth' value="<?php echo $pro_mess[0]["type"];?>"/>																
+						        	<input  type="text" id='open_meth_show' name='open_meth_show' value="<?php if($pro_mess[0]["type"]==1){?>拆红包个人累计<?php }elseif($pro_mess[0]["type"]==2){?>双方各累计一半<?php }?>" readOnly="true" />																
+								<?php }else{?>								
+									<select id="open_meth" name="open_meth">
+										<option value=""></option>								
+										<option value="1">拆红包个人累计</option>
+										<option value="2">双方各累计一半</option>
+									</select>								
+									<span style="color:red;">(提示：1->被拆者累计&nbsp;&nbsp;&nbsp;2->双方各累计一半)</span>
+								<?php }?>
+							</div>
+						</div>						
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">累计规则:</span>
+								<?php if($pro_mess[0]["money_meth"] == 1){?>
+						        	<input  type="hidden" id='money_meth' name='money_meth' value="<?php echo $pro_mess[0]["money_meth"];?>"/>																
+						        	<input  type="text" id='money_meth_show' name='money_meth_show' value="固定值" readOnly="true" />																
+									<div id="fixed_money" style="display:block">
+										<div class="row-fluid">
+											<div class="input-prepend input-append">
+												<span class="add-on">固定金额:</span>
+												<input type="text" id='fixed_money_num' name='fixed_money_num' value="<?php echo $money_area[0];?>" placeholder="请输入正整数" style="width:80px;"/>&nbsp;元
+										    </div>
+										</div>						
+									</div>								
+								<?php }else{?>
+						        	<input  type="hidden" id='money_meth' name='money_meth' value="<?php echo $pro_mess[0]["money_meth"];?>"/>																
+						        	<input  type="text" id='money_meth_show' name='money_meth_show' value="随机值" readOnly="true" />																
+									<div id="random_money" style="display:block">						
+										<div class="row-fluid">
+											<div class="input-prepend input-append">
+												<span class="add-on">红包随机金额范围:</span>
+												<input type="text" id='low_money' name='low_money' value="<?php echo $money_area[0];?>" placeholder="请输入正整数" style="width:80px;"/>&nbsp;元
+												<span><i class="icon-resize-horizontal"></i> </span>
+												<input type="text" id='up_money' name='up_money' value="<?php echo $money_area[1];?>" placeholder="请输入正整数" style="width:80px;"/>&nbsp;元								
+										    </div>
+										</div>						
+										<div class="row-fluid">						
+											<div class="input-prepend input-append">
+												<span class="add-on">特定红包数值配比:</span>
+			<!--									<a id="money-add" href="javascript:;" role="button">添加</a>-->
+			                        			<input class="input-mini" type="text" name="money-item" id="money-item" value="<?php echo $money;?>" placeholder="金额">\
+						           				<input class="input-mini" type="text" name="money-percent" id="money-percent" value="<?php echo $money_per;?>" placeholder="百分比">\
+			
+											</div>
+											<div id="money-list" class="row-fluid">
+											</div>
+										</div>
+									</div>														
+								<?php }?>
+							</div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">奖品配置:</span>
+						        <a id="prize-add" href="javascript:;" role="button">添加</a>						        					        
+						    </div>
+						</div>
+						<div id="prize_list">
+						<?php for($i=0;$i<count($prize_arr);$i++){?>												
+							<div class="prize_for">
+								<a href="#" class="close del-subjpro-id-item">&times;</a>
+					            <div class="row-fluid" style="margin-top:5px">
+									<div class="input-prepend input-append">
+										<span class="add-on">奖品:</span>
+										<input type="text"  name='prize_name[]' value="<?php echo $prize_arr[$i]['prize_name'];?>" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>
+										<span class="add-on" style="margin-left:8px;">奖品数量:</span>
+										<input  type="text"  name='prize_num[]' value="<?php echo $prize_arr[$i]['prize_num'];?>" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>
+										<span class="add-on" style="margin-left:8px;">奖品单价:</span>
+										<input  type="text"  name='prize_price[]' value="<?php echo $prize_arr[$i]['prize_price'];?>" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>	
+									</div>
+									<div class="input-prepend input-append">
+										<span class="add-on">购买链接:</span>
+										<input type="text"  name='buy_intro[]' value="<?php echo $prize_arr[$i]['buy_intro'];?>" placeholder="请填写全链接"/>
+										<span class="add-on" style="margin-left:8px;">购买文案:</span>
+										<input  type="text"  name='buy_txt[]' value="<?php echo $prize_arr[$i]['buy_txt'];?>" placeholder="不超过“4”个字"/>
+									</div>
+
+								</div>
+								<div style="border:1px dashed #808080">
+									<div class="row-fluid" style="margin:10px;">
+										<div class="input-prepend input-append">
+											<span class="add-on">奖品图:</span>
+											<input style="margin-left:20px;" type="text" id="topic_prize_hidden_<?php echo $i?>" name="topic_prize_hidden[]" value="<?php echo $prize_arr[$i]['prize_pic'];?>" readOnly="true"  placeholder="图片尺寸请控制为640 * 640">
+											<img src="<?=cdn_url($prize_arr[$i]['prize_pic']);?>" style="width:60px;height:60px"/>
+										</div>						
+										<div class="input-prepend input-append">
+											<span class="add-on">中奖条件:</span>
+										</div>
+										<div class="input-prepend input-append">
+											<span class="add-on" style="margin-left:10px;">支持人数:</span>
+											<input  style="width:8px;" type="text"  name='zhichi_people_meth' value=">" readOnly="true"/>
+											<input  type="text"  name='zhichi_people[]' value="<?php echo $prize_arr[$i]['prize_people'];?>" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>					        
+										</div>
+										<div class="input-prepend input-append">
+											<span class="add-on" style="margin-left:10px;">众筹金额:</span>
+											<input  style="width:8px;" type="text"  name='zhichi_money_meth' value=">" readOnly="true"/>								
+											<input  type="text"  name='zhichi_money[]' value="<?php echo $prize_arr[$i]['prize_money'];?>" <?php if($pro_mess[0]['if_show']==1){?>readOnly="true"<?php }?>/>						        								
+										</div>
+										<div class="input-prepend input-append">
+											<span class="add-on" style="margin-left:10px;">两者关系:</span>
+								        	<input  type="hidden" id='zhichi_meth' name='zhichi_meth[]' value="<?php echo $prize_arr[$i]['prize_config'];?>"/>																
+								        	<input  type="text" id='zhichi_meth_show' name='zhichi_meth_show' value="<?php if($prize_arr[$i]['prize_config'] == 1){?>或<?php }else{?>且<?php }?>" readOnly="true" />																
+										</div>					    						    
+									</div>
+								</div>
+							</div>													
+						<?php }?>
+						</div>						
+						<div id="prize_item" style="margin:10px">
+						</div>																	                     	                    															                     	                    																										                     	                    															                     	                    																											                     	                    															                     	                    																										                     	                    															                     	                    																											                     	                    															                     	                    																										                     	                    															                     	                    															
+					</div>
+				</div>
+			</div>				
+        	<div id="p3" class="easyui-panel" title="分享设置" style="height:0 auto;padding:10px;margin: 0;" data-options="collapsible:true">
+				<div id="edit_pro" class="edit_pro">
+					<div class="span10">
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">分享标题:</span>
+								<input type="text" id='share_title' name='share_title' value="<?php echo $pro_mess[0]["share_title"];?>" placeholder="请控制在20字之内"/>
+							</div>
+						</div>
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">分享文案:</span>
+								<input type="text" id='share_text' name='share_text' value="<?php echo $pro_mess[0]["share_des"];?>" placeholder="请控制在30字之内"/>
+							</div>
+						</div>	
+						<div class="row-fluid">
+							<div class="input-prepend input-append">
+								<span class="add-on">分享图片:</span>
+	    						<input type="text" name="share_pic_hidden" id="share_pic_hidden" value="<?php echo $pro_mess[0]["share_pic"];?>">
+	    						<input type="file" id="share_picture" name="share_picture" value="" >
+	    						<input type="button" value="上传图片" id="share_up">
+							</div>
+						</div>						
+											
+					</div>
+				</div>
+			</div>		
+		</form>
+	</div>
+	<div class="span1">                 
+		<button class="btn btn-primary" id="btn_submit" name="btn_submit" style="width:150px">提交</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>
+	</div>               	
+</div>
+<script type="text/javascript">
+$(document).ready(function(){ 
+
+    // 添加奖品
+//    var prize_arr = <?php echo count($prize_arr);?>;
+//	var num = prize_arr;
+    $('a#prize-add').on('click', function(evt) {
+        evt.preventDefault();
+        var prize_arr = document.getElementsByName("prize_name[]");
+    	var num = prize_arr.length;   
+        var html ='<div class="prize">';
+       		html +='<a href="#" class="close del-subjpro-id-item">&times;</a>';
+         	html += '<div class="row-fluid" style="margin-top:5px">';
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on">奖品:</span>';
+			html +='<input type="text"  name=\'prize_name[]\' value="" />';
+			html +='<span class="add-on" style="margin-left:8px;">奖品数量:</span>';
+			html +='<input  type="text"  name=\'prize_num[]\' value="" />';
+			html +='<span class="add-on" style="margin-left:8px;">奖品单价:</span>';
+			html +='<input  type="text"  name=\'prize_price[]\' value="" />';	
+			html +='</div>';
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on">购买链接:</span>';
+			html +='<input type="text"  name=\'buy_intro[]\' value="" placeholder="请填写全链接"/>';
+			html +='<span class="add-on" style="margin-left:8px;">购买文案:</span>';
+			html +='<input  type="text"  name=\'buy_txt[]\' value="" placeholder="不超过“4”个字"/>';
+			html +='</div>';			
+			html +='</div>';
+			html +='<div style="border:1px dashed #808080">';	
+			html +='<div class="row-fluid" style="margin:10px;">';
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on">奖品图:</span>';
+			html +='<input style="margin-left:20px;" type="text" name="topic_prize_hidden[]" id="topic_prize_hidden_'+num+'" value="" placeholder="图片尺寸请控制为640 * 640" ><input type="file" id="topic_prize_'+num+'" name="topic_prize_'+num+'" value="" onChange="up_more_prize('+num+');">';					    	
+			html +='</div>';						
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on">中奖条件:</span>';
+			html +='</div>';
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on" style="margin-left:10px;">支持人数:</span>';
+			html +='<input  style="width:8px;" type="text"  name=\'zhichi_people_meth\' value=">" readOnly="true"/>';
+			html +='<input  type="text"  name=\'zhichi_people[]\' value="" />';						        
+			html +='</div>';
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on" style="margin-left:10px;">众筹金额:</span>';
+			html +='<input  style="width:8px;" type="text"  name=\'zhichi_money_meth\' value=">" readOnly="true"/>';									
+			html +='<input  type="text"  name=\'zhichi_money[]\' value="" />';						        								
+			html +='</div>';
+			html +='<div class="input-prepend input-append">';
+			html +='<span class="add-on" style="margin-left:10px;">两者关系:</span>';
+			html +='<select  name="zhichi_meth[]" style="width:50px;">';
+			html +='<option value="">方式</option>';								
+			html +='<option value="1">或</option>';
+			html +='<option value="2">且</option>';
+			html +='</select>';																
+			html +='</div>';					    						    
+			html +='</div>';
+			html +='</div>';
+			html +='</div>';			
+			num1 = parseFloat(num);	       	
+			num2 = parseFloat(1);
+			num = num1+num2;
+        $('#prize_item').append(html);
+    });    
+    $('#prize_item').on('click', '.prize a.del-subjpro-id-item', function(evt) {
+        evt.preventDefault();
+        $(this).parent().remove();
+    });
+    $('#prize_list').on('click', '.prize_for a.del-subjpro-id-item', function(evt) {
+        evt.preventDefault();
+        $(this).parent().remove();
+    }); 
+
+    //上传标题图片
+	$('#title_up').click(function(){ 
+		var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+		$.ajaxFileUpload({
+			 url:'/user_ajax/upload_diandian_red_title', //你处理上传文件的服务端
+			 secureuri:false,
+			 fileElementId:'title_picture',
+			 dataType: 'json',
+			 success: function (data){
+				 url = url + data.pic;
+				 if(data.num == 1){
+					 $('#wallet_title_logo').val(data.pic);
+				 }else{
+					 alert("文件上传失败");
+					 return false;
+				 }
+			 },
+			})
+	});  
+    //上传背景图
+	$('#topic_up').click(function(){ 
+		var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+		$.ajaxFileUpload({
+			 url:'/user_ajax/upload_diandian_pic', //你处理上传文件的服务端
+			 secureuri:false,
+			 fileElementId:'topic_picture',
+			 dataType: 'json',
+			 success: function (data){
+				 url = url + data.pic;
+				 if(data.num == 1){
+					 $('#topic_pic_hidden').val(data.pic);
+				 }else{
+					 alert("文件上传失败");
+					 return false;
+				 }
+			 },
+			})
+	});
+	
+	//上传推荐图
+	$('#topic_recom_up').click(function(){ 
+		var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+		$.ajaxFileUpload({
+			 url:'/user_ajax/upload_diandian_recom', //你处理上传文件的服务端
+			 secureuri:false,
+			 fileElementId:'topic_recom_picture',
+			 dataType: 'json',
+			 success: function (data){
+				 url = url + data.pic;
+				 if(data.num == 1){
+					 $('#topic_recom_hidden').val(data.pic);
+				 }else{
+					 alert("文件上传失败");
+					 return false;
+				 }
+			 },
+			})
+	});	
+	
+	//上传LOGO
+	$('#topic_logo_up').click(function(){ 
+		var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+		$.ajaxFileUpload({
+			 url:'/user_ajax/upload_diandian_logo', //你处理上传文件的服务端
+			 secureuri:false,
+			 fileElementId:'topic_logo_picture',
+			 dataType: 'json',
+			 success: function (data){
+				 url = url + data.pic;
+				 if(data.num == 1){
+					 $('#topic_logo_hidden').val(data.pic);
+				 }else{
+					 alert("文件上传失败");
+					 return false;
+				 }
+			 },
+			})
+	});
+	
+    //上传分享图片
+	$('#share_up').click(function(){ 
+		var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+		$.ajaxFileUpload({
+			 url:'/user_ajax/upload_diandian_share_pic', //你处理上传文件的服务端
+			 secureuri:false,
+			 fileElementId:'share_picture',
+			 dataType: 'json',
+			 success: function (data){
+				 url = url + data.pic;
+				 if(data.num == 1){
+					 $('#share_pic_hidden').val(data.pic);
+				 }else{
+					 alert("文件上传失败");
+					 return false;
+				 }
+			 },
+			})
+	});	
+	
+	//点击提交按钮
+    $("#btn_submit").click(function(){
+    	var re = new RegExp("^[1-9][0-9]*$");
+    	//红包基本信息
+		var wallet_title = $("#new_wallet_title").val();
+		var redwallet_tag = $("#redwallet_tag").val();
+		var wallet_template = $("#wallet_template").val();
+		var back_pic = $("#topic_pic_hidden").val();
+		var recom_pic = $("#topic_recom_hidden").val();
+		var logo_pic = $("#topic_logo_hidden").val();		
+		var prostart_time = $("#prostart_time").val();
+		var effect_day = $("#effect_day").val();
+		
+		var topic_des = $("#text").val();
+		document.getElementById("content_text").value = topic_des;
+
+		//红包分配规则信息
+		var open_meth = $("#open_meth").val();
+		var money_meth = $("#money_meth").val();
+		if(money_meth == 1){//固定值
+			var fixed_money_num =  $("#fixed_money_num").val();
+		}
+		if(money_meth == 2){//随机值			
+			var low_money = $("#low_money").val();
+			var up_money = $("#up_money").val();
+	    	var money = $("#money-item").val();
+	    	var money_per = $("#money-percent").val();				
+		}
+		
+		var prize_name = document.getElementsByName("prize_name[]");
+		for(var i=0;i<prize_name.length;i++){
+			if(prize_name[i].value == ''){
+				alert("完善奖品名称");
+				return false;
+			}
+		}
+		var prize_num = document.getElementsByName("prize_num[]");
+		for(var j=0;j<prize_num.length;j++){
+			if(prize_num[j].value == ''){
+				alert("完善奖品数量");
+				return false;
+			}
+		}
+		for(var jj=0;jj<prize_num.length;jj++){
+			if(!re.test(prize_num[jj].value)){
+				alert("奖品数量为正整数");
+				return false;
+			}			
+		}		
+		var prize_price = document.getElementsByName("prize_price[]");	
+		for(var m=0;m<prize_price.length;m++){
+			if(prize_price[m].value == ''){
+				alert("完善奖品单价");
+				return false;
+			}
+		}
+		for(var mm=0;mm<prize_price.length;mm++){
+			if(!re.test(prize_price[mm].value)){
+				alert("奖品单价为正整数");
+				return false;
+			}			
+		}
+		var prize_pic = document.getElementsByName("topic_prize_hidden[]");
+		for(var n=0;n<prize_pic.length;n++){
+			if(prize_pic[n].value == ''){
+				alert("完善奖品图片");
+				return false;
+			}
+		}
+						
+		var buy_intro = document.getElementsByName("buy_intro[]");
+		for(var p=0;p<buy_intro.length;p++){
+			if(buy_intro[p].value == ''){
+				alert("完善奖品购买链接");
+				return false;
+			}
+		}				
+		var buy_txt = document.getElementsByName("buy_txt[]");
+		for(var o=0;o<buy_txt.length;o++){
+			if(buy_txt[o].value == ''){
+				alert("完善奖品购买文案");
+				return false;
+			}
+		}
+		for(var oo=0;oo<buy_txt.length;oo++){
+			if(buy_txt[oo].value.length > 4 ){
+				alert("购买文案限制在4个字");
+				return false;
+			}			
+		}							
+		var zhichi_people = document.getElementsByName("zhichi_people[]");
+		for(var u=0;u<zhichi_people.length;u++){
+			if(zhichi_people[u].value == ''){
+				alert("完善人数条件");
+				return false;
+			}
+		}							
+		for(var uu=0;uu<zhichi_people.length;uu++){
+			if(!re.test(zhichi_people[uu].value)){
+				alert("人数条件为正整数");
+				return false;
+			}			
+		}
+		var zhichi_money = document.getElementsByName("zhichi_money[]");
+		for(var a=0;a<zhichi_money.length;a++){
+			if(zhichi_money[a].value == ''){
+				alert("完善红包筹款");
+				return false;
+			}
+		}							
+		for(var aa=0;aa<zhichi_money.length;aa++){
+			if(!re.test(zhichi_money[aa].value)){
+				alert("红包筹款为正整数");
+				return false;
+			}
+			
+		}
+		var zhichi_mmeth = document.getElementsByName("zhichi_meth[]");
+		for(var b=0;b<zhichi_mmeth.length;b++){
+			if(zhichi_mmeth[b].value == ''){
+				alert("请选择兑换条件中人户与筹款金额的关系");
+				return false;
+			}
+		}									
+		
+		//分享设置
+		var share_title = $("#share_title").val();
+		var share_text = $("#share_text").val();		
+		var share_pic = $("#share_pic_hidden").val();
+
+		//提交条件判断					     
+		if(wallet_title.length==0 || redwallet_tag.length==0 || wallet_template.length==0 || back_pic.length==0 || recom_pic.length==0 || logo_pic.length==0 || prostart_time.length==0 || effect_day.length==0 ){
+			alert('请完善红包基本信息');
+			return false;
+		}
+		if (!re.test(effect_day)){
+			 alert("限时请输入有效正整数");
+			 return false;
+		 }		 		 		
+		if (effect_day>60){
+			alert("限时控制在60天内");
+			return false;
+		}
+		
+		if(open_meth.length==0 || money_meth.length==0){
+			alert('请确定累计方式；累计规则');
+			return false;
+		} 
+		if(money_meth == 1){
+			if(fixed_money_num.length==0){
+				alert('红包固定金额尚未制定');
+				return false;
+					
+			}
+			if(!re.test(fixed_money_num)){
+				alert('红包的金额配置为效正整数');
+				return false;
+			}
+		}
+		if(money_meth == 2){
+			if(low_money.length==0 || up_money.length==0 || money.length==0 || money_per.length==0){
+				alert('红包随机金额尚未制定');
+				return false;
+					
+			}
+			if(!re.test(low_money) || !re.test(up_money) || !re.test(money) || !re.test(money_per)){
+				alert('红包的金额配置为效正整数');
+				return false;
+			}			
+		}
+		     		          	
+		if(share_title.length==0 || share_title.length > 20){
+			alert('分享标题为空或超过20字');
+			return false;
+		}
+		if(share_text.length==0 || share_text.length > 30){
+			alert('分享文案为空或超过30字');
+			return false;
+		}
+		if(share_pic.length==0){
+			alert('分享图片为空');
+			return false;
+		}		
+	    addform.action="/redwallet/add_new_redwallet/";
+	    addform.submit();
+    });  
+});
+</script>
+<script type="text/javascript">
+//上多奖品图片
+function up_more_prize(j){
+	var url = "<?php $upload_url = _gc('cdn_url', 'config'); echo $upload_url?>";
+	$.ajaxFileUpload({
+		 url:'/user_ajax/upload_diandian_prize_pic/'+j, //你处理上传文件的服务端
+		 secureuri:false,
+		 fileElementId:'topic_prize_'+j,
+		 dataType: 'json',
+		 success: function (data){
+			 url = url + data.pic;
+			 if(data.num == 1){
+				 $('#topic_prize_hidden_'+j).val(data.pic);
+			 }else{
+				 alert("文件上传失败");
+				 return false;
+			 }
+		 },
+	})
+}
+</script>
+<?php $this->load->view('ckad/footer')?>

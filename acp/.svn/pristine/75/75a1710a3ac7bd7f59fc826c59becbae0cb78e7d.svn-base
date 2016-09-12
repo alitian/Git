@@ -1,0 +1,11 @@
+<?php $this->load->view('ckad/header'); ?>
+
+
+<form enctype="multipart/form-data" method="POST">
+    <input type="file" name="img">
+    <input type="submit" value="Go">
+</form>
+
+
+
+<?php $this->load->view('ckad/footer'); ?>

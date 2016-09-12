@@ -1,0 +1,28 @@
+<?php      
+/**      
+ *  结合Cron服务，实现定时备份    
+ *    
+ *      函数原型：   addTask($tasktype,$dbtype,$stor_domain,$stor_filename,$dbname,$tbname,$callback)    
+ *    http://sae.sina.com.cn/?m=devcenter&catId=196    
+ */     
+       
+$stor_domain = "xxx";//摩点Storage的存放域      
+$file_path = "/bak_up_db/";//文件路径      
+$file_name = date('YmdHis').".sql.zip";  
+$stor_filename = $file_path .$file_name;//完整的文件名（含路径）      
+$dbname = SAE_MYSQL_DB; //数据库名      
+     
+$dj = new SaeDeferredJob();      
+$taskID = $dj->addTask("export", "mysql", $stor_domain, $stor_filename, $dbname, null, null);      
+if($taskID===false){      
+    var_dump($dj->errno(), $dj->errmsg());      
+}else{      
+    var_dump($taskID);      
+}    
+
+/*
+cron:   
+    - description: 使用DeferredJob每天凌晨4点对进行数据库备份   
+    url: task/bak_up_db.php   
+    schedule: every day of month 03:00  
+*/

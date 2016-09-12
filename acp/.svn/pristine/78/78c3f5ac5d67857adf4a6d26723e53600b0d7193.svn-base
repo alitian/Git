@@ -1,0 +1,132 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div>
+        <h2>
+            分类管理
+        </h2>
+    </div>
+    <hr>
+    <div>
+        <div style="margin-top: 10px">
+<!--                <form action="md_app_subject/category_edit" class="form-inline" id="item_form" method="post">-->
+<!--                    <input type="text" name="cate_name">-->
+<!--                    <a href="javascript:;" class="btn btn-info btn-sm" id="add_item">添加一级分类</a>-->
+<!--                </form>-->
+<!--            <span style="float:right;margin-top: -50px;">-->
+<!--				<a href="/md_app_subject/update_status"><button class="btn btn-info">同步到首页</button></a>-->
+<!--			</span>-->
+        </div>
+        <p></p>
+        <?php if($category_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="5%">权重</th>
+                        <th>一级分类</th>
+                        <th>分类图标</th>
+                        <th>分类底图</th>
+                        <th>是否显示</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($category_list as $category_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $category_info['weight'] ?>" postid="<?= $category_info['id'] ?>" type="text" class="sortid" value="<?= $category_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?= $category_info['catename_ch'] ?></td>
+                            <td><?php if($category_info['icon']) echo "<img src='".cdn_url($category_info['icon'],'mp','center')."' width='170px' height='80px'/>"; ?></td>
+                            <td><?php if($category_info['bg_pic']) echo "<img src='".cdn_url($category_info['bg_pic'],'mp','center')."' width='170px' height='80px'/>"; ?></td>
+                            <td><a href="javascript:;" data-id="<?=$category_info['id']?>" data-status="0" class="btn update_status" <?php if(!$category_info['status']){echo 'disabled';}?>>OFF</a><a href="javascript:;" data-id="<?=$category_info['id']?>" data-status="1" class="btn update_status" <?php if($category_info['status']){echo 'disabled';}?>>ON</a></td>
+                            <td>
+                                <a href="/md_subject/category_edit/<?= $category_info['id'] ?>">编辑</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    var type = parseInt($("input[name='type']").val());
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('postid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_subject/change_weight')?>",
+            data : {'id':id,'weight':value,'type':1}, //这儿type1表示分类列表权重
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+    $(".update_status").click(function(){
+        var that = $(this);
+        var status = $(this).data("status");
+        var id    = $(this).data('id');
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_subject/update_status_by_type')?>",
+            data:{'id':id,'type':1,'status':status},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    if(status){
+                        alert("打开显示");
+                    }else{
+                        alert("关闭显示");
+                    }
+                    that.attr("disabled",true);
+                    that.siblings("a").removeAttr("disabled");
+
+                }
+            }
+        });
+    });
+//    $('.del').click(function(){
+//        if( ! confirm('你确定删除吗')){
+//            return false;
+//        }
+//        var that = $(this);
+//        var id = parseInt(that.data('id'));
+//        $.ajax({
+//            type:"post",
+//            url:"<?//=site_url('md_app_rcmd/del_app_rcmd')?>//",
+//            data:{'id':id,'type':type},
+//            dataType:"json",
+//            success:function(return_data){
+//                if(return_data.status){
+//                    alert(return_data.msg);
+//                    that.parents("tr").remove();
+//                }
+//            }
+//        });
+//    });
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

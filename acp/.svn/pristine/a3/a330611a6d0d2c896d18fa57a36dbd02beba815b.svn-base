@@ -1,0 +1,35 @@
+<?php
+   $redis=new Redis();
+   $redis->connect('127.0.0.1','6379');
+   $arr=$redis->get('web_data');
+   $arr=unserialize($arr);
+   $shuzu=array();
+   for($i=201504;$i<=201512;$i++){
+       $data=array('pv'=>0,'uv'=>0,'p/u'=>0,'login_user'=>0,'new_user'=>0,'form'=>0,'money'=>0,'ios_new'=>0,'ios_old'=>0,'andriod_new'=>0,'andriod_old'=>0);
+       $num=0;
+       for($j=$i*100;$j<=$i*100+31;$j++){
+           if(isset($arr[$j])){
+               $num++;
+               $data['pv']+=$arr[$j]['pv'];
+               $data['uv']+=$arr[$j]['uv'];
+               $data['p/u']+=$arr[$j]['p/u'];
+               $data['login_user']+=$arr[$j]['login_user'];
+               $data['new_user']+=$arr[$j]['new_user'];
+               $data['form']+=$arr[$j]['form'];
+               $data['money']+=$arr[$j]['money'];
+               $data['ios_new']+=$arr[$j]['ios_new'];
+               $data['ios_old']+=$arr[$j]['ios_old'];
+               $data['andriod_new']+=$arr[$j]['andriod_new'];
+               $data['andriod_old']+=$arr[$j]['andriod_old'];
+           }
+       }
+       foreach($data as $k=>$v){
+           $data[$k]="".round($v/$num,2);
+       }
+       $shuzu[$i]=$data;
+   }
+   $str=serialize($shuzu);
+   $out=$redis->set("avg_month",$str);
+   if($out==1){
+       echo "存入成功！！";
+   }

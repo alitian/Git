@@ -1,0 +1,21 @@
+<?php
+
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+if (!function_exists('md_money_format')) {
+
+    function md_money_format($money) {
+        $money = explode('.', $money);
+        if (count($money) > 1) {
+            $money = number_format($money[0]) . (round("0." . $money[1], 2) >0 ? ".".str_replace('0.', '', round("0." . $money[1], 2)) : '');
+        } else {
+            $money = number_format($money[0]);
+        }
+        return $money;
+    }
+
+}

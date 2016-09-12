@@ -1,0 +1,1028 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+/**
+ * @auther: dingding
+ * @update: 2015-10-08
+ *
+ * uesed for special subject.
+ *
+ */
+
+class Special_subj extends Acp_Controller {
+
+    // ---------------------------------------------------------------------
+    // new
+    public function ssubj_management()
+    {
+        $data['page_type'] = 'management';
+        $this->load->view('special_subj/ssubj_management', $data);
+    }
+    public function get_ssubj_list()
+    {
+        $per_page = 7;
+        $res['nextpage'] = false;
+        $res['page'] = $page = intval($this->input->get('page', true));
+        $res['ssubj_name'] = $ssubj_name = trim($this->input->get('ssubj_name', true));
+
+        $this->db->select('id, name, des, view, ctime');
+        $this->db->from('md_special_subject');
+        if (!empty($ssubj_name))
+            $this->db->like('name', $ssubj_name);
+        $this->db->limit($per_page+1, $page*$per_page);
+        $this->db->order_by('ctime', 'desc');
+        $res['data'] = $this->db->get()->result_array();
+        if (count($res['data']) == ($per_page+1)) {
+            $res['nextpage'] = true;
+            unset($res['data']["$per_page"]);
+        }
+        foreach ($res['data'] as &$ssubj) {
+            $ssubj['url'] = _gc('main_site_url', 'config') . "/subject/index/{$ssubj['id']}";
+            switch (intval($ssubj['view'])) {
+            case 1:
+                $ssubj['view'] = 'PS4类';
+                break;
+            case 2:
+                $ssubj['view'] = '红袖类';
+                break;
+            case 3:
+                $ssubj['view'] = 'imbatv类';
+                break;
+            case 4:
+                $ssubj['view'] = '海燕杯类';
+                break;
+            default:
+                # code...
+                break;
+            }
+        }
+        echo json_encode($res);
+    }
+    public function ssubj_editor()
+    {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $ssubj_id = intval($this->input->post('ssubj_id', true));
+            $post_d['name']        = trim($this->input->post('ssubj_name', true));
+            $post_d['des']         = trim($this->input->post('ssubj_des', true));
+            $post_d['main_pro_id'] = intval($this->input->post('ssubj_main_pro_id', true));
+
+            $post_d['sub_pro_id']  = $this->input->post('ssubj_sub_pro_id', true);
+            foreach ($post_d['sub_pro_id'] as $ii => $vv) {
+                if(empty($vv))
+                    unset($post_d['sub_pro_id'][$ii]);
+            }
+            $post_d['sub_pro_id'] = json_encode($post_d['sub_pro_id']);
+
+            if (!empty($post_d['name'])) {
+                if (empty($ssubj_id)) {
+                    $this->db->insert('md_special_subject', $post_d);
+                    $ssubj_id = $this->db->insert_id();
+                } else {
+                    $this->db->where('id', $ssubj_id);
+                    $this->db->update('md_special_subject', $post_d);
+                }
+
+                redirect("/special_subj/ssubj_editor_layer?ssid={$ssubj_id}");
+                exit;
+            } else {
+                $data['page_d']['error'] = '至少输入一下标题吧';
+            }
+        }
+
+        $ssid = intval($this->input->get('ssid', true));
+
+        $data['page_d']['editor'] = 'basic';
+        $data['page_d']['ssid'] = $ssid;
+        $data['page_d']['ssinfo'] = $this->get_ssubj_detail($ssid);
+        $this->load->view('special_subj/ssubj_editor', $data);
+    }
+    public function ssubj_editor_layer()
+    {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            var_dump($this->input->post(null, true));
+        } else {
+            $ssid = intval($this->input->get('ssid', true));
+
+            $data['page_d']['editor'] = 'layer';
+            $data['page_d']['ssid'] = $ssid;
+            $data['page_d']['ssinfo'] = $this->get_ssubj_detail($ssid);
+            $this->load->view('special_subj/ssubj_editor_layer', $data);
+        }
+    }
+    public function ssubj_editor_model()
+    {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            var_dump($this->input->post(null, true));
+        } else {
+            $ssid = intval($this->input->get('ssid', true));
+
+            $data['page_d']['editor'] = 'model';
+            $data['page_d']['ssid'] = $ssid;
+            $data['page_d']['ssinfo'] = $this->get_ssubj_detail($ssid);
+
+            //
+
+            $this->load->view('special_subj/ssubj_editor_model', $data);
+        }
+    }
+    public function ssubj_editor_preview()
+    {
+        $ssid = intval($this->input->get('ssid', true));
+
+        $data['page_d']['editor'] = 'preview';
+        $data['page_d']['ssid'] = $ssid;
+        $data['page_d']['ssinfo'] = $this->get_ssubj_detail($ssid);
+        $this->load->view('special_subj/ssubj_editor_preview', $data);
+    }
+    private function get_ssubj_detail($sid)
+    {
+        $res = $this->db->where('id', $sid)->get('md_special_subject')->row_array();
+
+        $ssubj_info  = array();
+        $ssubj_info['id']          = isset($res['id']) ? $res['id'] : 0;
+        $ssubj_info['name']        = isset($res['name']) ? $res['name'] : '';
+        $ssubj_info['des']         = isset($res['des']) ? $res['des'] : '';
+        $ssubj_info['main_pro_id'] = isset($res['main_pro_id']) ? $res['main_pro_id'] : 0;
+
+        $ssubj_info['sub_pro_id']  = isset($res['sub_pro_id']) ? json_decode($res['sub_pro_id']) : array();
+
+        return $ssubj_info;
+    }
+
+
+    // ---------------------------------------------------------------------
+    // the old
+    public function index()
+    {
+        $this->load->view('ckad/header');
+        $this->load->view('special_subj/tabs');
+		$this->load->view('ckad/footer');
+	}
+
+    // 新增专题
+    public function new_ssubj()
+    {
+        $data['page_type'] = 'new_ssubj';
+        $data['ssubj_module'] = $this->md_model_cache->set_model('md_ssubj')->clean()->get_module_list($pro_id, $cid);
+        $this->load->view('special_subj/new_ssubj', $data);
+    }
+
+    // 加载配置专题信息
+    public function edit_ssubj()
+    {
+        $data['page_type'] = 'edit_ssubj';
+
+        if ($this->input->post('new_ssubj_name', true)) {
+            $module_sort = array();
+            if ($module = $this->input->post('module'))
+                foreach ($module as $key => $stat) {
+                    array_push($module_sort, "SSM_{$key}");
+                }
+            $module_sort = json_encode($module_sort);
+
+            $insert_d = array(
+                'name' => trim($this->input->post('new_ssubj_name', true)),
+                'module_sort' => $module_sort
+            );
+            $this->db->insert('md_special_subject', $insert_d);
+            $data['ssubj_id'] = $this->db->insert_id();
+        } elseif ($this->input->post('edit_ssubj_id', true)) {
+            $data['ssubj_id'] = $this->input->post('edit_ssubj_id', true);
+        } else {
+            $data['ssubj_id'] = 0;
+        }
+
+        if (intval($data['ssubj_id']) !== 0) {
+            $data['ssubj_info'] = array();
+            $this->_set_edit_ssubj_info($data['ssubj_id'], $data['ssubj_info']);
+            $module_array = json_decode($data['ssubj_info']['ssubj_module_sort']);
+            $where = array('main_pro_id' => $data['ssubj_info']['ssubj_main_pro_id'], 'sub_pro_id' => $data['ssubj_info']['ssubj_sub_pro_id']);
+            foreach ($module_array as $m)
+                $this->_set_module_info($data[$m], $data['ssubj_id'], $m, $where);
+        }
+
+        $data['ssubj_select_list'] = $this->db->select('id, name')->get('md_special_subject')->result_array();
+        $this->load->view('special_subj/edit_ssubj', $data);
+    }
+
+    public function edit_module(){
+    	$data = array();
+    	$data['page_type'] = 'edit_module';
+
+    	$data['ssubj_select_list'] = $this->db->select('id, name')->get('md_special_subject')->result_array();
+
+    	$data['module_list'] = $this->db->select('id, name')->get('md_ssubj_module')->result_array();
+
+    	$this->load->view('special_subj/edit_module', $data);
+    }
+
+    public function save_module(){
+    	$data = array();
+    	$data["subject_id"] = $this->input->post('subject_id', true);
+    	$data["module_id"] = $this->input->post('module_id', true);
+    	$data["title"] = $this->input->post('title', true);
+    	//$data['image'] = json_encode($this->input->post('ssubj_code_pic', true) ? explode(',', $this->input->post('ssubj_code_pic', true)) : array());
+
+    	$data['image'] = $this->input->post('ssubj_code_pic', true);
+
+    	$data["url"] = $this->input->post('url', true);
+    	$data["content"] = htmlspecialchars($this->input->post('content', true));
+    	$data["ctime"] = date("Y-m-d H:i:s");
+
+    	$res = $this->db->insert('md_subject_module_config', $data);
+    	if($res){
+    		redirect("/special_subj/edit_module");
+    	}
+    }
+
+
+    private function _set_edit_ssubj_info($ssubj_id, &$data) {
+        $res = $this->db->where('id', $ssubj_id)->get('md_special_subject')->row_array();
+        $data['ssubj_name']        = $res['name'];
+        $data['ssubj_pic']         = implode(',', json_decode($res['pic']));
+        $data['ssubj_bgcolor']     = $res['bgcolor'];
+        $data['ssubj_code_pic']    = implode(',', json_decode($res['code_pic']));
+        $data['ssubj_des']         = $res['des'];
+        $data['ssubj_start_time']  = $res['start_time'];
+        $data['ssubj_end_time']    = $res['end_time'];
+        $data['ssubj_main_pro_id'] = $res['main_pro_id'];
+        $data['ssubj_sub_pro_id']  = implode(',', json_decode($res['sub_pro_id']));
+        $data['ssubj_module_sort'] = $res['module_sort'];
+        foreach (json_decode($res['module_sort']) as $m) {
+            switch ($m) {
+            case 'SSM_1': // 抽奖活动模块
+                if ($res['if_lottery'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_2': // 投票模块
+                if ($res['if_vote'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_3': // 专题更新模块
+                if ($res['if_update'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_4': // 榜单模块
+                if ($res['if_billboard'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_5': // 合作伙伴模块
+                if ($res['if_coo_partner'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_6': // 评论模块
+                if ($res['if_comments'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_7': // 视频直播模块
+                if ($res['if_video_live'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_8': // 子项目模块
+                if ($res['if_ssubj_pro'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            case 'SSM_9': // 支持者模块
+                if ($res['if_backer'])
+                    $data['ssubj_module_show'][$m] = 1;
+                else
+                    $data['ssubj_module_show'][$m] = 0;
+                break;
+            default:
+                # code...
+                break;
+            }
+        }
+        $data['ssubj_module_show'] = json_encode($data['ssubj_module_show']);
+        $data['act_id']            = $res['act_id'];
+        $data['ssubj_view']        = $res['view'];
+    }
+    private function _set_module_info(&$data, $ssubj_id, $m, $filter=null) {
+        switch ($m) {
+        case 'SSM_1': // 抽奖活动模块
+            # code...
+            break;
+        case 'SSM_2': // 投票模块
+            if(isset($filter['main_pro_id']) && !empty($filter['main_pro_id'])) {
+                $where = array($filter['main_pro_id']);
+            } elseif (isset($filter['sub_pro_id']) && !empty($filter['sub_pro_id'])) {
+                $where = explode(',', $filter['sub_pro_id']);
+            } else {
+                $where = array(0);
+            }
+
+            $this->db->select('id, topic_name, topic_desc, weight');
+            $this->db->from('md_vote');
+            $this->db->join('md_ssubj_vote_bridge', "md_vote.id=md_ssubj_vote_bridge.vote_id AND md_ssubj_vote_bridge.ssubj_id={$ssubj_id}", 'left');
+            $this->db->where_in('pro_id', $where);
+            $data['vote_list'] = $this->db->get()->result_array();
+            break;
+        case 'SSM_3': // 专题更新模块
+            if (isset($filter['sub_pro_id']) && !empty($filter['sub_pro_id'])) {
+                $where = explode(',', $filter['sub_pro_id']);
+            }
+            if(isset($filter['main_pro_id']) && !empty($filter['main_pro_id'])) {
+                $where[] = $filter['main_pro_id'];
+            }
+            if (empty($where)) {
+                $where[] = 0;
+            }
+
+            $this->db->select('md_product_update.id, md_product_update.title, md_product.short_title, md_ssubj_update_bridge.weight, md_ssubj_update_bridge.type');
+            $this->db->from('md_product_update');
+            $this->db->join('md_product', "md_product_update.pro_id=md_product.id", 'inner');
+            $this->db->join('md_ssubj_update_bridge', "md_product_update.id=md_ssubj_update_bridge.update_id AND md_ssubj_update_bridge.type=1 AND md_ssubj_update_bridge.ssubj_id={$ssubj_id}", 'left');
+            $this->db->where_in('pro_id', $where);
+            $data['update_list'] = $this->db->get()->result_array();
+            break;
+        case 'SSM_4': // 榜单模块
+            $this->db->from('md_ssubj_billboard');
+            $this->db->where('ssubj_id', $ssubj_id);
+            $data['billboard_info'] = $this->db->get()->row_array();
+            if (empty($data['billboard_info']))
+                $data['billboard_info'] = array(
+                    'id' => 0,
+                    'ssubj_id' => $ssubj_id,
+                    'algo' => 0
+                );
+            elseif (empty($data['billboard_info']['priority_pro']))
+                $data['billboard_info']['priority_pro'] = '';
+            else
+                $data['billboard_info']['priority_pro'] = implode(',', json_decode($data['billboard_info']['priority_pro']));
+            break;
+        case 'SSM_5': // 合作伙伴模块
+            $this->db->from('md_ssubj_cpart_bridge');
+            $this->db->join('md_coo_partner', 'md_ssubj_cpart_bridge.coo_partner_id=md_coo_partner.id');
+            $this->db->where('ssubj_id', $ssubj_id);
+            $data['coo_partner_list'] = $this->db->get()->result_array();
+            break;
+        case 'SSM_6': // 评论模块
+            # code...
+            break;
+        case 'SSM_7': // 视频直播模块
+            $pid = array(0);
+            if (isset($filter['sub_pro_id']) && !empty($filter['sub_pro_id']))
+                $pid = explode(',', $filter['sub_pro_id']);
+            if(isset($filter['main_pro_id']) && !empty($filter['main_pro_id']))
+                array_push($pid, $filter['main_pro_id']);
+            $this->db->select('md_product.id AS pro_id, md_product.name AS pro_name, md_product.short_title AS pro_short_title, md_ssubj_video_live.site', false);
+            $this->db->from('md_product');
+            $this->db->join('md_ssubj_video_live', "md_product.id=md_ssubj_video_live.pro_id AND md_ssubj_video_live.ssubj_id={$ssubj_id}", 'left');
+            $this->db->where_in('md_product.id', $pid);
+            $data['pro_info'] = $this->db->get()->result_array();
+            break;
+        case 'SSM_8': // 子项目模块
+            $pid = explode(',', $filter['sub_pro_id']);
+            $pid = array_filter($pid);
+            array_push($pid, 0);
+            $this->db->select('md_product.id AS pro_id, md_product.name AS pro_name, md_product.short_title AS pro_short_title, md_ssubj_subpro.ssubj_id, md_ssubj_subpro.weight, md_ssubj_subpro.category', false);
+            $this->db->from('md_product');
+            $this->db->join('md_ssubj_subpro', "md_product.id=md_ssubj_subpro.pro_id AND md_ssubj_subpro.ssubj_id={$ssubj_id}", 'left');
+            $this->db->where_in('md_product.id', $pid);
+            $data['subpro_info'] = $this->db->get()->result_array();
+            break;
+        case 'SSM_9': // 支持者模块
+            # code...
+            break;
+        default:
+            # code...
+            break;
+        }
+    }
+
+    // 保存专题配置
+    public function save_ssubj_info()
+    {
+        $res['status_code'] = 0; // 默认成功
+        $res['status']      = '保存成功';
+        $res['post'] = $this->input->post(null, true);
+
+        if (intval($this->input->post('ssubj_id', true))) {
+            $where = array('id' => intval($this->input->post('ssubj_id', true)));
+            $data['view']        = intval($this->input->post('ssubj_view', true));
+            $data['name']        = $this->input->post('ssubj_name', true);
+            $data['pic']         = json_encode($this->input->post('ssubj_pic', true) ? explode(',', $this->input->post('ssubj_pic', true)) : array());
+            $data['bgcolor']     = $this->input->post('ssubj_bgcolor', true);
+            $data['code_pic']    = json_encode($this->input->post('ssubj_code_pic', true) ? explode(',', $this->input->post('ssubj_code_pic', true)) : array());
+            $data['des']         = $this->input->post('ssubj_des', true);
+            $data['start_time']  = $this->input->post('ssubj_start_time', true);
+            $data['end_time']    = $this->input->post('ssubj_end_time', true);
+            $data['main_pro_id'] = intval($this->input->post('ssubj_main_pro_id', true));
+            $data['sub_pro_id']  = json_encode($this->input->post('pro_id_items', true) ? array_filter($this->input->post('pro_id_items', true)) : array());
+            $data['module_sort'] = $this->input->post('ssubj_module_sort', true);
+
+            $module_show = json_decode($this->input->post('ssubj_module_show', true));
+            foreach ($module_show as $key => $v) {
+                switch ($key) {
+                case 'SSM_1':
+                    $data['if_lottery'] = $v;
+                    break;
+                case 'SSM_2':
+                    $data['if_vote'] = $v;
+                    break;
+                case 'SSM_3':
+                    $data['if_update'] = $v;
+                    break;
+                case 'SSM_4':
+                    $data['if_billboard'] = $v;
+                    break;
+                case 'SSM_5':
+                    $data['if_coo_partner'] = $v;
+                    break;
+                case 'SSM_6':
+                    $data['if_comments'] = $v;
+                    break;
+                case 'SSM_7':
+                    $data['if_video_live'] = $v;
+                    break;
+                case 'SSM_8':
+                    $data['if_ssubj_pro'] = $v;
+                    break;
+                case 'SSM_9':
+                    $data['if_backer'] = $v;
+                    break;
+                default:
+                    # code...
+                    break;
+                }
+            }
+
+            $this->db->where($where)->update('md_special_subject', $data);
+            $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_info(intval($this->input->post('ssubj_id', true)));
+            $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_pro_info(intval($this->input->post('ssubj_id', true)));
+            $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_pro_info(intval($this->input->post('ssubj_id', true)), 1);
+            // $res['where'] = $where;
+            // $res['data'] = $data;
+        } else {
+            $res['status_code'] = 1;
+            $res['status']      = '请求参数错误';
+        }
+
+        echo json_encode($res);
+    }
+
+    // 预览
+    public function preview_ssubj_old($ssubj_id)
+    {
+        $main_site_url = _gc('main_site_url', 'config');
+
+        $res = $this->db->where('id', $ssubj_id)->get('md_special_subject')->row_array();
+        switch (intval($res['view'])) {
+        case 1:
+            # code...
+            break;
+        case 2:
+            # code...
+            break;
+        case 3:
+            $url = "{$main_site_url}/subject/imbatv/{$ssubj_id}";
+            break;
+        case 4:
+            $url = "{$main_site_url}/subject/hyb/{$ssubj_id}";
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        redirect($url);
+        exit;
+    }
+
+	public function preview_ssubj($ssubj_id){
+        $main_site_url = _gc('main_site_url', 'config');
+        $url = "{$main_site_url}/subject/index/{$ssubj_id}";
+        redirect($url);
+        return;
+    }
+
+    // 上传图片
+    public function upload_image()
+    {
+        $uploads_path = _gc('uploads_path','config')."/ssubj_img";
+        $img_type = array('image/gif', 'image/jpeg', 'image/png');
+        $res['status_code'] = 1;
+
+        if (!isset($_POST) || $_SERVER['REQUEST_METHOD']!="POST") {
+            $res['status'] = '上传图片请求无效';
+            echo json_encode($res);
+            exit;
+        }
+
+        if (empty($_FILES['upload_img']['name'])) {
+            $res['status'] = '请选择要上传的图片';
+            echo json_encode($res);
+            exit;
+        }
+
+        if (!in_array($_FILES['upload_img']['type'], $img_type)) {
+            $res['status'] = '图片格式错误';
+            echo json_encode($res);
+            exit;
+        }
+
+        if ($_FILES['upload_img']['type'] > 1048576) {
+            $res['status'] = '图片大小不能超过1M';
+            echo json_encode($res);
+            exit;
+        }
+
+        if($this->input->post('folder', true)) {
+            $uploads_path .= '/'.$this->input->post('folder', true);
+        } elseif ($this->input->post('ssubj_id', true)) {
+            $uploads_path .= '/'.$this->input->post('ssubj_id', true);
+        } else {}
+
+        if (!file_exists($uploads_path) && !mkdir($uploads_path, 0777, true)) {
+            $res['status'] = '创建图片目录失败';
+            echo json_encode($res);
+            exit;
+        }
+
+        $path_file = "$uploads_path/{$_FILES['upload_img']['name']}";
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            $path_file = iconv('utf-8', 'gbk', $path_file);  // 解决windows服务器环境下文件名乱码
+        }
+        if (move_uploaded_file($_FILES['upload_img']['tmp_name'], $path_file)) {
+            $res['status_code']      = 0;
+            $res['status']           = '图片保存成功';
+            $res['data']['ssubj_id'] = $_POST['ssubj_id'];
+            $res['data']['name']     = $_FILES['upload_img']['name'];
+
+            if($this->input->post('folder', true)) {
+                $res['data']['pathname'] = "/uploads/ssubj_img/".$this->input->post('folder', true)."/{$res['data']['name']}";
+            } elseif ($this->input->post('ssubj_id', true)) {
+                $res['data']['pathname'] = "/uploads/ssubj_img/".$this->input->post('ssubj_id', true)."/{$res['data']['name']}";
+            } else {
+                $res['data']['pathname'] = "/uploads/ssubj_img/{$res['data']['name']}";
+            }
+
+            $res['data']['src'] = _gc('main_site_url', 'config').$res['data']['pathname'];
+        } else {
+            $res['status'] = '图片保存失败';
+        }
+        echo json_encode($res);
+    }
+
+    // 上传二维码图片
+    public function upload_code_image(){
+		$uploads_path = _gc('uploads_path','config')."/ssubj_img";
+    	$img_type = array('image/gif', 'image/jpeg', 'image/png');
+    	$res['status_code'] = 1;
+
+
+    	if (!isset($_POST) || $_SERVER['REQUEST_METHOD']!="POST") {
+    		$res['status'] = '上传图片请求无效';
+    		echo json_encode($res);
+    		exit;
+    	}
+
+    	if (empty($_FILES['upload_code_img']['name'])) {
+    		$res['status'] = '请选择要上传的图片';
+    		echo json_encode($res);
+    		exit;
+    	}
+
+    	if (!in_array($_FILES['upload_code_img']['type'], $img_type)) {
+    		$res['status'] = '图片格式错误';
+    		echo json_encode($res);
+    		exit;
+    	}
+
+    	if ($_FILES['upload_code_img']['type'] > 1048576) {
+    		$res['status'] = '图片大小不能超过1M';
+    		echo json_encode($res);
+    		exit;
+    	}
+
+    	if($this->input->post('folder', true)) {
+    		$uploads_path .= '/'.$this->input->post('folder', true);
+    	} elseif ($this->input->post('ssubj_id', true)) {
+    		$uploads_path .= '/'.$this->input->post('ssubj_id', true);
+    	} else {}
+
+    	if (!file_exists($uploads_path) && !mkdir($uploads_path, 0777, true)) {
+    		$res['status'] = '创建图片目录失败';
+    		echo json_encode($res);
+    		exit;
+    	}
+
+    	$path_file = "$uploads_path/{$_FILES['upload_code_img']['name']}";
+    	if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+    		$path_file = iconv('utf-8', 'gbk', $path_file);  // 解决windows服务器环境下文件名乱码
+    	}
+    	if (move_uploaded_file($_FILES['upload_code_img']['tmp_name'], $path_file)) {
+    		$res['status_code']      = 0;
+    		$res['status']           = '图片保存成功';
+    		$res['data']['ssubj_id'] = $_POST['ssubj_id'];
+    		$res['data']['name']     = $_FILES['upload_code_img']['name'];
+
+    		if($this->input->post('folder', true)) {
+    			$res['data']['pathname'] = "/uploads/ssubj_img/".$this->input->post('folder', true)."/{$res['data']['name']}";
+    		} elseif ($this->input->post('ssubj_id', true)) {
+    			$res['data']['pathname'] = "/uploads/ssubj_img/".$this->input->post('ssubj_id', true)."/{$res['data']['name']}";
+    		} else {
+    			$res['data']['pathname'] = "/uploads/ssubj_img/{$res['data']['name']}";
+    		}
+
+    		$res['data']['src'] = _gc('main_site_url', 'config').$res['data']['pathname'];
+    	} else {
+    		$res['status'] = '图片保存失败';
+    	}
+    	echo json_encode($res);
+    }
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////   视频直播模块信息   /////////////////////////////
+    public function save_module_video_live()
+    {
+        $res['status_code'] = 0;
+        $res['status'] = '保存成功';
+        $res['post_data'] = $this->input->post(null, true);
+
+        $ssubj_id = intval($this->input->post('ssubj_id', true));
+        if ($ssubj_id == 0) {
+            $res['status_code'] = 1;
+            $res['status'] = '请求参数错误';
+            echo json_encode($res);
+            exit;
+        }
+        if (! $this->input->post('pro_site', true)) {
+            $res['status_code'] = 1;
+            $res['status'] = '没有数据需要保存';
+            echo json_encode($res);
+            exit;
+        }
+
+        $pro_site = $this->input->post('pro_site', true);
+        foreach ($pro_site as $pid => $site) {
+            $site = trim($site);
+            if (!empty($site)) {
+                $this->db->where('ssubj_id', $ssubj_id);
+                $this->db->where('pro_id', $pid);
+                if ($this->db->count_all_results('md_ssubj_video_live') > 0) {
+                    $uodate_d = array(
+                        'site' => $site
+                    );
+                    $this->db->where('ssubj_id', $ssubj_id);
+                    $this->db->where('pro_id', $pid);
+                    $this->db->update('md_ssubj_video_live', $uodate_d);
+                } else {
+                    $insert_d = array(
+                        'ssubj_id' => $ssubj_id,
+                        'pro_id' => $pid,
+                        'site' => $site
+                    );
+                    $this->db->insert('md_ssubj_video_live', $insert_d);
+                }
+                $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_video_live_info($ssubj_id);
+            }
+        }
+
+        echo json_encode($res);
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////   子项目信息模块信息   ////////////////////////////
+    public function save_module_subpro()
+    {
+        $res['status_code'] = 0;
+        $res['status'] = '保存成功';
+
+        $insert_d['ssubj_id'] = $this->input->post('ssubj_id', true);
+        $insert_d['pro_id'] = $this->input->post('pro_id', true);
+        $insert_d['weight'] = $this->input->post('weight', true);
+        $insert_d['category'] = $this->input->post('category', true);
+
+        if (empty($insert_d['weight']))
+            $insert_d['weight'] = 0;
+        if (empty($insert_d['category']))
+            $insert_d['category'] = '未分类';
+
+        $res['data'] = $insert_d;
+        if (empty($insert_d['ssubj_id']) || empty($insert_d['pro_id'])) {
+            $res['status_code'] = 1;
+            $res['status'] = '输入信息有误';
+            echo json_encode($res);
+            return ;
+        }
+
+        $this->db->where('ssubj_id', $insert_d['ssubj_id']);
+        $this->db->where('pro_id', $insert_d['pro_id']);
+        if ($this->db->count_all_results('md_ssubj_subpro') > 0) {
+            $uodate_d = array(
+                'weight' => $insert_d['weight'],
+                'category' => $insert_d['category']
+            );
+            $this->db->where('ssubj_id', $insert_d['ssubj_id']);
+            $this->db->where('pro_id', $insert_d['pro_id']);
+            $this->db->update('md_ssubj_subpro', $uodate_d);
+        } else {
+            $this->db->insert('md_ssubj_subpro', $insert_d);
+        }
+        // 更新缓存
+        $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_pro_info($insert_d['ssubj_id']);
+        $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_pro_info($insert_d['ssubj_id'], 1);
+
+        echo json_encode($res);
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////   抽奖活动模块信息   /////////////////////////////
+    // 保存配置信息
+    public function save_module_lottery()
+    {
+        $res['status_code'] = 0; // 默认成功
+        $res['status']      = '保存成功';
+        $res['ssubj_id']    = intval($this->input->post('ssubj_id', true));
+        $res['act_id']      = intval($this->input->post('act_id', true));
+
+        if ($res['ssubj_id']===0 || $res['act_id']===0) {
+            $res['status_code'] = 1;
+            $res['status'] = '请求参数错误';
+        } else {
+            $data['act_id'] = $res['act_id'];
+            $this->db->where('id', $res['ssubj_id'])->update('md_special_subject', $data);
+        }
+
+        echo json_encode($res);
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////   投票模块信息   ///////////////////////////////
+    // 保存投票模块设置
+    public function save_module_vote()
+    {
+        $res['status_code'] = 0;
+        $res['status'] = '保存成功';
+        $res['ssubj_id'] = intval($this->input->post('ssubj_id', true));
+
+        if (0 === $res['ssubj_id']) {
+            $res['status_code'] = 1;
+            $res['status'] = '请求参数错误';
+            echo json_encode($res);
+            exit;
+        }
+
+        $this->db->delete('md_ssubj_vote_bridge', array('ssubj_id' => $res['ssubj_id']));
+        $data = array();
+        $vil = $this->input->post('vote_id', true);
+        if ($vil) {
+            foreach ($vil as $vi) {
+                $vi = explode(':', $vi);
+                $data['ssubj_id'] = $res['ssubj_id'];
+                $data['vote_id']  = intval($vi['0']);
+                $data['weight']   = intval($vi['1']);
+
+                // $res['data'][] = $data;
+                $where['ssubj_id'] = $data['ssubj_id'];
+                $where['vote_id']  = $data['vote_id'];
+                if($this->db->where($where)->count_all_results('md_ssubj_vote_bridge') > 0)
+                    $this->db->where($where)->update('md_ssubj_vote_bridge', $data);
+                else
+                    $this->db->insert('md_ssubj_vote_bridge', $data);
+
+            }
+        } else {
+            $res['status'] = '投票模块已重置';
+        }
+
+        echo json_encode($res);
+    }
+
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////   专题更新模块信息   /////////////////////////////
+    // 保存专题更新设置
+    public function save_module_update()
+    {
+        $res['status_code'] = 0;
+        $res['status'] = '保存成功';
+        $res['ssubj_id'] = intval($this->input->post('ssubj_id', true));
+        $res['update_type'] = intval($this->input->post('update_type', true));
+
+        if (0===$res['ssubj_id'] || 0===$res['update_type']) {
+            $res['status_code'] = 1;
+            $res['status'] = '请求参数错误';
+            echo json_encode($res);
+            exit;
+        }
+
+        switch ($res['update_type']) {
+        case 1: // 取项目更新
+            $this->db->delete('md_ssubj_update_bridge', array('ssubj_id' => $res['ssubj_id'], 'type' => 1));
+            $data = array();
+            $uil = $this->input->post('update_id', true);
+            if ($uil) {
+                foreach ($uil as $ui) {
+                    $ui = explode(':', $ui);
+                    $data['ssubj_id']  = $res['ssubj_id'];
+                    $data['type']      = 1;
+                    $data['update_id'] = intval($ui['0']);
+                    $data['weight']    = intval($ui['1']);
+
+                    // $res['data'][] = $data;
+                    $where['ssubj_id']  = $data['ssubj_id'];
+                    $where['type']      = $data['type'];
+                    $where['update_id'] = $data['update_id'];
+                    if($this->db->where($where)->count_all_results('md_ssubj_update_bridge') > 0)
+                        $this->db->where($where)->update('md_ssubj_update_bridge', $data);
+                    else
+                        $this->db->insert('md_ssubj_update_bridge', $data);
+
+                }
+            } else {
+                $res['status'] = '项目更新已重置';
+            }
+            break;
+        case 2: // 新建专题更新
+            $data['title']   = trim($this->input->post('update_title', true));
+            $data['content'] = trim($this->input->post('update_content', true));
+            $data['ctime']   = date("Y-m-d H:i:s");
+            $this->db->insert('md_ssubj_update', $data);
+            $res['update_id'] = $this->db->insert_id();
+
+            unset($data);
+            $data['ssubj_id']  = $res['ssubj_id'];
+            $data['type']      = 2;
+            $data['update_id'] = $res['update_id'];
+            $data['weight']    = 0;
+            $this->db->insert('md_ssubj_update_bridge', $data);
+            break;
+        default:
+            # code...
+            break;
+        }
+
+        $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_update_info($res['ssubj_id']);
+        $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_info($res['ssubj_id']);
+        echo json_encode($res);
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////   排行榜模块信息   //////////////////////////////
+    // 保存排行榜模块信息
+    public function save_module_billboard()
+    {
+        $res['status_code']      = 0; // 默认成功
+        $res['status']           = '保存成功';
+        $res['billboard_id']     = intval($this->input->post('billboard_id', true));
+        $res['ssubj_id']         = intval($this->input->post('ssubj_id', true));
+        $res['billboard_algo']   = intval($this->input->post('billboard_algo', true));
+        $res['billboard_pro_id'] = $this->input->post('billboard_pro_id', true);
+
+        if ($res['ssubj_id']===0) {
+            $res['status_code'] = 1;
+            $res['status'] = '请求参数错误';
+        } else {
+            $data['ssubj_id'] = $res['ssubj_id'];
+            $data['algo']     = $res['billboard_algo'];
+            $data['priority_pro'] = json_encode($res['billboard_pro_id'] ? $this->_int_array(explode(',', $res['billboard_pro_id'])) : array());
+
+            $where = array('ssubj_id' => $res['ssubj_id']);
+            if ($this->db->where($where)->count_all_results('md_ssubj_billboard') > 0)
+                $this->db->where($where)->update('md_ssubj_billboard', $data);
+            else
+                $this->db->insert('md_ssubj_billboard', $data);
+
+            $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_ssubj_info($res['ssubj_id']);
+        }
+
+        echo json_encode($res);
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////   合作伙伴模块信息   /////////////////////////////
+    // 保存信息
+    // post['type'] -
+    //      1: 新增
+    //      2: 修改
+    public function save_module_coo_partner()
+    {
+        $res['status_code'] = 0; // 默认成功
+        $res['type'] = intval($this->input->post('type', true));
+
+        switch ($res['type']) {
+        case 1:
+            $res['ssubj_id']       = intval($this->input->post('ssubj_id', true));
+            $res['coo_partner_id'] = 0;
+            $res['site']           = $this->input->post('site', true);
+            $res['pic']            = $this->input->post('pic', true);
+            $res['weight']         = intval($this->input->post('weight', true));
+
+            if ($res['ssubj_id'] === 0) {
+                $res['status_code'] = 1;
+                $res['status'] = '请求参数错误';
+                break;
+            }
+
+            $this->db->select('id');
+            $this->db->where('site', $res['site']);
+            $if_have = $this->db->get('md_coo_partner')->row_array();
+            if (empty($if_have)) {
+                $data['site'] = $res['site'];
+                $data['pic']  = $res['pic'];
+                $this->db->insert('md_coo_partner', $data);
+                $res['coo_partner_id'] = $this->db->insert_id();
+                unset($data);
+            } else {
+                $res['coo_partner_id'] = $if_have['id'];
+            }
+
+            $this->db->where('coo_partner_id', $res['coo_partner_id']);
+            $this->db->where('ssubj_id', $res['ssubj_id']);
+            $if_have = $this->db->get('md_ssubj_cpart_bridge')->row_array();
+            if (empty($if_have)) {
+                $data['coo_partner_id'] = $res['coo_partner_id'];
+                $data['ssubj_id']       = $res['ssubj_id'];
+                $data['weight']         = $res['weight'];
+                $this->db->insert('md_ssubj_cpart_bridge', $data);
+                unset($data);
+            } else {
+                $res['status_code'] = 1;
+                $res['status'] = '本专题已有该合作伙伴信息，请不要重复添加';
+            }
+
+            break;
+        case 2:
+            $res['ssubj_id']       = intval($this->input->post('ssubj_id', true));
+            $res['coo_partner_id'] = intval($this->input->post('coo_partner_id', true));
+            $res['site']           = $this->input->post('site', true);
+            $res['pic']            = $this->input->post('pic', true);
+            $res['weight']         = intval($this->input->post('weight', true));
+
+            if ($res['ssubj_id']!==0 && $res['coo_partner_id']!==0) {
+                $data['weight'] = $res['weight'];
+                $this->db->where('ssubj_id', $res['ssubj_id']);
+                $this->db->where('coo_partner_id', $res['coo_partner_id']);
+                $this->db->update('md_ssubj_cpart_bridge', $data);
+            } else {
+                $res['status_code'] = 1;
+                $res['status'] = '请求参数错误';
+            }
+
+            break;
+        default:
+            $res = $this->input->post(null, true);
+            $res['status_code'] = 1;
+            $res['status'] = '操作类型错误';
+            break;
+        }
+
+        $this->md_model_cache->set_model('md_ssubj')->clean('no_return')->get_coo_partner_info(intval($this->input->post('ssubj_id', true)));
+        echo json_encode($res);
+    }
+    // 用户输入网址时自动提示列表
+    public function ajax_coo_partner_site()
+    {
+        $res = $this->db->select('site, pic')->get('md_coo_partner')->result_array();
+        $data['site_list'] = array();
+        $data['pic_list'] = array();
+        $data['base_url'] = _gc('main_site_url', 'config');
+        foreach ($res as $row) {
+            $data['site_list'][] = $row['site'];
+            $data['pic_list']["{$row['site']}"] = $row['pic'];
+        }
+
+        echo json_encode($data);
+    }
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+    // 将数组(一维)元素转换为int类型
+    private function _int_array($arr) {
+        $res = array();
+        foreach ($arr as $key => $value)
+            $res[$key] = intval($value);
+        unset($arr);
+        return $res;
+    }
+
+	public function __construct()
+    {
+        parent::__construct();
+        $this->load->library('md_model_cache');
+    }
+
+}

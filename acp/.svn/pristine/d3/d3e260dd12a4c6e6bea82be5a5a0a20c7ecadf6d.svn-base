@@ -1,0 +1,530 @@
+<?php
+
+/**
+ * auther: dingding
+ * date: 2015-01-04
+ *
+ * userd for check_account system in pay_ad controllers.
+ *
+ */
+
+class Account_m extends CI_Model
+{
+    // 获取线上项目信息
+    public function get_product_list_info($pro_id=0, $per_page=0, $offset=0)
+    {
+        // 统计总项目数
+        $this->db->from('md_product');
+        $this->db->select('id, user_id, name, short_title, start_time, end_time, install_money, goal');
+        if (!empty($pro_id))
+            $this->db->where('id', $pro_id);
+        $this->db->where('if_show', 1);
+        $this->db->order_by("id", "desc");
+        $res['total'] = $this->db->count_all_results();
+
+        // 相同的sql，取分页数据
+        $this->db->from('md_product');
+        $this->db->select('id, user_id, name, short_title, start_time, end_time, install_money, goal');
+        if (!empty($pro_id))
+            $this->db->where('id', $pro_id);
+        $this->db->where('if_show', 1);
+        $this->db->order_by("id", "desc");
+        if ($per_page!==null && $offset!==null)
+            $this->db->limit($per_page, $offset);
+        $res['list'] = $this->db->get()->result_array();
+
+        return $res;
+    }
+
+    // 已支付订单数
+    public function get_paid_order_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $this->db->from('md_pay');
+            $this->db->join('md_product_back', 'md_pay.back_id=md_product_back.id');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where('md_product_back.if_pay', 1);
+            $this->db->where("md_pay.status", 1);
+            $res = $this->db->count_all_results();
+        }
+        return $res;
+    }
+
+    // 退款申请订单数
+    public function get_refund_req_order_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $this->db->from('md_product_back');
+            $this->db->where("pro_id", $pro_id);
+            $this->db->where("if_pay", 1);
+            $this->db->where("status", 303);
+            $res = $this->db->count_all_results();
+        }
+        return $res;
+    }
+
+    // 退款中的订单数
+    public function get_refund_ing_order_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $this->db->from('md_product_back');
+            $this->db->where("pro_id", $pro_id);
+            $this->db->where("if_pay", 1);
+            $this->db->where_in("status", array(204,302,402));
+            $res = $this->db->count_all_results();
+        }
+        return $res;
+    }
+
+    // 退款成功订单数
+    public function get_refund_succ_order_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $this->db->from('md_product_back');
+            $this->db->where("pro_id", $pro_id);
+            $this->db->where("if_pay", 3);
+            $this->db->where_in("status", array(205,300,400));
+            $res = $this->db->count_all_results();
+        }
+        return $res;
+    }
+
+    // 获取异常订单数
+    public function get_exception_order_count($pro_id, $excp_type=null)
+    {
+        $res = 0;
+        if (!empty($pro_id)) {
+            $repeat_paid_sql = "SELECT md_pay.back_id
+                                    FROM md_pay
+                                        INNER JOIN md_product_back
+                                            ON md_pay.back_id=md_product_back.id
+                                    WHERE md_pay.pro_id={$pro_id}
+                                        AND md_pay.status=1
+                                        AND md_product_back.if_pay=1
+                                    GROUP BY md_pay.back_id
+                                        HAVING count(*) > 1";
+
+            $this->db->select('end_time');
+            $this->db->from('md_product');
+            $this->db->where("id", $pro_id);
+            $pro_info = $this->db->get()->row_array();
+            $exceed_paid_sql = "SELECT md_pay.back_id
+                                    FROM md_pay
+                                        INNER JOIN md_product_back
+                                            ON md_pay.back_id=md_product_back.id
+                                    WHERE md_pay.pro_id={$pro_id}
+                                        AND md_pay.status=1
+                                        AND md_product_back.if_pay=1
+                                        AND md_pay.return_time>'{$pro_info['end_time']}'";
+
+            $mdusuc_paid_sql = "SELECT md_pay.back_id
+                                    FROM md_pay
+                                        INNER JOIN md_pay_record_alipay
+                                            ON md_pay_record_alipay.merchant_out_order_no=md_pay.out_trade_no
+                                                AND md_pay.amount=md_pay_record_alipay.income
+                                    WHERE md_pay.pro_id={$pro_id}
+                                        AND md_pay.status=0
+                                UNION
+                                SELECT md_pay.back_id
+                                    FROM md_pay
+                                        INNER JOIN md_pay_record_weixin
+                                            ON md_pay_record_weixin.md_trade_no=md_pay.out_trade_no
+                                                AND md_pay_record_weixin.trade_state='SUCCESS'
+                                    WHERE md_pay.pro_id={$pro_id}
+                                        AND md_pay.status=0";
+
+            $mdrefund_unsync = "SELECT md_pay.back_id
+                                    FROM md_product_back
+                                        INNER JOIN md_pay
+                                            ON md_product_back.id=md_pay.back_id AND md_product_back.if_pay=1 AND md_pay.status=1
+                                        INNER JOIN md_pay_record_alipay
+                                            ON md_pay_record_alipay.merchant_out_order_no=md_pay.out_trade_no AND md_pay.amount=md_pay_record_alipay.outcome
+                                    WHERE md_pay.pro_id={$pro_id}
+                                UNION
+                                SELECT md_pay.back_id
+                                    FROM md_product_back
+                                        INNER JOIN md_pay
+                                            ON md_product_back.id=md_pay.back_id AND md_product_back.if_pay=1 AND md_pay.status=1
+                                        INNER JOIN md_pay_record_weixin
+                                            ON md_pay_record_weixin.md_trade_no=md_pay.out_trade_no AND md_pay_record_weixin.trade_state='REFUND'
+                                    WHERE md_pay.pro_id={$pro_id}";
+
+            switch ($excp_type) {
+            case 1: // 重复支付
+                $sql = $repeat_paid_sql;
+                break;
+            case 2: // 过期支付
+                $sql = $exceed_paid_sql;
+                break;
+            case 3: // 摩点状态未成功
+                $sql = $mdusuc_paid_sql;
+                break;
+            case 4: // 摩点退款信息未同步
+                $sql = $mdrefund_unsync;
+                break;
+            default:
+                $sql = "$repeat_paid_sql UNION $exceed_paid_sql UNION $mdusuc_paid_sql UNION $mdrefund_unsync";
+                break;
+            }
+
+            $res = $this->db->query($sql)->num_rows();
+        }
+        return $res;
+    }
+
+    // 重复支付的订单ID
+    public function get_repeat_paid_order_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->join('md_product_back', 'md_pay.back_id=md_product_back.id', 'inner');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where("md_pay.status", 1);
+            $this->db->where("md_product_back.if_pay", 1);
+            $this->db->group_by("md_pay.back_id");
+            $this->db->having('count(*) >', 1, FALSE);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 过期支付的订单ID
+    public function get_exceed_time_paid_order_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('end_time');
+            $this->db->from('md_product');
+            $this->db->where("id", $pro_id);
+            $pro_info = $this->db->get()->row_array();
+
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->join('md_product_back', 'md_pay.back_id=md_product_back.id', 'inner');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where("md_pay.status", 1);
+            $this->db->where("md_product_back.if_pay", 1);
+            $this->db->where("md_pay.return_time >", $pro_info['end_time']);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 摩点未收到支付成功的订单ID
+    public function get_md_unsucc_order_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->join('md_pay_record_alipay', 'md_pay_record_alipay.merchant_out_order_no=md_pay.out_trade_no AND md_pay.amount=md_pay_record_alipay.income', 'inner');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where("md_pay.status", 0);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->join('md_pay_record_weixin', 'md_pay_record_weixin.md_trade_no=md_pay.out_trade_no AND md_pay_record_weixin.trade_state="SUCCESS"', 'inner');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where("md_pay.status", 0);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 摩点未收到退款成功的订单ID
+    public function get_md_unrefund_order_ids($pro_id)
+    {
+        $res = array();
+        if (!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_product_back');
+            $this->db->join('md_pay', 'md_product_back.id=md_pay.back_id AND md_product_back.if_pay=1 AND md_pay.status IN (1,35,36)', 'inner');
+            $this->db->join('md_pay_record_alipay', 'md_pay_record_alipay.merchant_out_order_no=md_pay.out_trade_no AND md_pay.amount=md_pay_record_alipay.outcome', 'inner');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_product_back');
+            $this->db->join('md_pay', 'md_product_back.id=md_pay.back_id AND md_product_back.if_pay=1 AND md_pay.status IN (1,35,36)', 'inner');
+            $this->db->join('md_pay_record_weixin', 'md_pay_record_weixin.md_trade_no=md_pay.out_trade_no AND md_pay_record_weixin.trade_state="REFUND"', 'inner');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+
+    // 已修复的订单ID
+    public function get_md_repaired_order_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where_in("md_pay.status", array(31,35,36,39));
+            $this->db->or_where('md_pay.return_str LIKE', '修复参照%');
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+
+            $this->db->select('md_order_repaired_log.back_id');
+            $this->db->from('md_order_repaired_log');
+            $this->db->where("md_order_repaired_log.pro_id", $pro_id);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的重复支付订单out_trade_no
+    public function get_repaired_repeat_paid_out_trade_no($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.out_trade_no');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where_in("md_pay.status", array(31,35));
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['out_trade_no'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的重复支付订单id
+    public function get_repaired_repeat_paid_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where_in("md_pay.status", array(31,35));
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的过期支付订单out_trade_no
+    public function get_repaired_exceed_time_out_trade_no($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.out_trade_no');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where_in("md_pay.status", array(36,39));
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['out_trade_no'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的过期支付订单ID
+    public function get_repaired_exceed_time_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where_in("md_pay.status", array(36,39));
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的未收到成功支付订单out_trade_no
+    public function get_repaired_unsucc_out_trade_no($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.out_trade_no');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where("md_pay.status", 1);
+            $this->db->where('md_pay.return_str LIKE', '修复参照%');
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['out_trade_no'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的未收到成功支付订单ID
+    public function get_repaired_unsucc_ids($pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select('md_pay.back_id');
+            $this->db->from('md_pay');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where('md_pay.return_str LIKE', '修复参照%');
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row['back_id'];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+    // 已修复的未收到退款成功订单信息
+    public function get_repaired_unrefundsucc_info($what, $pro_id)
+    {
+        $res = array();
+        if(!empty($pro_id)) {
+            $this->db->select($what);
+            $this->db->from('md_order_repaired_log');
+            $this->db->where('pro_id', $pro_id);
+            $tt = $this->db->get()->result_array();
+            foreach ($tt as $row) {
+                $res[] = $row[$what];
+            }
+            unset($tt);
+        }
+        return $res;
+    }
+
+
+
+    // 不需要回报订单数
+    public function get_unrewords_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $this->db->from('md_pay');
+            $this->db->join('md_product_back', 'md_pay.back_id=md_product_back.id');
+            $this->db->where("md_pay.pro_id", $pro_id);
+            $this->db->where('md_product_back.if_pay', 1);
+            $this->db->where("md_pay.status", 1);
+            $this->db->where("md_product_back.check_support", 'on');
+            $res = $this->db->count_all_results();
+        }
+        return $res;
+    }
+
+    // 需发货订单数
+    public function get_unpost_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $tmp = $this->Product_m->get_product_status($pro_id, 1);
+            switch ($tmp) {
+            case PRODUCT_STATUS_FINANCING_SUCCESS:
+                $res = $this->get_paid_order_count($pro_id) - $this->get_unrewords_count($pro_id);
+                break;
+            default:
+                # code...
+                break;
+            }
+
+        }
+        return $res;
+    }
+
+    // 已发货订单数
+    public function get_post_count($pro_id)
+    {
+        $res = 0;
+        if(!empty($pro_id)) {
+            $tmp = $this->Product_m->get_product_status($pro_id, 1);
+            switch ($tmp) {
+            case PRODUCT_STATUS_FINANCING_SUCCESS:
+                $this->db->from('md_product_back');
+                $this->db->where("pro_id", $pro_id);
+                $this->db->where("post_time !=", '0000-00-00 00:00:00');
+                $res = $this->db->count_all_results();
+                break;
+            default:
+                # code...
+                break;
+            }
+
+        }
+        return $res;
+    }
+
+
+
+    public function get_paid_order_third_party_info($md_trade_no, $pay_platform)
+    {
+        $res = array('trade_no' => '不知道', 'trans_date' => '不知道');
+        switch ($pay_platform) {
+        case 'alipay':
+        case 'alipay_wap':
+            $this->db->select('trade_no, trans_date');
+            $this->db->from('md_pay_record_alipay');
+            $this->db->where("merchant_out_order_no", $md_trade_no);
+            // $this->db->where("income >", 0);
+            $res = $this->db->get()->row_array();
+            break;
+        case 'weixin':
+            $this->db->select('wx_trade_no AS trade_no, pay_time AS trans_date', FALSE);
+            $this->db->from('md_pay_record_weixin');
+            $this->db->where("md_trade_no", $md_trade_no);
+            $this->db->where("money >", 0);
+            $res = $this->db->get()->row_array();
+            if(empty($res)) {
+                $res['trade_no'] = 'NONEEDHERE';
+                $res['trans_date'] = 'NORECORDHERE';
+            }
+            break;
+        default:
+            # code...
+            break;
+        }
+        return $res;
+    }
+
+
+    // ---------------------------------------------------------------------
+    function __construct()
+    {
+        parent::__construct();
+        $this->config->load('plan');
+        $this->load->model('Product_m');
+    }
+}

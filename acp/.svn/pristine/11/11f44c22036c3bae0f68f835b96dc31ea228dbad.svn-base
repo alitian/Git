@@ -1,0 +1,386 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('project_manager/sub_menu', array('pro_id'=>$res['id'])) ?>
+<link rel="stylesheet" href="<?=static_url()?>/new/css/jquery.datetimepicker.css">
+<script type="text/javascript" src="<?=static_url()?>/new/js/datetimepicker/jquery.datetimepicker.js"></script>
+<style>
+    .probasic_content {
+        width: 940px;
+        height: auto;
+        background: #fff;
+        border: 1px solid #dadbdc;
+        border-radius: 5px;
+        box-shadow: 0px 2px 8px 0 rgba(0, 0, 0, 0.1);
+    }
+    .probasic_field {
+        list-style: none;
+        padding: 32px 150px 30px 150px;
+    }
+
+    li {
+        list-style: none;
+    }
+    .probasic_content .probasic_field .zclxauto {
+        height: auto;
+        margin-bottom: 10px;
+    }
+    .probasic_field li {
+        margin-bottom: 20px;
+        position: relative;
+        height: 28px;
+    }
+    .probasic_field li h6 {
+        font-size: 14px;
+        line-height: 30px;
+        padding-right: 30px;
+        float: left;
+        font-weight: bold;
+        color:black;
+    }
+    .pro_zctype {
+        overflow: hidden;
+        padding-right: 47px;
+    }
+    .fl {
+        float: left;
+        width: 80%;
+    }
+    .probasic_field li a {
+        color: #222222;
+        text-decoration: none;
+        float: left;
+        margin-right: 15px;
+        margin-bottom: 10px;
+        width: 48px;
+        height: 28px;
+        line-height: 28px;
+        text-align: center;
+        border: 1px solid #cccccc;
+        -moz-border-radius: 2px;
+        -webkit-border-radius: 2px;
+        border-radius: 2px;
+    }
+    .li_proName input {
+        outline: none;
+        /*border: none;*/
+        /*border-bottom: 1px solid #ccc;*/
+        width: 553px;
+        height:30px;
+        font-size: 14px;
+        padding: 5px 0;
+    }
+    .li_proName .num {
+        position: absolute;
+        top: 17px;
+        right: 0;
+        font-size: 14px;
+        color: #223318;
+        opacity: 0.6;
+        font-weight: normal;
+    }
+    .edit_category_explan {
+        margin-left: 90px;
+        overflow: hidden;
+        border: 1px solid #ccc;
+        width: 425px;
+        padding: 30px 0px 19px 20px;
+        margin-bottom: 40px;
+    }
+    .edit_category_explan a {
+        padding: 0px 10px;
+        margin-right: 20px;
+        margin-bottom: 20px;
+        color: #223318;
+        text-decoration: none;
+        float: left;
+        font-size: 14px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+        border: 1px solid #ccc;
+        -moz-border-radius: 2px;
+        -webkit-border-radius: 2px;
+        border-radius: 2px;
+    }
+    .arrow {
+        position: absolute;
+        right: 10px!important;
+        top: 20px!important;
+        width: 13px;
+        height: 11px;
+        background: url(http://s.moimg.net/project_create_20160512/images/snap/icon-map.png) -79px -304px no-repeat;
+    }
+    .intro_remaining{
+        display: inline-block;
+        float: right;
+        position: relative;
+        margin-top: -30px;
+        margin-right: 40px;
+    }
+    .hovertype_a {
+        background-color: #37cb58;
+        color: #ffffff;
+        border-color: #37cb58;
+    }
+</style>
+
+<div class="row-fluid sortable">
+    <form id="theForm" action="/project_manager/edit/<?=$res['id']?>" method="post">
+        <input type="hidden" name="id" value="<?=$res['id']?>"/>
+        <div class="prostep_back">
+            <div class="bc_gray">
+                <div class="probasic_content">
+                    <ul class="probasic_field">
+                        <li class="li_proName">
+                            <h6>项目标题</h6>
+                            <div class="fl">
+                                <input id="project_name" class="inpBorder inpBlurBorder" name="name" type="text" placeholder="建议输入字符在1-30个字以内"  value="<?=$res['name']?>" required/>
+                                <span class="num"><span id="name_remaining">0</span>/30</span>
+                            </div>
+                        </li>
+                        <li class="li_proName">
+                            <h6>项目简称</h6>
+                            <div class="fl">
+                                <input id="project_short_title" class="inpBorder inpBlurBorder" name="short_title" type="text" placeholder="建议输入字符在1-10个字以内" value="<?=$res['short_title']?>" required/>
+                                <span class="num"><span id="title_remaining">0</span>/10</span>
+                            </div>
+                        </li>
+                        <li class="li_proName">
+                            <h6>开始时间</h6>
+                            <div class="fl">
+                                <input id="project_start_time" class="inpBorder inpBlurBorder" name="start_time" type="text" placeholder="开始时间" value="<?=$res['start_time']?>" />
+                                <i class="fa fa-caret-down arrow"></i>
+                            </div>
+                        </li>
+                        <li class="li_proName">
+                            <h6>结束时间</h6>
+                            <div class="fl">
+                                <input id="project_end_time" class="inpBorder inpBlurBorder" name="end_time" type="text" placeholder="结束时间" value="<?=$res['end_time']?>" />
+                                <i class="fa fa-caret-down arrow"></i>
+                                <span style="color: red" class="duration">众筹期：<?=$res['duration']?></span>
+                                <p></p>
+                            </div>
+                        </li>
+                        <li class="li_proName" style="margin-top:30px">
+                            <h6>目标金额</h6>
+                            <div class="fl">
+                                <input id="project_goal" class="inpBorder inpBlurBorder" name="goal" type="text" placeholder="1000元起,项目通过审核后将不能修改,谨慎填写" value="<?=$res['goal']?>"/>
+                            </div>
+                        </li>
+                        <li class="zclxauto">
+                            <h6>项目类别</h6>
+                            <div class="pro_zctype">
+                                <?php foreach($category as $category_info):?>
+                                    <a href="javascript:void(0);" class="category <?php if($category_info['catename_ch'] == $res['category']){echo 'hovertype_a';}?>" value="<?=$category_info['catename_ch']?>" data-pro_tag="<?=$res['pro_tag']?>" onclick="get_tags(this,$(this).attr('value'),$(this).data('pro_tag'))"><?=$category_info['catename_ch']?></a>
+                                <?php endforeach;?>
+                                <input id="category" type="hidden" name="category" value="<?=$res['category']?>" data-errormessage-value-missing="必须选择众筹类型"/>
+                            </div>
+                        </li>
+                        <div class="edit_category_explan">
+
+                        </div>
+                        <input id="project_tag" type="hidden" name="pro_tag" value="<?=$res['pro_tag']?>"/>
+                        <li class="zclxauto">
+                            <h6>项目简介</h6>
+                            <div class="pro_zctype">
+                                <textarea name="des" id="project_des" cols="60" style="margin: 0px 0px 9px; width: 443px; height: 180px;" rows="10"><?=$res['des']?></textarea>
+                                <span class="num intro_remaining"><span id="intro_remaining">0</span>/100</span>
+                            </div>
+                        </li>
+                    <div class="probasic_nextstep">
+                        <button type="button" class="btn btn-success btn-large btn-block" style="margin-left: 100px;" id="update_baseinfo">提&nbsp;&nbsp;交</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+<script type="text/javascript">
+    var if_update = "<?=$if_update?>";
+    if(if_update){
+        $("#prompt_box").show().fadeOut(3000);
+    }
+    //时间插件
+    $('#project_start_time').datetimepicker({lang:'ch',minDate:'+1'});
+    $('#project_end_time').datetimepicker({lang:'ch',minDate: $('#project_start_time').val()});
+
+    var category = $(".hovertype_a").text();
+    var pro_tag = "<?=$res['pro_tag']?>";
+    get_pro_tag(category,pro_tag);
+    function get_pro_tag(catename,tags){
+        $.ajax({
+            url : '/project_manager/get_pro_tag',
+            type: 'post',
+            dataType : 'json',
+            data:{
+                category : catename,
+                pro_tag  : tags
+            },
+            success:function(return_data){
+                if(return_data.status == 1){
+                    $(".edit_category_explan").show();
+                    $(".edit_category_explan").empty().append(return_data.msg);
+                }else{
+                    $(".edit_category_explan").hide();
+                }
+            }
+        });
+    }
+
+    function get_tags(obj,catename,tags){
+        if(!confirm("你确定要修改项目类别吗？")){
+            return false;
+        }
+//        if(!$(obj).hasClass("hovertype_a")){
+//            tags = '';
+//        }
+        $(".pro_zctype a").removeClass("hovertype_a");
+        $(obj).addClass('hovertype_a');
+        get_pro_tag(catename,tags);
+    }
+
+    //提交时检测各个字段
+    $("#update_baseinfo").click(function(){
+        //检测标题长度
+        if($("#project_name").val().length > 30){
+            alert("项目标题不能超过30个字符!");
+            return false;
+        }
+        if($("#project_short_title").val().length > 10){
+            alert("项目简称不能超过10个字符!");
+            return false;
+        }
+        if($("#project_des").val().length > 100){
+            alert("项目简介不能超过100个字符!");
+            return false;
+        }
+
+        $(".pro_zctype>a").each(function(){
+            if($(this).hasClass("hovertype_a")){
+                category = $(this).text();
+            }
+        });
+        $("#category").val(category);
+
+        var goal = parseInt($("#project_goal").val());
+        if(isNaN(goal)){
+            alert("目标金额只能输入数字");
+            return false;
+        }
+        if(goal < 1000){
+            alert("目标金额1000元起");
+            return false;
+        }
+        var pro_tag = new Array();
+            $(".edit_category_explan>a").each(function(){
+           if($(this).hasClass("hovertype_a")){
+               pro_tag.push($(this).text())
+           }
+        });
+        var tags = pro_tag.join(",");
+        $("#project_tag").val(tags);
+
+        var check_end_time = check_endtime();
+        if(check_end_time === false){
+            return false;
+        }
+        var check_start_time = check_starttime();
+        if( check_start_time === false){
+            return false;
+        }
+        $("#theForm").submit();
+    });
+
+    $(document).on('click',".edit_category_explan>a",function(){
+        if($(this).hasClass('hovertype_a')){
+            $(this).removeClass("hovertype_a");
+        } else{
+            $(this).addClass("hovertype_a");
+        }
+    });
+
+
+    //title name des字数控制
+    var pname = $("#project_name");
+    var name_remain_obj = $("#name_remaining");
+    length_control(pname,name_remain_obj,30);
+    $("#project_name").keyup(function(){
+        length_control(pname,name_remain_obj,30);
+    });
+
+    var ptitle = $("#project_short_title");
+    var title_remain_obj = $("#title_remaining");
+    length_control(ptitle,title_remain_obj,10);
+    $("#project_short_title").keyup(function(){
+        length_control(ptitle,title_remain_obj,10);
+    });
+
+    var pdes = $("#project_des");
+    var intro_remain_obj = $("#intro_remaining");
+    length_control(pdes,intro_remain_obj,100);
+    $("#project_des").keyup(function(){
+        length_control(pdes,intro_remain_obj,100);
+    });
+    function length_control(obj,remain_obj,totle_len){
+        var pro_name       = obj.val();
+        var name_length    = parseInt(pro_name.length);
+        var name_remaining = totle_len - name_length;
+        if(name_remaining > 0){
+            remain_obj.text(name_remaining);
+        }else{
+            var str = pro_name.substring(0, totle_len);
+            obj.val(str);
+            remain_obj.text(0);
+        }
+    }
+
+    //时间控制
+
+    function check_endtime(){
+        var start_time = $("#project_start_time").val();
+        var end_time = $("#project_end_time").val();
+        if(end_time <= start_time){
+            alert('截止时间必须大于开始时间');
+            return false;
+        }
+        start_time = stringToJsTime(start_time);
+        end_time = stringToJsTime(end_time);
+        var datatime = (end_time.getTime() - start_time.getTime())/1000/3600/24;
+        if(datatime >60){
+            alert('截止时间必须在开始时间后60天内');
+            return false;
+        }
+    }
+    function check_starttime(){
+        var start_time = $("#project_start_time").val();
+        var end_time = $("#project_end_time").val();
+        if(end_time != '' && end_time != null){
+            if(start_time >= end_time){
+                alert('开始时间必须小于截止时间');
+                return false;
+            }
+        }
+    }
+    function stringToJsTime(timeString) {
+        var y = timeString.substring(0,4);
+        var m = timeString.substring(5,7)-1;
+        var d = timeString.substring(8,10);
+        var h = timeString.substring(11,13);
+        var mm = timeString.substring(14,16);
+        var ss = timeString.substring(17,19);
+        var time = new Date(y,m,d,h,mm,ss,0);
+        return time;
+    }
+
+    //众筹期
+    $("#project_start_time,#project_end_time").blur(function(){
+        var start_time = $("#project_start_time").val();
+        var end_time = $("#project_end_time").val();
+        start_time = stringToJsTime(start_time);
+        end_time = stringToJsTime(end_time);
+        var datetime = Math.floor((end_time.getTime() - start_time.getTime())/1000/3600/24);
+        var gap_hour = Math.floor(((end_time.getTime() - start_time.getTime())%(24*3600*1000))/1000/3600);
+        var duration = "众筹期："+ datetime + "天"+ gap_hour+"小时";
+        $(".duration").text(duration);
+    });
+
+</script>

@@ -1,0 +1,214 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Test extends MD_Controller {
+    public function elastic(){
+        require_once('libraries/elastic/vendor/autoload.php');
+        $host=$this->config->item('md_elasticsearch');
+        $hosts=["{$host['ip']}:{$host['port']}"];
+        $client = Elasticsearch\ClientBuilder::create()->setHosts($hosts)->build();
+        $param = [
+            "index" => "logstash-2016.05.*,logstash-2016.06.*,logstash-2016.07.01",
+            //"search_type" => "count",
+            "size" => 10000,
+            "fields" => "url",
+            "body" => [
+                "query" => [
+                    "filtered" => [ 
+                        "query" => [ "query_string" => [ "query" => "url:\"xid=3045\" AND url:pay_id", "analyze_wildcard" => true ] ],
+                    ]
+                ]
+            ]
+        ];
+        $reslut = $client->search($param);
+        $number = array();
+        $i = 0;
+        foreach($reslut['hits']['hits'] as $key =>$val){
+            if(preg_match("/^http:\/\/(m|www|zhongchou).modian.com\/pay\/pay_success\?(pay_id=[0-9]+&xid=[0-9]+).*$/", $val['fields']['url'][0], $arr)){
+                preg_match("/pay_id=([0-9]+)/", $arr[2], $shu);
+                $number[$i]['shu'] = $shu[1];
+                $i++;
+            }
+        }
+        $this->load->helper('excel');
+        export_to_csv(array("shu" => "pay_id"), $number, "3045订单ID");
+    }
+    public function my_test(){
+        try{
+            $pdo = new PDO("mysql:host=master.db.modianinc.com:16888;dbname=app_modian", "devroot", "aR7VGnEME");
+            $reslut = $pdo->query("SELECT `category`,`id`,`short_title`,`user_id`,`goal`,`start_time`,`end_time`,`moxi_post_id` FROM `md_product` WHERE `if_show` = 1 AND `start_time` >= '2016-04-01 00:00:00' AND `start_time` < '2016-07-01 00:00:00'");
+            $lib = array();
+            foreach($reslut as $key => $value){
+                for($i = 0;$i <= 7; $i++){
+                    unset($value[$i]);
+                }
+                $lib[$value['id']] = $value;
+                $sql = "SELECT SUM(`amount`) AS shu,COUNT(*) AS form,COUNT(DISTINCT `user_id`) AS indenpendent FROM `md_product_back` WHERE `pro_id` = '{$value['id']}' AND (`if_pay` = 1 OR `if_pay` = 3)";
+                $resluts = $pdo->query($sql);
+                foreach($resluts as $kk => $vv){
+                    if($vv['shu'] == null){
+                        $vv['shu'] = 0;
+                    }
+                    $lib[$value['id']]['money'] = $vv['shu'];
+                    $lib[$value['id']]['form'] = $vv['form'];
+                    $lib[$value['id']]['indenpendent'] = $vv['indenpendent'];
+                }
+                $sql = "SELECT COUNT(*) as shu FROM `md_product_favors` WHERE `pro_id` = '{$value['id']}' AND `type` = 1";
+                $resluts = $pdo->query($sql);
+                foreach($resluts as $kk => $vv){
+                    if($vv['shu'] == null){
+                        $vv['shu'] = 0;
+                    }
+                    $lib[$value['id']]['fans'] = $vv['shu'];
+                }
+            }
+            $pdo = null;
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+        try{
+            $pdo = new PDO("mysql:host=master.db.modianinc.com:16888;dbname=app_moxi", "devroot", "aR7VGnEME");
+            foreach($lib as $k => $v){
+                $num = $v['moxi_post_id'] % 10;
+                $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_{$num}` WHERE `post_id` = '{$v['moxi_post_id']}'";
+                $reslut = $pdo->query($sql);
+                foreach($reslut as $kk => $vv){
+                    $lib[$k]['comment'] = $vv['shu'];
+                }
+                $sql = "SELECT COUNT(*) AS shu FROM `bbs_reply_{$num}` WHERE `post_id` = '{$v['moxi_post_id']}' AND `reply_fuid` = {$v['user_id']}";
+                $reslut = $pdo->query($sql);
+                foreach($reslut as $kk => $vv){
+                    $lib[$k]['init'] = $vv['shu'];
+                }
+            }
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+        foreach($lib as $key => $val){
+            if($val['money'] < $val['goal']){
+                $lib[$key]['state_money'] = "未筹满";
+            }else{
+                $lib[$key]['state_money'] = "已筹满";
+            }
+            if(time() > strtotime($val['end_time'])){
+                $lib[$key]['state_time'] = "已结束";
+            }else{
+                $lib[$key]['state_time'] = "未结束";
+            }
+            if($val['goal']){
+                $lib[$key]['per_money'] = round(($val['money'] * 100)/$val['goal'], 2)."%";
+            }else{
+                $lib[$key]['per_money'] = "0%";
+            }
+            if(strtotime($val['end_time']) - strtotime($val['start_time']) != 0){
+                $lib[$key]['per_time'] = round((time() - strtotime($val['start_time'])) * 100/(strtotime($val['end_time']) - strtotime($val['start_time'])), 2)."%";
+            }else{
+                $lib[$key]['per_time'] = "100%";
+            }
+            if($val['indenpendent'] != 0){
+                $lib[$key]['avg_money'] = round(($val['money']/$val['indenpendent'])*100, 2);
+            }else{
+                $lib[$key]['avg_money'] = 0;
+            }
+        }
+        $arr_title = array("category" => "分类", "id" => "项目ID", "short_title" => "项目名称", "user_id" => "发起人ID", "goal" => "资金目标",
+            "money" => "已筹金额", "per_money" => "完成百分比", "per_time" => "时间百分比", "state_money" => "筹资额状态", "state_time" => "时间状态",
+            "fans" => "关注数", "start_time" => "开始时间", "end_time" => "结束时间", "comment" => "评论数", "init" => "发起人回复数", "avg_money" => "客单价",
+            "indenpendent" => "支持人数");
+        $path_file = "项目统计数据表";
+        $this->load->helper('excel');
+       // print_r($lib);
+        export_to_csv($arr_title, $lib, $path_file);
+    }
+
+    public function my_test1($m, $n){
+        try{
+            $pdo = new PDO("mysql:host=master.db.modianinc.com:16888;dbname=app_modian", "devroot", "aR7VGnEME");
+            $reslut = $pdo->query("SELECT COUNT(*) AS shu,DATE_FORMAT(`ctime`, '%Y%m%d') AS riqi FROM `md_users` WHERE `ctime` >= '2016-04-01 00:00:00' AND `ctime` < '2016-05-01 00:00:00' AND `md_plan` = 0 GROUP BY riqi");
+            $my_lib = array();
+            foreach($reslut as $key => $value){
+                $my_lib[$value['riqi']] = $value['shu'];
+            }
+            $pdo = null;
+            print_r($my_lib);
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+    }
+
+    public function my_test2(){
+        try{
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_modian", "devroot", "aR7VGnEME");
+            $reslut = $pdo->query("SELECT DATE_FORMAT(`dtime`, '%Y%m%d') AS riqi,`user_reg_from_web` AS shu FROM `md_statistics_user` WHERE `dtime` >= '2016-04-01 00:00:00' AND `dtime` < '2016-05-01 00:00:00'");
+            $he_lib = array();
+            foreach($reslut as $key => $value){
+                $he_lib[$value['riqi']] = $value['shu'];
+            }
+            $pdo = null;
+            print_r($he_lib);
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+    }
+    
+    public function ipcnt($pro_id)
+    {
+        $pro_id = intval($pro_id);
+        if (empty($pro_id)) {
+            show_error('error pro_id.');
+        }
+
+        $this->config->load('database', NULL, TRUE);
+        $other_db = $this->config->item('other_db');
+        if (!empty($other_db) && !empty($other_db['tongji_db'])) {
+            $this->tongji_db = &DB($other_db['tongji_db']);
+        }
+
+        $sql = "SELECT page, ip, COUNT(*) AS cc
+                FROM (
+                    SELECT `md_statistics_stay_acc_log`.`page`, `md_statistics_stay_acc_log`.`ip`
+                    FROM `md_statistics_stay_acc_log`
+                        JOIN `md_product_back`
+                            ON `md_product_back`.`id`=`md_statistics_stay_acc_log`.`bid`
+                                AND `md_statistics_stay_acc_log`.`page`={$pro_id}
+                                AND `md_statistics_stay_acc_log`.`bid`!=0
+                                AND `md_product_back`.`pro_id`={$pro_id}
+                                AND `md_product_back`.`if_pay`=1
+                                AND `md_product_back`.`rew_id`!=-3
+                    GROUP BY uid) as tt
+                GROUP BY ip
+                ORDER BY cc DESC";
+
+        $res = $this->tongji_db->query($sql)->result_array();
+
+        $total_cnt = 0;
+        $qucong_cnt = 0;
+        foreach ($res as $row) {
+            $tmp_cnt = intval($row['cc']);
+
+            $total_cnt += $tmp_cnt;
+
+            if ($tmp_cnt > 2) {
+                $qucong_cnt += 2;
+            } else {
+                $qucong_cnt += $tmp_cnt;
+            }
+        }
+
+        $data['total_cnt'] = $total_cnt;
+        $data['qucong_cnt'] = $qucong_cnt;
+        $data['the_ref'] = $res;
+        $this->load->view('test/ipcnt', $data);
+    }
+
+
+    public function index() {
+        $this->load->model('order_biz');
+        $res = $this->order_biz->set_oid('5156')->update_status('400');
+        
+        var_dump($res);
+    }
+
+}

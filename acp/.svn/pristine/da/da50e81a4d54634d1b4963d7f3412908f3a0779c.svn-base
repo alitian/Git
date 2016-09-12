@@ -1,0 +1,768 @@
+<?php	
+	class Bbs_tag_model extends CI_Model{
+
+		const MD_BBS_TAG_TABLE  = 'bbs_tag';
+		const MD_BBS_TAG_MAP_TABLE  = 'bbs_tag_map';
+		const MD_BBS_TAG_RECOMMEND_TABLE  = 'bbs_tag_recommend';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+		}
+
+		/**
+		 *
+		 * 获取标签的相关标签
+		 *
+		 * @param 	string 		$tag_name
+		 *
+		 */
+		public function get_relative_tags($tag_name)
+		{
+			$this->moxi_db->select('tag_id, tag_name');
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->like('tag_name', $tag_name);
+			$tag_query = $this->moxi_db->get();
+			$tag_list = $tag_query->result_array();
+			foreach($tag_list as $key => $tag_info){
+
+				// 去掉当前查询的标签本身
+				if($tag_info['tag_name'] == $tag_name)
+					unset($tag_list[$key]);
+			}
+			if(empty($tag_list)) 
+				$tag_list = array();
+			return $tag_list;
+		}
+
+		/**
+		 *
+		 * 获取标签的父子关系
+		 *
+		 * @param 	int 		$tag_id
+		 *
+		 */
+		public function get_tag_relation($tag_id, $tag_name)
+		{
+			$cur_tag = array(
+							'tag_id' => $tag_id,
+							'tag_name' => $tag_name
+						);
+
+			// 这里再去查询下，该标签是否是 '顶级标签 - parent_id = 0'
+			$is_top = $this->is_toptag_by_tag_id($tag_id);
+
+			// 查询子标签
+			// $join_condition = 'tag_id';
+			$join_condition = 't.tag_id = m.tag_id';
+			$where = array(
+						'parent_id' => $tag_id
+					);
+			$order_by = 't.ctime DESC';
+			$this->moxi_db->select('t.tag_id, t.tag_name');
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$child_query = $this->moxi_db->get();
+			$child_list = $child_query->result_array();
+			if(!$child_list){
+				$child_list = array();
+			}
+
+			// 当非顶级的时候，才有查询父标签
+			if(!$is_top){
+				$join_condition = 't.tag_id = m.parent_id';
+				$where = array(
+							'm.tag_id' => $tag_id,
+							'm.parent_id !=' => 0 		// 排除掉为0的标签(虽然不存在，但是map表能匹配，匹配到一个null)
+						);
+				$order_by = 't.ctime DESC';
+				$this->moxi_db->select('t.tag_id, t.tag_name');
+				$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+				$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+				$this->moxi_db->where($where);
+				$parent_query = $this->moxi_db->get();
+				$parent_list = $parent_query->result_array();
+				if(!$parent_list){
+					$parent_list = array();
+
+					// 如果未有父关系，自然没有父的组织结构
+					$organization_list = array();
+				}
+
+				$init_val = json_encode(array('tag_id' => $tag_id, 'tag_name' => $tag_name));
+				$init_key = $tag_id;
+				$all_branch_list = $this->get_organization_list($tag_id, $init_val, $init_key);
+
+				// 去除短分支，得到最终的长分支
+				$key_array = $key_array_copy = array_map('strval', array_keys($all_branch_list)); 		// 发现数组中的键都是数字类型，使用下面的strpos()不生效，转换为 string 类型
+				$branch_key_array = array();
+				foreach($key_array as $key){
+					$i = 0;
+					foreach($key_array_copy as $key_copy){
+						if(strpos($key_copy, $key) !== FALSE){
+							$i++;
+						}
+					}
+					if($i == 1){
+						$branch_key_array[] = $key;
+					}
+				}
+				$branch_list = array();
+				foreach($branch_key_array as $branch_key){
+					$branch_tag_str = $all_branch_list[$branch_key];
+					$branch_tag_arr_rev = array_reverse(explode('|', $branch_tag_str));
+					$count = count($branch_tag_arr_rev);
+					$map_second_param = array_fill(0, $count, TRUE);
+                    $branch_tag_array = array_map('json_decode', $branch_tag_arr_rev, $map_second_param); 		// json转为数组
+					$branch_list[] = (array) $branch_tag_array;
+				}
+			}else{
+				$parent_list = array();
+			}
+
+			$data = array(
+						'cur_tag' => $cur_tag,
+						'child_list' => $child_list,
+						'parent_list' => $parent_list,
+						'branch_list' => $branch_list,
+						'is_top' => $is_top
+					);
+			return $data;
+		}
+
+		/**
+		 *
+		 * 	获取标签的父组织结构 -------------- 以后再考虑，不会创建多维数组，使用字符串来拼接多分支
+		 *
+		 * @param 		int 		$tag_id
+		 *
+		 */
+		public function get_organization_list($tag_id, $pre_val = '', $pre_key = '')
+		{
+			static $organization_list;
+			$parent_tag_list = $this->get_parent_tag_list($tag_id);
+			if($parent_tag_list){
+				foreach($parent_tag_list as $key => $parent_tag_info){
+					$val = $pre_val . '|' . json_encode($parent_tag_info);
+					$key = $pre_key . $parent_tag_info['tag_id'];
+					$organization_list[$key] = $val;
+					$this->get_organization_list($parent_tag_info['tag_id'], $val, $key);
+				}
+			}else{
+				return array();
+			}
+			return $organization_list;
+		}
+
+		/**
+		 *
+		 * 	获取标签的父标签
+		 *
+		 * @param 		int 		$tag_id
+		 *
+		 */
+		public function get_parent_tag_list($tag_id){
+			$join_condition = 't.tag_id = m.parent_id';
+			$where = array(
+						'm.tag_id' => $tag_id,
+						'm.parent_id !=' => 0 		// 排除掉为0的标签(虽然不存在，但是map表能匹配，匹配到一个null)
+					);
+			$order_by = 't.ctime DESC';
+			$this->moxi_db->select('t.tag_id, t.tag_name');
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$parent_query = $this->moxi_db->get();
+			$parent_list = $parent_query->result_array();
+			if(empty($parent_list)) $parent_list = array();
+			return $parent_list;
+		}
+
+		/**
+		 *
+		 * 	通过tag_name获取tag_id
+		 *
+		 * @param 	string 		$tag_name
+		 *
+		 */
+		public function get_tag_id_by_tag_name($tag_name)
+		{
+			$select = 'tag_id';
+			$where = array(
+						'tag_name' => $tag_name
+					);
+			$this->moxi_db->select($select);
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->where($where);	
+			$tag_query = $this->moxi_db->get();
+			$tag_row = $tag_query->row_array();
+			if($tag_row){
+				return $tag_row['tag_id'];
+			}else{
+				return 0;
+			}
+		}
+
+		/**
+		 *
+		 * 	根据标签ID，判断标签是否是顶级标签
+		 *
+		 * 	@param 			int 			$tag_id
+		 * 	@return 		bool 			null
+		 */
+		public function is_toptag_by_tag_id($tag_id)
+		{
+			$where = array(
+						'tag_id' => $tag_id,
+						'parent_id' => 0
+					);
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where($where);
+			$count = $this->moxi_db->count_all_results();
+			return $count ? TRUE : FALSE;
+		}
+
+		/**
+		 *	@used-by 编辑tag，修改tag名 | 新增普通标签和顶级标签，标签是否存在 | 新增关系，输入tag是否存在
+		 * 
+		 * 	查询tag_name是否存在
+		 *
+		 * @param 	string 		$tag_name
+		 * @return  bool 		
+		 *
+		 */
+		public function is_tag_exists($tag_name){
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->where('tag_name', $tag_name);
+			$tag_query = $this->moxi_db->get();
+			$tag_info = $tag_query->row_array();
+			if($tag_info){
+				return TRUE;
+			}else{
+				return FALSE;
+			}
+		}
+
+		/**
+		 * 	通过tagID查询tag信息
+		 * 
+		 * 	@param 			int 		$tag_id
+		 *	@return 		array 		$tag_info 
+		 * 
+		 */
+		public function get_tag_info($tag_id)
+		{
+			$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+			$this->moxi_db->where('tag_id', $tag_id);
+			$tag_query = $this->moxi_db->get();
+			$tag_info = $tag_query->row_array();
+			if(!$tag_info){
+				$tag_info = array();
+			}
+			return $tag_info;
+		}
+
+		/**
+		 *
+		 * 	编辑标签
+		 *
+		 * 	@param 		array 		$data
+		 * 	@param 		array 		$where
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_tag($data, $where)
+		{
+			$bool =$this->moxi_db->update(self::MD_BBS_TAG_TABLE, $data, $where);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 新建标签
+		 *
+		 * @param 	array 		$data
+		 *
+		 */
+		public function add_tag($data){
+
+			/* 插入tag表数据 */ 
+			$this->moxi_db->insert(self::MD_BBS_TAG_TABLE, $data);
+			$tag_id = $this->moxi_db->insert_id();
+			return $tag_id;
+		}
+
+		/**
+		 * 	建立顶级tag的对应关系
+		 *
+		 * @param 	int 		$tag_id
+		 *
+		 */
+		public function add_top_map($tag_id)
+		{
+			$set = array(
+						'tag_id' => $tag_id,
+						'parent_id' => 0
+					);
+			$this->moxi_db->insert(self::MD_BBS_TAG_MAP_TABLE, $set);
+		}
+
+		/**
+		 * 	建立child-parent的对应关系
+		 *
+		 * @param 	int 		$tag_id
+		 * @param 	int 		$parent_id
+		 * @param 	string 		$type(代表是添加子关系还是父关系)
+		 *
+		 */
+		public function add_map($tag_id, $parent_id, $type)
+		{
+			$tag_id = (int) $tag_id;
+			$parent_id = (int) $parent_id;
+			/* 插入tag_map表数据 */
+			$map_data = array(
+							'tag_id' => $tag_id,
+							'parent_id' => $parent_id
+						);
+			/* 经分析，还是先进行查询，是否已经存在对应关系，存在，就不用再添加 */
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where($map_data);
+			$map_query = $this->moxi_db->get();
+			$map_result = $map_query->row_array();
+			if($map_result){
+				return -4; 		// 表示对应关系已存在
+			}
+
+			/** 
+			 *	新增判断条件:
+			 *		1.如果添加子关系，不能是当前标签的所有父级标签 
+			 * 		2.如果添加父关系，不能是当前标签的所有子级标签
+			 */
+			if($type == 'child'){
+
+				// 查询当前标签的所有父级tag
+				$parent_tag_id_array = $this->get_all_parent_tag_id($parent_id);
+					
+				$parent_tag_id_array = $parent_tag_id_array ? $parent_tag_id_array : array();
+
+				// 有重复，先去重
+				$banned_tag_id_array = array_unique($parent_tag_id_array);
+
+				// 应该也添加上自身
+				array_push($banned_tag_id_array, $parent_id);
+					
+				if(in_array($tag_id, $banned_tag_id_array)){
+					return -5; 		// 表示不能添加当前标签的父级标签和本身为子标签
+				}
+			}else{
+
+				// 查询当前标签的所有子级tag
+				$child_tag_id_array = $this->get_all_child_tag_id($tag_id);
+				$child_tag_id_array = $child_tag_id_array ? $child_tag_id_array : array();
+
+				// 有重复，先去重
+				$banned_tag_id_array = array_unique($child_tag_id_array);
+
+				// 应该也添加上自身
+				array_push($banned_tag_id_array, $tag_id);
+					
+				if(in_array($parent_id, $banned_tag_id_array)){
+					return -6; 		// 表示不能添加当前标签的子级标签和本身为父标签
+				}
+			}
+			if($this->moxi_db->insert(self::MD_BBS_TAG_MAP_TABLE, $map_data)){
+				if($type == 'child'){
+					return $tag_id;
+				}elseif($type == 'parent'){
+					return $parent_id;
+				}
+			}else{
+				return 0; 		// 表示插入失败
+			}
+		}
+
+		/**
+		 *
+		 *  获取当前标签的所有父tag_id
+		 * 	@param 			int 		$tag_id
+		 * 	@return 		array 		$parent_tag_id_array
+		 *
+		 */
+		public function get_all_parent_tag_id($tag_id)
+		{
+			static $parent_tag_id_array;
+			$where = array(
+						'tag_id' => $tag_id
+					);
+			$this->moxi_db->select('parent_id');
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where($where);
+			$tag_map_query = $this->moxi_db->get();
+			$tag_map_list = $tag_map_query->result_array();
+			foreach($tag_map_list as $tag_map){
+				if($tag_map['parent_id'] == 0){
+					break;
+				}else{
+					$parent_tag_id_array[] = (int) $tag_map['parent_id'];
+					$this->get_all_parent_tag_id($tag_map['parent_id']);
+				}
+			}
+			return $parent_tag_id_array;
+		}
+
+		/**
+		 *
+		 *  获取当前标签的所有子tag_id
+		 * 	@param 			int 		$tag_id
+		 * 	@param 			bool 		$clean_recursion(默认不清除上次递归结果)
+		 * 	@return 		array 		$child_tag_id_array
+		 *
+		 */
+
+		/* 
+			切记，这里的改动原理！我们在标签推荐页，每一个顶级标签，查询出来所有的子标签，使用的就是递归！
+			而有多个顶级标签，就会将上一次循环出来的递归结果也添加上。我们添加第二个参数，当第二个参数为TRUE，表示，先清除了 static 记录的$child_tag_id_array
+		 */
+		public function get_all_child_tag_id($tag_id, $clean_recursion = FALSE)
+		{
+			static $child_tag_id_array;
+
+			// 如果 $clean_recursion = TRUE，清除上次的递归结果
+			if($clean_recursion === TRUE){
+				$child_tag_id_array = array();
+			}
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where(array('parent_id' => $tag_id));
+			$tag_query = $this->moxi_db->get();
+			$tag_list = $tag_query->result_array();
+			if($tag_list){
+				foreach($tag_list as $tag_row){
+					$child_tag_id_array[] = $tag_row['tag_id'];
+					$this->get_all_child_tag_id($tag_row['tag_id']);
+				}
+			}else{
+				return;	
+			}
+			return $child_tag_id_array;
+		}
+
+		/**
+		 *
+		 * 查询 tag_id 是否有多个父分支 
+		 *
+		 * @param 	int 		$tag_id
+		 *
+		 */
+		public function get_tag_parent_num($tag_id)
+		{
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where(array('tag_id' => $tag_id));
+			$parent_num = $this->moxi_db->count_all_results();
+			return $parent_num;
+		}
+
+		/**
+		 *
+		 * 	删除对应关系
+		 *
+		 * 	@param 			int 			$tag_id
+		 * 	@param 			int 			$parent_id
+		 * 	@return 		bool 			$bool
+		 *
+		 */
+		public function del_map($tag_id, $parent_id)
+		{
+			$where = array(
+						'tag_id' => $tag_id,
+						'parent_id' => $parent_id
+					);
+			$bool = $this->moxi_db->delete(self::MD_BBS_TAG_MAP_TABLE, $where);
+			return $bool;
+		}
+
+
+		/*************************************************************************************
+			这里进行修改，下边东西不要
+		 *************************************************************************************/
+		
+		/**
+		 *
+		 * 删除对应关系 - 如果删除的节点 '仅有一个父子对应关系'，如此删除的话，提示 '该节点的所有子都会被删除！'
+		 *
+		 * @param 	int 		$tag_id
+		 * @param 	int 		$parent_id
+		 * @param 	bool 		$del_all
+		 *
+		 */
+		/*
+		public function del_map($tag_id, $parent_id, $del_all = FALSE)
+		{
+			$where = array(
+						'tag_id' => $tag_id,
+						'parent_id' => $parent_id
+					);
+			if( ! $del_all ){
+				$this->moxi_db->delete(self::MD_BBS_TAG_MAP_TABLE, $where);
+				if($this->moxi_db->affected_rows()){
+					return 1; 			// 表示删除成功
+				}else{
+					return 0; 			// 表示删除失败
+				}
+			}else{
+
+				$return = 1; 	// 初始化状态为1，表示删除成功
+
+				// 删除映射表中的关系
+				$this->moxi_db->delete(self::MD_BBS_TAG_MAP_TABLE, $where);
+				$this->moxi_db->affected_rows() || $return = 0;
+
+				// 删除tag表中的数据(这个还是使用isshow稍微好点吧)
+
+				// @2015-8-17 ，只切除掉，当前标签和父标签的对应关系，不在bbs_tag表中更改isshow=0，也不对其子做任何处理。冗余数据，通过运行其他脚本，想办法计算！
+				// $where = array(
+				// 			'tag_id' => $tag_id
+				// 		);
+				// $set = array(
+				// 			'isshow' => 0
+				// 		);
+				// $this->moxi_db->update(self::MD_BBS_TAG_TABLE, $set, $where);
+				// $this->moxi_db->affected_rows() || $return = 0;
+
+				// $this->del_son($tag_id);
+
+				return $return;
+			}
+		}
+		*/
+
+		/**
+		 *
+		 * 删除节点的无其他节点关联的子节点
+		 *
+		 * @param 	int 		$tag_id
+		 *
+		 */
+		
+		// @2015-8-17 ，只切除掉，当前标签和父标签的对应关系，不在bbs_tag表中更改isshow=0，也不对其子做任何处理。冗余数据，通过运行其他脚本，想办法计算！
+		public function del_son($tag_id){
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+			$this->moxi_db->where(array('parent_id' => $tag_id));
+			$tag_query = $this->moxi_db->get();
+			$tag_list = $tag_query->result_array();
+			if($tag_list){
+				foreach($tag_list as $tag_row){
+					$where = array(
+								'tag_id' => $tag_row['tag_id'],
+								'parent_id' => $tag_id
+							);
+					$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE);
+					$this->moxi_db->where($where);
+					$count = $this->moxi_db->count_all_results();
+
+					// 当分支>1，删除当前分支即可
+					if($count > 1){
+						$this->moxi_db->delete(SELF::MD_BBS_TAG_MAP_TABLE, $where);
+						$this->moxi_db->affected_rows() || $return = 0;
+					}else{
+						// 删除映射表中的关系
+						$this->moxi_db->delete(self::MD_BBS_TAG_MAP_TABLE, $where);
+						$this->moxi_db->affected_rows() || $return = 0;
+
+						// 删除tag表中的数据(这个还是使用isshow稍微好点吧)
+						$where = array(
+									'tag_id' => $tag_row['tag_id']
+								);
+						$set = array(
+									'isshow' => 0
+								);
+						$this->moxi_db->update(self::MD_BBS_TAG_TABLE, $set, $where);
+						$this->moxi_db->affected_rows() || $return = 0;
+						$this->del_son($tag_row['tag_id']);
+					}
+				}
+			}
+		}
+
+		/**
+		 *
+		 *	获取顶级标签下的所有标签 
+		 *
+		 */
+		public function get_recommend_list()
+		{
+
+			// 先获取顶级的标签
+			// $join_condition = 'tag_id';
+			$join_condition = 't.tag_id = m.tag_id';
+			$where = array(
+						'parent_id' => 0
+					);
+			$order_by = 'ctime ASC, sortid DESC';
+			$this->moxi_db->select('t.*');
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+
+			$top_tag_query = $this->moxi_db->get();
+			$top_tag_list = $top_tag_query->result_array();
+
+			// 循环获取每个顶级下面的递归子标签，并且存在到顶级标签的一个'child_list'元素
+			foreach($top_tag_list as &$top_tag){
+				$recommend_tag_id = $norecommend_tag_id = array();		// 这2个值，每次循环的时候重新初始化
+
+				// 通过递归函数来遍历所有的子(这里添加了第二个参数为TRUE，清除上次的递归结果)
+				$child_tag_id = $this->get_all_child_tag_id($top_tag['tag_id'], TRUE);
+
+				// 上面的可能出现重复，我们去重
+				$child_tag_id = array_unique($child_tag_id);
+
+				// 如果没有子标签，跳出该tag即可
+				if(!$child_tag_id){
+					$top_tag['recommend_tag_list'] = array();
+					$top_tag['norecommend_tag_list'] = array();
+					continue;
+				}
+
+				// 查找所有的推荐标签的tag_name和tag_id，还得查询sortid排序，我们使用关联查询
+				$join_condition = 't.tag_id = r.recommend_id';
+				$this->moxi_db->select('t.tag_id, t.tag_name, r.sortid, r.recommend_id');
+				$this->moxi_db->from(self::MD_BBS_TAG_RECOMMEND_TABLE . ' r');
+				$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+				$this->moxi_db->where('r.tag_id',  $top_tag['tag_id']);
+				$recommend_tag_query = $this->moxi_db->get();
+				$recommend_tag_list = $recommend_tag_query->result_array();
+
+				if($recommend_tag_list){
+					$top_tag['recommend_tag_list'] = $recommend_tag_list;
+					foreach($recommend_tag_list as $recommend_tag){
+						$recommend_tag_id[] = $recommend_tag['tag_id'];
+					}
+				}else{
+					$top_tag['recommend_tag_list'] = array();
+				}
+
+				// 去差集，就是 '未推荐的标签'
+				$norecommend_tag_id = array_diff($child_tag_id, $recommend_tag_id);
+
+				// 查找所有的非推荐标签的tag_name和tag_id。
+				if($norecommend_tag_id){
+					$this->moxi_db->select('tag_id, tag_name');
+					$this->moxi_db->from(self::MD_BBS_TAG_TABLE);
+					$this->moxi_db->where_in('tag_id', $norecommend_tag_id);
+					$norecommend_tag_query = $this->moxi_db->get();
+					$norecommend_tag_list = $norecommend_tag_query->result_array();
+					$top_tag['norecommend_tag_list'] = $norecommend_tag_list;
+				}else{
+					$top_tag['norecommend_tag_list'] = array();
+				}
+			}
+
+			return $top_tag_list;
+		}
+
+		/**
+		 *
+		 * 	修改顶级tag标签的顺序
+		 *
+		 * 	@param 		int 		$tag_id
+		 * 	@param 		int 		$sortid
+		 *	@return 	bool 		$bool
+		 *
+		 */
+		public function edit_top_sortid($tag_id, $sortid)
+		{
+			$where = array(
+						'tag_id' => $tag_id
+					);
+			$set = array(
+						'sortid' => $sortid
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_TAG_TABLE, $set, $where);
+			return $bool;
+		}
+		
+
+		/**
+		 * 	新增推荐标签
+		 * 
+		 * 	@param 		int 		$tag_id
+		 * 	@param 		int 		$recommend_id
+		 * 	@param 		int 		$sortid
+		 * 	@return 	bool 		$bool
+		 * 
+		 */
+		public function add_recommend($tag_id, $recommend_id, $sortid)
+		{
+			$set = array(
+						'tag_id' => $tag_id,
+						'recommend_id' => $recommend_id,
+						'sortid' => $sortid
+					);
+			$bool = $this->moxi_db->insert(self::MD_BBS_TAG_RECOMMEND_TABLE, $set);
+			return $bool;
+		}
+
+		/**
+		 * 	推荐记录是否存在
+		 * 
+		 * 	@param 		int 		$tag_id
+		 * 	@param 		int 		$recommend_id
+		 * 	@return 	bool 		
+		 * 
+		 */
+		public function is_recommend($tag_id, $recommend_id)
+		{
+			$where = array(
+						'tag_id' => $tag_id,
+						'recommend_id' => $recommend_id
+					);
+			$this->moxi_db->from(self::MD_BBS_TAG_RECOMMEND_TABLE);
+			$this->moxi_db->where($where);
+			$count = $this->moxi_db->count_all_results();
+			return ($count ? TRUE : FALSE);
+		}
+
+		/**
+		 * 	更新推荐记录
+		 * 
+		 * 	@param 		int 		$tag_id
+		 * 	@param 		int 		$recommend_id
+		 * 	@param 		int 		$sortid
+		 * 	@return 	bool 		$bool
+		 * 
+		 */
+		public function edit_recommend($tag_id, $recommend_id, $sortid)
+		{
+			$where = array(
+						'tag_id' => $tag_id,
+						'recommend_id' => $recommend_id
+					);
+			$set = array(
+						'sortid' => $sortid
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_TAG_RECOMMEND_TABLE, $set, $where);
+			return $bool;
+		}
+
+		/**
+		 * 	删除推荐标签
+		 * 
+		 * 	@param 		int 		$tag_id
+		 * 	@param 		int 		$recommend_id
+		 * 	@return 	bool 		$bool
+		 * 
+		 */
+		public function del_recommend($tag_id, $recommend_id)
+		{
+			$where = array(
+						'tag_id' => $tag_id,
+						'recommend_id' => $recommend_id
+					);
+			$bool = $this->moxi_db->delete(self::MD_BBS_TAG_RECOMMEND_TABLE, $where);
+			return $bool;
+		}
+
+	}

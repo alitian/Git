@@ -1,0 +1,400 @@
+<?php
+
+/**
+ * @auther: dingding
+ * @date: 2014-12-08
+ *
+ */
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Activity extends Acp_Controller {
+
+    public function add_luck_people()
+    {
+        $post_data = $this->input->post(null, true);
+        if(!empty($post_data)) {
+            $this->md_activity->save_winner_info(
+                array(
+                    'act_id'   => $post_data['act_id'],
+                    'user_id'  => $post_data['user_id'],
+                    'prize_id' => $post_data['prize_id'],
+                    'ctime'    => $post_data['ctime'],
+                    'ip'       => $post_data['ip'],
+                    'if_show'  => 1
+                )
+            );
+        }
+
+        $data['show_type'] = 4;
+        $this->load->view('activity/add_luck_people.php', $data);
+    }
+
+    public function lottery_tools()
+    {
+        if (isset($_FILES["file1"]["type"]) && !empty($_FILES["file1"]["type"])) {
+            $filename = explode('.', $_FILES["file1"]["name"]);
+            $filename = $filename['0'];
+            $tmpfile = $_FILES["file1"]["tmp_name"];
+
+            $this->load->helper('excel');
+
+            $arr_title = array(
+                'id',
+                'mobile',
+                'ctime'
+            );
+            $post_rows = read_from_csv($tmpfile, $arr_title);
+            unset($post_rows['0']);
+
+            $base_num = $this->input->post("base_num",true);
+            $base_num = str_split($base_num);
+            foreach ($base_num as $ii => $v) {
+                $base_num[$ii] = intval($v);
+            }
+            $base_num = json_encode($base_num);
+
+            $group_member_num = intval($this->input->post("group_member_num",true));
+
+            $winner_ranking_list = array();
+            $group_d = array();
+            $member_count = 0;
+            foreach ($post_rows as $row) {
+                if ($member_count == $group_member_num) {
+                    $winner_ranking = array();
+                    $this->md_activity->per5_winner_ranking_list($winner_ranking, $group_d, $base_num);
+                    $winner_ranking_list[] = $winner_ranking;
+
+                    unset($group_d);
+                    $group_d = array();
+                    $member_count = 0;
+                }
+
+                $row['luck_num'] = str_split(substr($row['mobile'], -5));
+                foreach ($row['luck_num'] as $ii => $v) {
+                    $row['luck_num'][$ii] = intval($v);
+                }
+                $row['luck_num'] = json_encode($row['luck_num']);
+                $group_d[] = $row;
+                $member_count++;
+            }
+            if (!empty($group_d)) {
+                $winner_ranking = array();
+                $this->md_activity->per5_winner_ranking_list($winner_ranking, $group_d, $base_num);
+                $winner_ranking_list[] = $winner_ranking;
+            }
+
+            $data['winner_ranking_list'] = $winner_ranking_list;
+            $data['base_num'] = $base_num;
+
+            // $arr_title = array(
+            //     'id' => 'id',
+            //     'luck_num' => 'luck_num',
+            //     'ctime' => 'ctime'
+            // );
+            // $filename = $tmpfile.'-sort.csv';
+            // export_to_csv($arr_title, $winner_ranking, $filename);
+            // return ;
+        }
+
+        $data['show_type'] = 3;
+        $this->load->view('activity/lottery_tools.php', $data);
+
+    }
+
+    public function addnew()
+    {
+        if(!$this->input->post(null,true)) {
+            $this->load->view('activity/addnew.php');
+        } else {
+            $post_data = $this->input->post(null, true);
+            $this->md_activity->addnew_activity(
+                array(
+                    'pro_id'     => $post_data['pro_id'],
+                    'user_id'    => $post_data['user_id'],
+                    'start_time' => $post_data['start_time'],
+                    'end_time'   => $post_data['end_time'],
+                    'name'       => $post_data['name'],
+                    'des'        => $post_data['des'],
+                    'day_start'  => $post_data['day_start'],
+                    'day_end'    => $post_data['day_end'],
+                    'algo'       => $post_data['algo'],
+                    'view'       => $post_data['view']));
+
+            redirect('/activity/editor', 'location', 301);
+        }
+    }
+
+	// 活动编辑
+	public function editor()
+	{
+        $data['editor_type'] = $this->input->post("editor_type",true);
+        switch (intval($data['editor_type'])) {
+            case 1:
+                $this->_activity_update($this->input->post("act_id",true), $this->input->post(null,true));
+                break;
+            case 2:
+                $this->_prize_update($this->input->post("prize_id",true), $this->input->post(null,true));
+                break;
+            case 3:
+                $this->_prize_addnew($this->input->post(null,true));
+                break;
+            default:
+                $this->_load_page();
+                break;
+        }
+	}
+
+    // 活动编辑::加载页面
+    private function _load_page()
+    {
+        $data['show_type'] = 1;
+
+        $this->db->select("id,name");
+        $data['actlist'] = $this->db->get("md_activity")->result_array();
+
+        $act_id = $this->input->post("act_id",true);
+        if ($act_id) {
+            $data['activity'] = $this->md_activity->get_activity_info($act_id);
+            $data['prize'] = $this->md_activity->get_activity_prize($act_id);
+        }
+
+        $this->load->view('/activity/editor', $data);
+    }
+    // 活动编辑::更新活动信息
+    private function _activity_update($act_id, $data)
+    {
+        $this->md_activity->update_activity($act_id,
+            array(
+                'type'       => intval($data['type']),
+                'pro_id'     => $data['pro_id'],
+                'user_id'    => $data['user_id'],
+                'start_time' => $data['start_time'],
+                'end_time'   => $data['end_time'],
+                'name'       => $data['name'],
+                'des'        => $data['des'],
+                'duration'   => $data['duration'],
+                'day_start'  => $data['day_start'],
+                'day_end'    => $data['day_end'],
+                'algo'       => $data['algo'],
+                'view'       => $data['view']));
+        pack_data($data, 0);
+    }
+    // 活动编辑::更新活动奖品信息
+    private function _prize_update($prize_id, $data)
+    {
+        $this->md_activity->update_activity_prize($prize_id,
+            array(
+                'act_id'  => $data['act_id'],
+                'level'   => $data['level'],
+                'name'    => $data['name'],
+                'picture' => $data['picture'],
+                'des'     => $data['des'],
+                'weight'  => $data['weight'],
+            'number' => $data['number'],
+            'if_address' => $data['if_address']
+        ));
+        $data['id'] = $prize_id;
+        pack_data($data, 0);
+    }
+    // 增加新奖品
+    private function _prize_addnew($data)
+    {
+        $this->md_activity->addnew_prize(
+            array(
+                'act_id'  => $data['act_id'],
+                'level'   => $data['level'],
+                'name'    => $data['name'],
+                'picture' => $data['picture'],
+                'des'     => $data['des'],
+                'weight'  => $data['weight'],
+                    'number' => $data['number'],
+                    'if_address' => $data['if_address']
+        ));
+        pack_data($data, 0);
+    }
+
+    // 下载中奖用户信息
+    public function prize_download() {
+        $act_id = intval($this->input->post("act_id", true));
+        $ctime = $this->input->post('ctime');
+        $where = '';
+        if ($ctime) {
+            $where = " AND md_activity_winner.ctime LIKE '{$ctime}%'";
+        }
+        $sql = "SELECT md_activity_winner.if_show,
+                    md_activity_winner.user_id, md_users.username, md_users.nickname,
+                    md_activity_winner.ctime, md_activity_winner.act_id, md_activity.name as act_name,
+                    md_activity_winner.prize_id, md_activity_prize.name as prize_name, md_activity_prize.level as prize_level,
+                    md_activity_winner.luck_num, md_activity_winner.base_num,
+                    md_activity_winner.contact
+                FROM md_activity_winner
+                    INNER JOIN md_users ON md_activity_winner.user_id=md_users.id
+                    INNER JOIN md_activity ON md_activity_winner.act_id=md_activity.id
+                    INNER JOIN md_activity_prize ON md_activity_winner.prize_id=md_activity_prize.id
+                WHERE md_activity_winner.act_id = {$act_id} $where ORDER BY md_activity_winner.ctime DESC";
+        $res = $this->db->query($sql)->result_array();
+        if (!empty($res)) {
+            $arr_title = array(
+                'if_show' => '是否展示',
+                'user_id' => '用户ID',
+                'nickname' => '昵称',
+                'username' => '用户名',
+                'ctime' => '抽奖时间',
+                'act_id' => '活动ID',
+                'act_name' => '活动名称',
+                'prize_id' => '奖品ID',
+                'prize_name' => '奖品名',
+                'prize_level' => '奖品等级',
+                'luck_num' => '抽奖号',
+                'base_num' => '开奖号',
+                'contact' => '联系方式',
+            );
+            $address_title = array('address_name' => '收件人', 'address_country' => '国家', 'address_province' => '省份', 'address_city' => '城市', 'address_county' => '地区', 'address_street' => '街道', 'address_detail' => '详细地址', 'address_postal_code' => '邮编', 'address_mobile' => '手机号', 'address_email' => '邮箱');
+            foreach ($res as &$item) {
+                $contact = '';
+                if ($item['contact']) {
+                    $item['contact'] = json_decode($item['contact']);
+                    foreach ($item['contact'] as $k => $v) {
+                        if (isset($address_title[$k]))
+                            $contact .= $v . " ";
+                    }
+                }
+                $item['contact'] = $contact;
+            }
+            $filename = "{$act_id}活动中奖用户信息_" . date("YmdHis");
+            export_to_csv($arr_title, $res, $filename, 0);
+        } else {
+            redirect('/activity/prize');
+        }
+    }
+	// 中奖查询与计算中奖用户
+	function prize($page=1)
+	{
+        $flag   = true;
+        $act_id = $this->input->post("act_id",true);
+        $ctime  = $this->input->post("ctime", true);
+
+        $if_cal = $this->input->post("if_cal",true);
+        if($if_cal) {
+            $base_num = $this->input->post("base_num",true);
+            $base_num = str_split($base_num);
+            foreach ($base_num as $ii => $v) {
+                $base_num[$ii] = intval($v);
+            }
+            $base_num = json_encode($base_num);
+            if($act_id && $ctime && strlen($base_num)==11) {
+                if ($this->md_activity->if_make_luck_winner($act_id, $ctime)) {
+                    $data['if_error'] = "该活动在这一天已经开过奖了，不能重复开奖吆!!";
+                } else {
+                   $flag = $this->md_activity->make_per5_luck_winner($act_id, $ctime, $base_num);
+                }
+            } else {
+                $data['if_error'] = "开奖号码有误";
+            }
+        }
+
+        $if_show = $this->input->post("if_show",true);
+        if($if_show) {
+            if ($act_id && $ctime) {
+                $this->md_activity->update_winner_if_show($act_id, $ctime, 1);
+            } else {
+                $data['if_error'] = "没有正确设置活动及开奖日期";
+            }
+        }
+
+
+        if($flag) {
+            $data['show_type'] = 2;
+            $data['init']      = $this->input->post(null, true);
+
+	        $this->db->select("id,name");
+	        $data['actlist'] = $this->db->get("md_activity")->result_array();
+
+            if ($act_id) {
+                $total_sql = "SELECT md_activity_prize.id,md_activity_prize.name,count(1) FROM md_activity_winner
+INNER JOIN md_activity_prize ON md_activity_winner.prize_id=md_activity_prize.id
+WHERE md_activity_winner.act_id='{$act_id}'
+GROUP BY md_activity_prize.id,md_activity_prize.name
+ORDER BY id";
+                $data['total_list'] = $this->db->query($total_sql)->result_array();
+                $where = " WHERE 1 ";
+                if ($act_id)
+                   $where .= " AND `md_activity_winner`.`act_id`='{$act_id}' ";
+                if($act_id && $ctime) {
+                        $rangetime = $this->md_activity->time_2_duration_range($act_id, $ctime);
+                        $where .= "AND `md_activity_winner`.`ctime`>='{$rangetime['start']}' AND `md_activity_winner`.`ctime`<='{$rangetime['end']}'";
+                }
+                $sql = "SELECT md_activity_winner.if_show,
+                                md_activity_winner.user_id, md_users.username, md_users.nickname,
+                                md_activity_winner.ctime, md_activity_winner.act_id, md_activity.name as act_name,
+                                md_activity_winner.prize_id, md_activity_prize.name as prize_name, md_activity_prize.level as prize_level,
+                                md_activity_winner.luck_num, md_activity_winner.base_num,
+                                md_activity.pro_id, 'md_product.name' as pro_name,
+                                md_activity_winner.contact
+                            FROM md_activity_winner
+                                INNER JOIN md_users ON md_activity_winner.user_id=md_users.id
+                                INNER JOIN md_activity ON md_activity_winner.act_id=md_activity.id
+                                INNER JOIN md_activity_prize ON md_activity_winner.prize_id=md_activity_prize.id
+                                -- INNER JOIN md_product ON md_activity.pro_id=md_product.id
+                            $where
+                            ORDER BY md_activity_winner.ctime DESC ";
+                $total_rows = $this->db->query($sql)->num_rows();
+                $per_page = 11;
+                $offset = ($page - 1) * $per_page;
+                $sql .= " LIMIT {$offset},{$per_page} ";
+                $data['lsts'] = $this->db->query($sql)->result_array();
+                $data['address_title'] = array('address_name'=>'收件人','address_country'=>'国家','address_province'=>'省份','address_city'=>'城市','address_county'=>'地区','address_street'=>'街道','address_detail'=>'详细地址','address_postal_code'=>'邮编', 'address_mobile'=>'手机号', 'address_email'=>'邮箱');
+                $config = array(
+                    'uri_segment'      => 3,
+                    'base_url'         => site_url('/activity/prize'),
+                    'use_page_numbers' => true,
+                    'num_links'        => 2,
+                    'total_rows'       => $total_rows,
+                    'per_page'         => $per_page,
+                    'full_tag_open'    => '<ul id="page-nav" class="pager">',
+                    'first_link'       => '首页',
+                    'first_tag_open'   => '<li>',
+                    'first_tag_close'  => '</li>',
+                    'last_link'        => '尾页',
+                    'last_tag_open'    => '<li>',
+                    'last_tag_close'   => '</li>',
+                    'full_tag_close'   => '</ul>',
+                    'next_link'        => '下一页',
+                    'next_tag_open'    => '<li>',
+                    'next_tag_close'   => '</li>',
+                    'prev_link'        => '前一页',
+                    'prev_tag_open'    => '<li>',
+                    'prev_tag_close'   => '</li>',
+                    'cur_tag_open'     => '<li class="disabled"><a href="javascript:void(0)">',
+                    'cur_tag_close'    => '</a></li>',
+                    'num_tag_open'     => '<li>',
+                    'num_tag_close'    => '</li>',
+                );
+                $this->pagination->initialize($config);
+                $pagination = $this->pagination->create_links();
+                $data['pagination'] = $pagination;
+
+                if ($act_id == 4) {
+                    $sql = "SELECT user_id, COUNT(*) AS cc FROM `md_activity_winner` WHERE act_id=4 GROUP BY user_id";
+                    $data['act_userd']['user_joined'] = $this->db->query($sql)->num_rows();
+
+                    $sql = "SELECT user_id FROM `md_activity_winner` WHERE act_id=4";
+                    $data['act_userd']['times_total'] = $this->db->query($sql)->num_rows();
+                }
+            }
+
+            $this->load->view("/activity/prize", $data);
+        }
+    }
+
+
+	public function __construct()
+	{
+        parent::__construct();
+        $this->load->library('md_activity');
+        $this->load->helper('excel');
+        $this->load->helper('url');
+    }
+}

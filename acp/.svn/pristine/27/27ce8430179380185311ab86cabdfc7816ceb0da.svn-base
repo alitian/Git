@@ -1,0 +1,31 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Tool extends MD_Controller {
+
+    public function vcode() {
+        $html = '手机短信发送查询<br /><form class="upload_form" method="post" action="">'
+                . '手机号：<input type="text" name="m" value="' . $_POST['m'] . '" />'
+                . '<input type="submit" value="查询" />'
+                . '</from>';
+        if (isset($_POST['m'])) {
+            $sql = "SELECT * FROM `md_sms` WHERE `tel` = '{$_POST['m']}' AND content LIKE '%验证码为%' ORDER BY id DESC LIMIT 10";
+            $query = $this->db->query($sql)->result_array();
+            $html .= "<table border=1>";
+            foreach ($query as $item) {
+                $html .= "<tr><td>{$item['tel']}</td><td>{$item['content']}</td><td>{$item['send_time']}</td></tr>";
+            }
+            $html .= "</table>";
+        }
+        echo $html;
+    }
+
+    public function bilibili() {
+        $sql = "SELECT round(avg(online_num)) as online_num,round(avg(play_num)) as play_num,concat(left(ctime,13),':00:00') as c FROM bilibili_online_state GROUP BY left(ctime,13) ORDER BY ctime";
+        $data['list'] = $this->db->query($sql)->result_array();
+        $this->load->view('tool/chart', $data);
+    }
+
+}

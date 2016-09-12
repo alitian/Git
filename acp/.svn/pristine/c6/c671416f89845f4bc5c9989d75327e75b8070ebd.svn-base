@@ -1,0 +1,109 @@
+<?php $this->load->view('ckad/header'); ?>
+	<style>
+		input[type='text'] {
+			width: 600px;
+		}
+	</style>
+	<div class="container">
+		<div>
+			<h1>
+				编辑 <?= $type_name ?>
+			</h1>
+		</div>
+		<hr>
+		<form id="pro_form" action="/bbs_promotion/edit_promotion/<?= $type ?>/<?= $pro_info['pro_id'] ?>/<?= $curpage ?>" method="post" enctype="multipart/form-data">
+			<div class="form-group">
+			    <label class="col-sm-2 control-label" for="sortid">权重</label>
+			    <div class="col-sm-10">
+			    	<input class="form-control" type="text" id="sortid"  value="<?php echo $pro_info['sortid']; ?>" placeholder="0" name="sortid" style="width:40px">
+			    </div>
+			</div>
+			<div class="form-group">
+			    <label class="col-sm-2 control-label" for="pro_title">推荐文字</label>
+			    <div class="col-sm-10">
+			    	<input class="form-control" type="text" id="pro_title" placeholder="请输入推荐文字" value="<?php echo $pro_info['pro_title']; ?>" name="pro_title">
+			    </div>
+			</div>
+			<div class="form-group">
+			    <label class="col-sm-2 control-label" for="pro_link">推荐链接</label>
+			    <div class="col-sm-10">
+			    	<input class="form-control" type="text" id="pro_link" placeholder="请输入推荐链接" value="<?php echo $pro_info['pro_link']; ?>" name="pro_link">
+			    </div>
+			</div>
+		<!--
+			<div class="form-group">
+			    <label class="col-sm-2 control-label" for="description">推荐描述</label>
+			    <div class="col-sm-10">
+			    	<textarea style="width:600px;height:100px" class="form-control" id="description" placeholder="请输入推荐描述" name="description"><?php echo $tag_info['description']; ?></textarea>
+			    </div>
+			</div>
+			<div class="form-group">
+			    <div class="col-sm-10">
+			    	<span id="rest"></span>
+			    </div>
+			</div>
+		-->
+	    	<input type="hidden" name="edit" value="1">
+	    <?php if($type != 'text'): ?>
+	    	<input type="hidden" name="pro_img" id="pro_img" value="<?= $pro_info['pro_img'] ?>">
+		<?php endif; ?>
+	    </form>
+	    <?php if($type != 'text'): ?>
+			<p></p>
+			<div class="form-group">
+			    <label class="col-sm-2 control-label" for="img_preview">图片预览</label>
+			    <div class="col-sm-10" style="text-align:center;width:600px">
+			    	<?php if($pro_info['pro_img']): ?>
+				    	<img src="<?= $pro_info['pro_src'] ?>" style="vertical-align:middle;max-width:100%;" id="img_preview">
+				    	<p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px;display:none">暂无图片</p><!-- 不应该存在，但是为了js兼容 -->
+				    <?php else: ?>
+				    	<p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px">暂无图片</p>
+				    	<img style="vertical-align:middle;max-width:100%;display:none;" id="img_preview">
+					<?php endif; ?>
+			    </div>
+			</div>
+			<p style="height:20px;"></p>
+		<form id="up_form" action="bbs_promotion/upload" method="post" enctype="multipart/form-data" target="winupload">	
+			<div class="form-group">
+			    <h3>点击上传按钮上传图片</h3>
+			</div>
+			<p></p>
+	    	<input class="form-control" type="file" id="upfile" name="upfile"> 
+	    </form>
+		<iframe src="" style="display:none" name="winupload"></iframe>
+		<?php endif; ?>
+        <button type="submit" class="btn btn-primary" id="add_pro">提交</button>
+    </div>
+    <script>
+    	$('#upfile').change(function(){
+    		$('#up_form').submit();
+    	});
+    	$('#add_pro').click(function(){
+    		if(isNaN($.trim($('#sortid').val()))){
+    			alert('权重只能为数字!');
+    			return false;
+    		}
+    		if( ! $.trim($('#pro_title').val())){
+    			alert('推荐文字不能为空！');
+    			return false;
+    		}
+    		if( ! $.trim($('#pro_link').val())){
+    			alert('推荐链接不能为空！');
+    			return false;
+    		}
+    		<?php 
+    			if($type != 'text'){
+    				$str = <<<EOT
+	    		if( ! $.trim($('#pro_img').val())){
+	    			alert('推荐图不能为空！');
+	    			return false;
+	    		}
+EOT;
+					echo $str;
+
+    			}
+    		?>
+    		$('#pro_form').submit();
+    	});
+    </script>
+<?php $this->load->view('ckad/footer'); ?>

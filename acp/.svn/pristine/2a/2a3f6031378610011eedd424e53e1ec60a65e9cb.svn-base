@@ -1,0 +1,132 @@
+<?php $this->load->view('ckad/header'); ?>
+	<div class="container">
+		<div>
+			<h1>
+				标签关系
+			</h1>
+		</div>
+		<hr>
+		<form class="form-inline" action="" method="post">
+			<div class="form-group">
+				<input type="text" class="form-control" name="tag_name" placeholder="请输入要查询的标签" id="request_tag_name">
+				<input type="hidden" name="submit" value="1">
+				<button class="btn btn-default" type="submit" id="request_tag_btn">查询</button>
+				<button class="btn btn-default" type="button" id="add">新增普通标签</button>
+				<button class="btn btn-default" type="button" id="add_top">新增顶级标签</button>
+			</div>
+		</form>
+	</div>
+	<div id="add_tag" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<form id="add_form" action="<?php echo $site_url . 'bbs_tag/add_tag'; ?>" method="post" enctype="multipart/form-data" class="form-horizontal">
+					<div class="modal-header">
+				        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+				        <h4 class="modal-title" id="myModalLabel">新增标签</h4>
+				    </div>
+				    <div class="modal-body">
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="tag_name">标签名：</label>
+						    <div class="col-sm-10">
+						    	<input class="form-control" type="text" id="tag_name" placeholder="请输入标签名" name="tag_name">
+						    </div>
+						</div>
+						<p></p>
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="description">标签描述：</label>
+						    <div class="col-sm-10">
+						    	<textarea row="5" style="width:300px;height:70px;" class="form-control" id="description" placeholder="请输入标签描述" name="description"></textarea>
+						    </div>
+						</div>
+						<p></p>
+						<div class="form-group">
+						    <label class="col-sm-2 control-label" for="rest"> </label>
+						    <div class="col-sm-10">
+						    	<span>限制字数：</span><span id="rest">最多16字</span>
+						    </div>
+						</div>
+						<p></p>
+						<div>
+						    <label class="col-sm-2 control-label" for="icon" style="margin:0px">标签图标：</label>
+						    <div class="col-sm-10">
+						    	<input class="form-control" type="file" id="icon" name="icon">
+						    </div>
+						</div>
+						<p></p>
+						<div>
+                            <label class="col-sm-2 control-label" for="icon "> </label>
+							<div class="col-sm-10">
+							（建议尺寸：100px*100px，20K以内，建议PNG格式）
+							</div>
+						</div>
+				    </div>
+				    <div class="modal-footer">
+				    	<input type="hidden" name="is_top" value="0">
+				        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+				        <button type="submit" class="btn btn-primary" id="add_btn">新增</button>
+				    </div>
+				</form>
+			</div>
+		</div>
+	</div>
+		
+<script>
+	// 模态框事件添加
+	$("#add_tag").on("hidden.bs.modal", function() {
+		$('input[name=tag_name]').val('');
+		$('textarea[name=description]').val('');
+		$('input[name=icon]').val('');
+		$('input[name=is_top]').val('0');
+		$('#rest').text('最多16字');
+	});
+
+	// 添加普通标签
+	$('#add').click(function(){
+		$('#add_tag').modal();
+	});
+
+	// 添加顶级标签
+	$('#add_top').click(function(){
+		$('#add_tag').modal();
+		$('[name=is_top]').val('1');
+	});
+
+	// 添加字数提醒
+	$('textarea[name=description]').keyup(function(){
+		var description = $.trim($(this).val());
+		var length = parseInt(description.length);
+		var rest  = 16 - length;
+		if(rest < 0){
+			$('#rest').text('剩余字数0')
+			var str = description.substring(0, 16);
+			$(this).val(str);
+		}else{
+			$("#rest").text('剩余字数' + rest);
+		}
+	})	
+
+	// 表单验证
+	$('#add_btn').click(function(){
+		var tag_name = $.trim($('#tag_name').val());
+		var description = $.trim($("textarea[name=description]").val());
+		if(!tag_name){
+			alert('标签名不能为空');
+			return false;
+		}
+		if(description.length > 16){
+			alert('描述不能超过16字');
+			return false;
+		}
+		$(this).parent('form').submit();
+	});
+
+	$('#request_tag_btn').click(function(){
+		var tag_name = $.trim($('#request_tag_name').val());
+		if(tag_name == ''){
+			alert('标签不能为空');
+			return false;
+		}
+	});
+
+</script>
+<?php $this->load->view('ckad/footer'); ?>

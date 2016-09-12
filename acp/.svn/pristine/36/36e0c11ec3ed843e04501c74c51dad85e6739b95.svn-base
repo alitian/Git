@@ -1,0 +1,140 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('project/sub_menu', array('pro_id' => $pro_id)) ?>
+<script type="text/javascript" src="<?= static_url(); ?>js/layer/layer.min.js"></script>
+<script src="/static/js/ajaxfileupload.js"></script>
+<script language='javascript'>
+    var
+        cdn_url = "<?= _gc('cdn_url', 'config'); ?>";
+    $(function () {
+        $(document).on("click", "#logo_list .span3", function () {
+            var img_tmp = $(this);
+            layer.confirm('确认删除图片？', function (index) {
+                img_tmp.remove();
+                layer.close(index);
+            });
+        });
+
+        $("#btn_upload").click(function () {
+            $.ajaxFileUpload({
+                url: '/project/upload_file/<?= $edit_id; ?>', //你处理上传文件的服务端
+                secureuri: false,
+                fileElementId: 'img',
+                dataType: 'json',
+                success: function (data)
+                {
+                    if (data.error)
+                    {
+                        alert(data.error);
+                    }
+                    else
+                    {
+                        var url = cdn_url + data.msg.replace('uploads/', '');
+                        $("#logo_list").append('<div class="span3"><img class="pop_image" src="' + url + '" data-src="" style="width:80px;height:80px;"  alt="" /><input type="hidden" name="rew_log[]" value="' + data.msg + '" /></div>');
+                    }
+                }
+            });
+        })
+    });
+</script>
+<div class="row">
+    <div class="span6">
+        <table class="table table-bordered">
+            <tr><td colspan="2"><?= $project['name']; ?></td></tr>
+            <?php $edit = array(); ?>
+            <?php foreach ($rewards as $reward): ?>
+                <tr>
+                    <td>
+                        金额：<?= $reward['money']; ?><br />
+                        内容：<?= str_replace("\n", '<br />', $reward['content']); ?><br />
+                        <?php
+                        if ($edit_id && $edit_id == $reward['id']) {
+                            $edit = $reward;
+                        }
+                        //回报图片展示
+                        if (!empty($reward['rew_logo'])) {
+                            $logos = explode('|#|', $reward['rew_logo']);
+                            foreach ($logos as $logo) {
+                                ?>									
+                                <img class="pop_image" src="<?= cdn_url($logo, 'x', 'center'); ?>" data-src="<?= cdn_url($logo); ?>" style="width:80px;height:80px;"  alt="" />					
+                                <?php
+                            }
+                        }
+                        ?>
+                    </td>
+                    <td><a href="/project/edit_reward/<?= $reward['pro_id'] ?>/<?= $reward['id'] ?>">修改</a></td>
+                </tr>
+            <?php endforeach; ?>
+        </table>
+    </div>
+    <div class="span6">
+        <?php if ($edit): ?>
+            <form name="form1" action="" method="POST">
+                <table class='table table-bordered'>
+                    <tr>
+                        <td>
+                            金额:<?= $edit['money']; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            限量设置:
+                            <input type="text" name="num" value="<?= $edit['num']; ?>" />(0为不限制)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            回报发放日期:
+                            <input type="text" name="reward_day" value="<?= $edit['reward_day']; ?>" />年-月
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            回报内容:<br />
+                            <textarea name="content" class="span12" rows="3"><?= $edit['content']; ?></textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            回报发放:<br />
+                            <select name="if_address">
+                                <?php foreach ($if_address_array as $key => $item): ?>
+                                    <option value="<?= $key ?>"<?php echo ($edit['if_address'] == $key) ? " selected" : ''; ?>><?= $item ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr><td>点击删除图片</td></tr>
+                    <tr>
+                        <td id="logo_list">
+                            <?php
+                            //回报图片展示
+                            if (!empty($edit['rew_logo'])) {
+                                $logos = explode('|#|', $edit['rew_logo']);
+                                foreach ($logos as $logo) {
+                                    ?>
+                                    <div class="span3">
+                                        <img class="pop_image" src="<?= cdn_url($logo, 'x', 'center'); ?>" data-src="<?= cdn_url($logo); ?>" style="width:80px;height:80px;"  alt="" />					
+                                        <input type="hidden" name="rew_log[]" value="<?= $logo; ?>" />
+                                    </div>
+                                    <?php
+                                }
+                            }
+                            ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <input id="img" type="file" name="img" class="input">
+                            <button class="btn" id="btn_upload" type="button">Upload</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <button class="btn btn-primary" type="submit">保 存</button>
+                        </td>
+                    </tr>
+                </table>
+            </form>
+        <?php endif; ?>
+    </div>
+</div>

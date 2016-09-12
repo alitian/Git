@@ -1,0 +1,199 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div>
+        <h1>专题管理</h1>
+    </div>
+    <hr>
+    <p></p>
+    <form id="pro_form" action="/md_subject/subject_add" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label class="col-sm-2 control-label" for="pro_title">标题&nbsp;</label>
+            <div class="col-sm-10">
+                <input class="form-control" type="text" id="pro_title" placeholder="请输入推荐主题,26个汉字以内" name="title" value="<?=$subject_info['title']?>">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="links" class="col-sm2 control-label">头图</label>
+            <div class="col-sm-10">
+                <input type="hidden" name="cover" id="cover" value="<?=$subject_info['cover']?>">
+                <input type="file" name="upload_file" class="upload_cover">
+                <?php if ($subject_info['cover']): ?>
+                    <div class="col-sm-10" style="text-align:center;width:600px">
+                        <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px"></p>
+                        <img style="vertical-align:middle;max-width:100%;" id="bg_preview" src="<?= cdn_url($subject_info['cover']) ?>">
+                    </div>
+                <?php else:?>
+                    <div class="col-sm-10" style="text-align:center;width:600px">
+                        <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px">暂无图片</p>
+                        <img style="vertical-align:middle;max-width:100%;" id="bg_preview">
+                    </div>
+                <?php endif;?>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="col-md-10 control-label" for="pro_title">导语&nbsp;</label>
+            <div class="col-md-10">
+                <textarea name="guide" id="guide" cols="100" rows="10" placeholder="500个汉字以内" style="width: 500px;"><?=$subject_info['guide']?></textarea>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="col-sm-2 control-label" for="pro_title">专题详情&nbsp;</label>
+            <span class="insert_item" data-toggle="modal" data-target="#myModal" id="insert_item" style="position: absolute;z-index: 1000;margin-left: 100px;margin-top:8px;font-weight: bold;">插入项目</span>
+            <div class="mm-group clearfix noMarB">
+						<textarea id="editor" name="sub_detail" data-validation-engine="validate[required]" data-errormessage-value-missing="项目详情不能为空" data-errormessage-custom-error="项目详情不能为空"  data-errormessage="项目详情不能为空"><?php if (!empty($subject_info['sub_detail'])) echo htmlspecialchars_decode($subject_info['sub_detail']);else { ?>
+                            <div style="padding: 10px; -webkit-font-smoothing: antialiased; font-family: \5FAE\8F6F\96C5\9ED1, tahoma, arial, "Hiragino Sans GB", \5b8b\4f53, sans-serif;">
+									<h3>关于我：</h3>
+									<p>向支持者介绍一下你自己，以及你发起的项目的背景，有助于拉近你与支持者之间的距离。建议不超过100字。</p>
+									<h3>我想要做什么：</h3>
+									<p>以图文并茂的方式，简洁生动地说明你的项目。 这会决定支持者是否有兴趣继续看下去。建议不超过300字。</p>
+									<h3>为什么需要你的支持：</h3>
+									<p>这是加分项，说说你的项目不同寻常的特色，资金用途，以及支持你的理由。建议不超过200个字。</p>
+									<h3>我的承诺与回报：</h3>
+									<p>使支持者感受到你的认真，鞭策你将项目执行到底。同时向支持者展示一下你为他们准备的回报，吸引更多人支持你。建议不超过300字。</p>
+                            </div>
+            <?php } ?></textarea>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="pro_num">项目数</label>
+            <input type="text" name="pro_num" value="<?=$subject_info['pro_num']?>" class="col-sm-1" id="pro_num">
+<!--            <select name="pro_num" id="pro_num" class="form-control">-->
+<!--                <option value="1">1</option>-->
+<!--                <option value="2">2</option>-->
+<!--                <option value="3">3</option>-->
+<!--            </select>-->
+        </div>
+        <input type="hidden" name="sub_id" value="<?=$subject_info['sub_id']?>">
+    </form>
+    <button type="submit" class="btn btn-primary" id="add_pro">保存</button>
+    <button type="button" class="btn btn-primary" id="preview">预览</button>
+    <input type="hidden" name="isupload" value="0">
+    <input type="hidden" name="check_upload" id="check_upload" value="0">
+</div>
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close"
+                        data-dismiss="modal" aria-hidden="true">
+                    &times;
+                </button>
+                <h4 class="modal-title" id="myModalLabel">
+                    项目
+                </h4>
+            </div>
+            <div class="modal-body">
+                <label for="pro_id">项目ID:</label>
+                <input type="text" id="pro_id" name="pro_id" style="width: 50px;">
+                <br>是否在新窗口中打开 <input type="checkbox" name="target" id="target" value="1">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭
+                </button>
+                <button type="button" class="btn btn-primary" id="search_pro_id">保存</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.config.js?t=20150918"></script>
+<script type="text/javascript" src="<?= base_url(); ?>mt/ueditor_cus/ueditor.all.js?t=20150421"></script>
+<script>
+
+    var ue = UE.getEditor('editor', {
+        // 服务器统一请求接口路径
+        toolbars: [
+            ['emotion',"|",'link','simpleupload']
+        ]
+    });
+    $("#search_pro_id").click(function(){
+        var pro_id = $("#pro_id").val();
+        var target = $("input[name='target']:checked").val();
+        if(target){
+             target = "target=_blank";
+        }else{
+            target = "target=_self";
+        }
+//
+        if(isNaN(pro_id)){
+            alert("请输入数字");
+            return false;
+        }
+        $.ajax({
+            url:"md_subject/search_item",
+            type:'post',
+            data:{pro_id:pro_id},
+            dataType : "json",
+            success:function(return_data){
+                if(return_data.status){
+                    var insert_str = "<div><h3><a href='"+return_data.link+"'"+target+">"+return_data.title+"</a></h3><a href='"+return_data.link+"'"+target+"><img src='"+return_data.logo+"'></a></div>";
+//                    var textarea = ue.getPlainTxt();
+//                    var content = textarea + insert_str;
+                    ue.execCommand('inserthtml',insert_str);
+                    $('#myModal').modal('hide');
+                }else{
+                    alert(return_data.msg)
+                }
+            }
+
+        })
+    });
+    $('#upfile').change(function(){
+        $("input[name='isupload']").val(1);
+        $("#check_upload").val(0);
+        $('#up_form').submit();
+    });
+    $('#add_pro').click(function(){
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        var guide = $.trim($('#guide').val());
+        if(!guide){
+            alert('导语不能为空！');
+            return false;
+        }
+        if(guide.length>500){
+            alert('导语不能超过五百字！');
+            $("#guide").focus();
+            return false;
+        }
+        if($("input[name='isupload']").val()==1){
+            if($('#check_upload').val()!=1){
+                alert('图片正在上传中！');
+                return false;
+            }
+        }
+        if( ! $.trim($('#cover').val())){
+            alert('推荐图不能为空！');
+            return false;
+        }
+        if( ! $.trim($('#pro_num').val())){
+            alert('项目数不能为空！');
+            return false;
+        }
+
+        $('#pro_form').submit();
+    });
+    $(document).on('change',".upload_cover",function(){
+        var formdata = new FormData();
+        var v_this = $(this);
+        var fileObj = v_this.get(0).files;
+        url = "md_subject/upload";
+        formdata.append("imgFile", fileObj[0]);
+        jQuery.ajax({
+            url : url,
+            type : 'post',
+            data : formdata,
+            cache : false,
+            contentType : false,
+            processData : false,
+            dataType : "json",
+            success : function(return_data) {
+                $("#bg_preview").attr({src:return_data.pic});
+                $("#bg_preview").prev().remove();
+                v_this.prev().val(return_data.db_path);
+            }
+        });
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

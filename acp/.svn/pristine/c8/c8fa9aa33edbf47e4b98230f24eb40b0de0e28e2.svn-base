@@ -1,0 +1,26 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('project/sub_menu', array('pro_id' => $pro_id)) ?>
+<script type="text/javascript">
+    $(function () {
+        $('#datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+    });
+</script>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<form name="form1" action="" method="POST">
+    <table class="table">
+    <?php foreach ($vote as $k => $v): ?>
+        <tr>
+            <td><?=$v['id'];?></td>
+            <td><?=$v['title'];?></td>
+            <td><?=$v['content']['topic_desc'];?></td>
+            <td><a href="/project/edit_vote/<?=$pro_id;?>/<?=$v['content']['topic_id'];?>">编辑</a></td>
+        </tr>
+    <?php endforeach ?>
+    </table>
+</form>

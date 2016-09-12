@@ -1,0 +1,134 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Bbs_repair_add_post extends CI_Controller
+{
+
+	public function __construct()
+	{
+		parent::__construct();
+		$this->load->model('comment_model');
+		$this->load->model('Product_m');
+		$this->load->model('common');
+	}
+
+	public function test()
+	{
+		echo '99';
+		exit;
+	}
+	public function create_project_update_image($product_id)
+	{
+		$this->load->helper('bbs_common_helper');
+		$this->load->library('md_imagick');
+		$where = array(
+					'pro_id' => $product_id
+				);
+		$this->db->select('logo');
+		$this->db->from('md_product_update');
+		$this->db->where($where);
+		$logo_list = $this->db->get()->result_array();
+
+		$path = 'bbs_attachments/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $img_prefix_path = _gc('uploads_path') . $path;
+        if ( !file_exists($img_prefix_path) ) {
+            if( !@mkdir($img_prefix_path, 0777, TRUE)) {
+                echo '创建上传目录失败';
+                exit;
+            }
+        }
+		foreach($logo_list as $logo){
+			$logo_sys_path = _gc('uploads_path') . str_replace('uploads/', '', $logo['logo']);
+			$image_name = basename($logo['logo']);
+	        $copy_path = $img_prefix_path . $image_name;
+	        if( !@copy($logo_sys_path, $copy_path) ){
+	            echo ++$i . '复制项目图' . $logo_sys_path . '失败<br>';
+	            // exit;
+	        }else{
+				attachment_process($copy_path);
+				echo ++$i . ' 处理图片' . $logo_sys_path . ' 成功<br>';
+	        }
+		}
+
+	}
+
+	public function create_image($product_id)
+	{
+		$this->load->helper('bbs_common_helper');
+		$this->load->library('md_imagick');
+		$where = array(
+					'if_show' => 1,
+					'id' => $product_id
+				);
+		$this->db->select('logo');
+		$this->db->from('md_product');
+		$this->db->where($where);
+		$logo_list = $this->db->get()->result_array();
+
+		$path = 'bbs_attachments/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $img_prefix_path = _gc('uploads_path') . $path;
+        if ( !file_exists($img_prefix_path) ) {
+            if( !@mkdir($img_prefix_path, 0777, TRUE)) {
+                echo '创建上传目录失败';
+                exit;
+            }
+        }
+		foreach($logo_list as $logo){
+			$logo_sys_path = _gc('uploads_path') . str_replace('uploads/', '', $logo['logo']);
+			$image_name = basename($logo['logo']);
+	        $copy_path = $img_prefix_path . $image_name;
+	        if( !@copy($logo_sys_path, $copy_path) ){
+	            echo ++$i . '复制项目图' . $logo_sys_path . '失败<br>';
+	            // exit;
+	        }else{
+				attachment_process($copy_path);
+				echo ++$i . ' 处理图片' . $logo_sys_path . ' 成功<br>';
+	        }
+		}
+	}
+
+	public function index($pro_id)
+	{
+		// $top_tag_name = trim($top_tag_name);
+		if (empty($pro_id))
+		{
+			echo '请输入审核通过的项目ID';
+			exit;
+		}
+
+		// $tag_id = $this->bbs_tag_m->get_tag_id_by_name($tag_name);
+		// if (empty($tag_id))
+		// {
+		// 	echo '标签不存在';
+		// 	exit;
+		// }
+
+		// $is_top_tag = $this->bbs_tag_m->is_toptag_by_id($tag_id);
+		// if ($is_top_tag === FALSE)
+		// {
+		// 	echo '标签非顶级标签，不允许';
+		// 	exit;
+		// }
+
+		$product = $this->Product_m->get_product_info($pro_id);
+		if (empty($product))
+		{
+			echo '项目不存在';
+			exit;
+		}
+
+		$topic_id = $this->comment_model->acp_add_thread($product['user_id'], $product["name"], $product["des"], $product["logo"], $product["video"], $product['category']);
+		if (empty($topic_id))
+		{
+			echo '生成摩西帖子失败！';
+			exit;
+		}
+
+		$pro_result = $this->common->update('md_product', array('id' => $pro_id), array("moxi_post_id"=>$topic_id));
+		if ( ! empty($pro_result))
+		{
+			echo '项目成功生成 摩西帖子';
+			exit;
+		}
+	}
+}
+

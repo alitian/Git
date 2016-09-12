@@ -1,0 +1,267 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('md_app_manager/sub_menu') ?>
+<div style="margin-top:10px ;height: 30px;">
+        <form action="/md_app_manager/change_weight/9" method="post" style="float: right;margin-left: 20px;">
+            <input type="hidden" name="subid_array">
+            <input type="hidden" name="sortid_array">
+            <button id="edit_sortid" type="submit" class="btn btn-primary">保存权重</button>
+        </form>
+        <span style="float:right;">
+            <a href="/md_app_manager/update_status"><button class="btn btn-primary">同步到首页</button></a>
+        </span>
+</div>
+<div class="containers">
+    <div>
+        <p></p>
+        <?php if($rcmd_lists): ?>
+            <div >
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered" style="margin-top: 30px" >
+                    <tr>
+                        <th>权重</th>
+                        <th>信息类型</th>
+                        <th width="20%">推荐图/视频</th>
+                        <th>推荐标题</th>
+                        <th>推荐说明/评论内容</th>
+                        <th>推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($rcmd_lists as $rcmd_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $rcmd_info['weight'] ?>" subid="<?= $rcmd_info['id'] ?>" type="text" class="sortid" value="<?= $rcmd_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><?= $cate_fields[$rcmd_info['cate_id']]?></td>
+                            <td>
+                            <?php if($cate_fields[$rcmd_info['cate_id']] == '视频'):?>
+<!--                                <div><img src="--><?//=cdn_url($rcmd_info['media'])?><!--" alt="" style="float: left"></div>-->
+                                <embed play="true" style="width:200px;height:100px;" class="player"  id="otherplayer" src="<?=$rcmd_info['swf_url']?>" allowfullscreen="false" quality="high"  align="middle" allowscriptaccess="always" type="application/x-shockwave-flash"></embed>
+                            <?php elseif($cate_fields[$rcmd_info['cate_id']] == '评论'):?>
+                                <p>无</p>
+                            <?php else:?>
+                                <img src="<?= cdn_url($rcmd_info['media'])?>" alt="" style="width: 200px;height: 100px;">
+                            <?php endif;?>
+                            </td>
+                            <td>
+                                <?php if($cate_fields[$rcmd_info['cate_id']] == '评论'):?>
+                                    <?= $rcmd_info['reply_time'].' @'.$rcmd_info['nickname'] ?>
+
+                                <?php else:?>
+                                    <?= $rcmd_info['title']?$rcmd_info['title']:'' ?>
+                                <?php endif;?>
+                            </td>
+                            <td>
+                                <?php if($cate_fields[$rcmd_info['cate_id']] == '更新'):?>
+                                    <p>无</p>
+                                <?php else:?>
+                                    <?= $rcmd_info['content']?$rcmd_info['content']:''?>
+                            <?php endif;?>
+                            </td>
+                            <td><?= $rcmd_info['link']?></td>
+                            <td>
+                                <a class="del" href="javascript:;" data-id="<?=$rcmd_info['id']?>">删除</a>
+                                <?php if($cate_fields[$rcmd_info['cate_id']] != '评论'):?>
+                                |   <a href="javascript:;" class="edit" data-media="<?=$rcmd_info['media']?>" data-type="<?= ($cate_fields[$rcmd_info['cate_id']] == '视频')?3:''?>" data-title="<?= ($cate_fields[$rcmd_info['cate_id']] == '视频')?$rcmd_info['content']:$rcmd_info['title']?>" data-media_src="<?=cdn_url($rcmd_info['media'])?>" data-id="<?=$rcmd_info['id']?>">编辑</a>
+                                <?php endif;?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<iframe src="" style="display:none" name="winupload"></iframe>
+<input type="hidden" name="check_upload" id="check_upload" value="0">
+<!--modal start -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">项目编辑</h4>
+            </div>
+            <div class="modal-body">
+                <label for="pro_id" class="prompt_title">推荐标题:</label>
+                <input type="text" id="pro_title" name="title" style="width:100%"  placeholder="请输入推荐主题,建议不超过18个字">
+
+                <label for="pro_id">推荐图片:</label>
+                <img src="" alt="" id="preview_cover">
+                <input type="hidden" id="pro_media" name="media">
+                <input type="hidden" id="rcmd_id"   name="rcmd_id">
+                <input type="hidden" id="cate_type"   name="cate">
+                <form id="up_form" action="md_app_manager/upload/1" method="post" enctype="multipart/form-data" target="winupload">
+                    <input class="form-control" type="file" id="upfile" name="upfile">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="edit_rcmd_item">保存</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+<!--modal end-->
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    $("#upfile").change(function(){
+        $("#up_form").submit();
+    });
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('subid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+//        $.ajax({
+//            type :'post',
+//            url  : "<?//=site_url('md_app_manager/change_weight')?>//",
+//            data : {'id':id,'weight':value}, //这儿type1表示专题列表权重
+//            dataType :'json',
+//            success:function(return_data){
+//                if(return_data.status){
+//                    alert(return_data.msg);
+//                }
+//            }
+//        });
+    });
+
+    $("#edit_sortid").click(function(){
+        var input_set = $(".sortid");
+        var length = input_set.length;
+
+        // 定义2个对象，然后直接转换为json数组，发送给PHP
+        var subid_array = [];
+        var sortid_array = [];
+        var is_edit = false;
+        for(var i = 0; i <length; i++){
+
+            // 还得再次检验，是否有非数字
+            var sortid = $.trim(input_set[i].value);
+            var num = i+1;
+            if(sortid == ''){
+                alert('第 ' + num + ' 条推荐的排序为空，请修正！');
+                return false;
+            }
+            if(isNaN(sortid)){
+                alert('第 ' + num + ' 条推荐的排序为非数字，请修正！');
+                return false;
+            }
+            var subid = parseInt(input_set[i].getAttribute('subid'));
+            var prev_sortid = parseInt(input_set[i].getAttribute('sortid'));
+
+            // 对比每个帖子的sortid，一旦有一个修改了，表示有改动，否则提醒："未作任何修改"，表单不提交
+            if(prev_sortid != sortid){
+                is_edit = true;
+                sortid = parseInt(sortid);             // 转换为整型，放在这里！假设sortid的输入值可能是 '1的'(为非数字)，我们转换后为1，并没能达到提示用户输入错误的体验
+
+                subid_array[i] = subid;
+                sortid_array[i] = sortid;
+            }
+
+
+        }
+        if(!is_edit){
+            alert('未作任何修改');
+            return false;
+        }
+        subid_array = JSON.stringify(subid_array);
+        sortid_array = JSON.stringify(sortid_array);
+        $('input[name=subid_array]').val(subid_array);
+        $('input[name=sortid_array]').val(sortid_array);
+    });
+
+
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_app_manager/del_rcmd_by_id')?>",
+            data:{'id':id},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+    $(".edit").click(function(){
+        var title = $(this).data("title");
+        var media = $(this).data("media");
+        var media_src = $(this).data("media_src");
+        var rcmd_id   = $(this).data("id");
+        var type = $(this).data("type");
+        if(type==3){
+            $(".prompt_title").text("推荐说明:");
+            $("#pro_title").remove();
+            var str ='<textarea type="text" id="pro_title" name="title" style="width:100%"  placeholder="请输入推荐说明,建议不超过280个字"></textarea>'
+            $(".prompt_title").after(str);
+        }
+        $("#pro_title").val(title);
+        $("#pro_media").val(media);
+        $("#rcmd_id").val(rcmd_id);
+        $("#cate_type").val(type);
+        $("#preview_cover").attr({'src':media_src});
+        $("#myModal").modal("show");
+    });
+    $("#edit_rcmd_item").click(function(){
+        var title = $("#pro_title").val();
+        var media = $("#pro_media").val();
+        var id    = $("#rcmd_id").val();
+        var type  = $("#cate_type").val();
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        if( ! $.trim(media)){
+            alert('推荐图片不能为空！');
+            return false;
+        }
+        $.ajax({
+            type : 'post',
+            url  : '/md_app_manager/edit_rcmd_item',
+            data : {'title':title,'media':media,'id':id,'type':type},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    $("#myModal").modal("hide");
+                    window.location.reload();
+                }
+            }
+
+        })
+    });
+
+    var myVideo=document.getElementById("video1");
+
+    function playPause()
+    {
+        if (myVideo.paused)
+            myVideo.play();
+        else
+            myVideo.pause();
+    }
+</script>
+<?php $this->load->view('ckad/footer'); ?>

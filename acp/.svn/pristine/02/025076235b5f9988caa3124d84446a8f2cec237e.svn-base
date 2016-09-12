@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charser="utf-8">
+    <title>添加数据</title>
+</head>
+<body>
+<h2>添加数据</h2>
+<form ation="add.php" method="get">
+    <table border="1px" cellspacing="0px" cellpadding="5px" style="border-collapse:collapse;">
+    <tr><td>选择时间</td><td><input name="time" type="date" /></td></tr>
+    <tr><td>ios新增</td><td><input type="text" name="ios_new"></td></tr>
+    <tr><td>ios活跃</td><td><input type="text" name="ios_old"></td></tr>
+    <tr><td>andriod新增</td><td><input type="text" name="andriod_new"></td></tr>
+    <tr><td>andriod活跃</td><td><input type="text" name="andriod_old"></td></tr>
+    <tr><td><input type="submit" value="添加" /></td><td><a href="web_data.php"><button type="button">返回数据页</button></a></td></tr>
+    </table>
+</form>
+</body>
+</html>
+<?php
+if(isset($_GET['time'])){
+    try{	
+       $pdo=new PDO('mysql:host=tw1.db.modianinc.com;dbname=app_modian;port=16888;charset=utf8;','devroot','7Q5oO9J8kz');
+    }catch(Exception $e){
+       echo $e->getMessage();
+    }
+    $sql="update `md_web_data` set `ios_new`='{$_GET['ios_new']}',`ios_old`={$_GET['ios_old']},`andriod_new`={$_GET['andriod_new']},`andriod_old`={$_GET['andriod_old']} where `ctime`='{$_GET['time']}'";
+    $str=$pdo->exec($sql);
+    if($str){
+        echo "添加成功";
+    }
+}

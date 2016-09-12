@@ -1,0 +1,129 @@
+<?php $this->load->view('ckad/header') ?>
+<a href='http://taohuadao.modian.com/index/set_to_html' target="_blank" class='btn-Orange'>刷新首页</a>
+<?php
+$tmp_products = array();
+foreach ($projects as $p) {
+    $tmp_products[$p['id']] = $p;
+}
+krsort($tmp_products);
+?>
+<div class="row-fluid show-grid">
+    <div class="span4">
+        <table class="table-bordered table">
+            <form class="upload_form" method="post" action="">
+                <thead>
+                    <tr>
+                        <th style="width:65px;text-align: center;vertical-align: middle;">预热中</th>
+                        <th>
+                            <select class="select span12" name="preheat">
+                                <?php foreach ($tmp_products as $p): ?>
+                                    <?php if (product::PRO_STATUS_PREHEAT == $p['status']): ?>
+                                        <option value="<?= $p['id'] ?>"><?= $p['id'] ?>【<?= $p['category'] ?>】.<?= $p['name'] ?></option>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="submit" class="" value="添加" />
+                        </th>
+                    </tr>
+                </thead>
+            </form>
+            <form class="upload_form" method="post" action="">
+                <tbody>
+                    <?php foreach ($projects as $p): ?>
+                        <?php if (stripos($p['flag'], ',homepage_preheat') !== false): ?>
+                            <tr>
+                                <td colspan="2">
+                                    <input max="3" maxlength="3" style="width:20px;" type="text" value="<?= $p['list_num']; ?>" name="list_num[<?= $p['id']; ?>]" /><?= $p['id']; ?>【<?= $p['category'] ?>】.<?= $p['name']; ?> <a href="/homepage/recommend/?id=<?= $p['id']; ?>&type=homepage_preheat">取消</a>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <tr>
+                        <td colspan="2">
+                            <input type="submit" class="" value="保存排序" />
+                        </td>
+                    </tr>
+                </tbody>
+            </form>
+        </table>
+    </div>
+    <div class="span4">
+
+        <table class="table-bordered table">
+            <form class="upload_form" method="post" action="">
+                <thead>
+                    <tr>
+                        <th style="width:65px;text-align: center;vertical-align: middle;">众筹中</th>
+                        <th>
+                            <select class="select span12" name="going">
+                                <?php foreach ($tmp_products as $p): ?>
+                                        <option value="<?= $p['id'] ?>"><?= $p['id'] ?>【<?= $p['category'] ?>】.<?= $p['name'] ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="submit" class="" value="添加" />
+                        </th>
+                    </tr>
+                </thead>
+            </form>
+            <form class="upload_form" method="post" action="">
+                <tbody>
+                    <?php foreach ($projects as $p): ?>
+                        <?php if (stripos($p['flag'], ',homepage_going') !== false): ?>
+                            <tr>
+                                <td colspan="2">
+                                    <input max="3" maxlength="3" style="width:20px;" type="text" value="<?= $p['list_num']; ?>" name="list_num[<?= $p['id']; ?>]" /><?= $p['id']; ?>【<?= $p['category'] ?>】.<?= $p['name']; ?> <a href="/homepage/recommend/?id=<?= $p['id']; ?>&type=homepage_going">取消</a>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <tr>
+                        <td colspan="2">
+                            <input type="submit" class="" value="保存排序" />
+                        </td>
+                    </tr>
+                </tbody>
+            </form>
+        </table>
+    </div>
+    <div class="span4">
+        <table class="table-bordered table">
+            <form class="upload_form" method="post" action="">
+                <thead>
+                    <tr>
+                        <th style="width:65px;text-align: center;vertical-align: middle;">成功项目</th>
+                        <th>
+                            <select class="select span12" name="success">
+                                <?php foreach ($tmp_products as $p): ?>
+                                    <?php if (product::PRO_STATUS_SUCCESS == $p['status']): ?>
+                                        <option value="<?= $p['id'] ?>"><?= $p['id'] ?>【<?= $p['category'] ?>】.<?= $p['name'] ?></option>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="submit" class="" value="添加" />
+                        </th>
+                    </tr>
+                </thead>
+            </form>
+            <form class="upload_form" method="post" action="">
+                <tbody>
+                    <?php foreach ($projects as $p): ?>
+                        <?php if (stripos($p['flag'], ',homepage_success') !== false): ?>
+                            <tr>
+                                <td colspan="2">
+                                    <input max="3" maxlength="3" style="width:20px;" type="text" value="<?= $p['list_num']; ?>" name="list_num[<?= $p['id']; ?>]" /><?= $p['id']; ?>【<?= $p['category'] ?>】.<?= $p['name']; ?> <a href="/homepage/recommend/?id=<?= $p['id']; ?>&type=homepage_success">取消</a>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <tr>
+                        <td colspan="2">
+                            <input type="submit" class="" value="保存排序" />
+                        </td>
+                    </tr>
+                </tbody>
+            </form>
+        </table>
+    </div>
+</div>
+
+<?php $this->load->view('ckad/footer'); ?>

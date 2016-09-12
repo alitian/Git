@@ -1,0 +1,147 @@
+<?php $this->load->view('ckad/header'); ?>
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/default/easyui.css">
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/icon.css">
+<script type="text/javascript" src="<?= static_url(); ?>js/easyui/jquery.easyui.min.js"></script>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<div class="row-fluid">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="查找" style="height:240px;padding-top:10px;padding-left:10px;padding-right:10px;margin:0;" data-options="collapsible:true">
+            <form method="POST" target="_blank" name="form1" id="form1" action="/easyfund/export_orders">
+                <div class="span10">
+                <div class="row-fluid">
+                    <div class="span3">订单号<input type="text" name="oid" id="oid" placeholder="输入订单号" value="" ></div>
+                    <div class="span3">场景名称<input type="text" name="topic" id="topic" placeholder="请输入场景名称" value="<?php echo isset($name)?$name:""; ?>" ></div>
+                    <div class="span3">发起人ID<input type="text" name="st_id" id="st_id" placeholder="请输入发起人ID" value=""></div>
+                    <div class="span3">发起人手机号<input type="text" name="st_mobile" id="st_mobile" placeholder="请输入发起人手机号" value=""></div>
+                </div>
+                <div class="row-fluid">
+                    <div class="span3">项目编号<input type="text" name="pro_id" id="pro_id" placeholder="请输入项目编号" value="<?php echo isset($pro_id)?$pro_id:""; ?>" ></div>
+                    <div class="span3">支持者手机号<input type="text" name="sp_mobile" id="sp_mobile" placeholder="请输入支持者手机号" value=""></div>
+                    <div class="span3">项目状态
+			<select name="pro_status" id="pro_status">
+                            <option value="4">全部</option>
+                            <option value="0">众筹中</option>
+                            <option value="1">提现申请中</option>
+                            <option value="2">已提现</option>
+                            <option value="3">已结束</option>
+			</select>
+                    </div>
+                    <div class="span3">订单状态
+                        <select name="od_status" id="od_status">
+                            <option value="">全部</option>
+                            <option value="0">未支付</option>
+                            <option value="1">已支付</option>
+                        </select>
+                    </div>
+
+                </div>
+                    <div class="row-fluid">
+                        <div class="span3">支付渠道
+                            <select name="pay_way" id="pay_way">
+                                <option value="">全部</option>
+                                <option value="0">微信</option>
+                                <option value="1">支付宝</option>
+                            </select>
+                        </div>
+                        <div class="span3 input-append date form_datetime">支付成功时间
+                            <input type="text" id="pay-start-time" class="span9" name='pay_start_time' value="<?=$activity['pay_start_time']?>" placeholder="支付成功开始时间">
+                            <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+                        </div>
+                        <div class="span3 input-append date form_datetime">支付成功时间
+                            <input type="text" id="pay-end-time" class="span9" name='pay_end_time' value="<?=$activity['pay_end_time']?>" placeholder="支付成功截至时间">
+                            <span class="add-on" style="margin-left:-5px;"><i class="icon-calendar"></i></span>
+                        </div>
+                        <div class="span3">微信流水号<input type="text" name="trade_no" id="trade_no" placeholder="输入微信流水号" value="" ></div>
+                    </div>
+                </div>
+                <div class="span1" style="height:200px;text-align: center;vertical-align: middle;overflow:hidden;padding-top:30px;">
+                        <button class="btn btn-large btn-primary" type="button" id="search" data-options="iconCls:'icon-search'">查询</button><br /><br />
+                        <button class="btn btn-large" type="submit" id="export2excel" data-options="iconCls:'icon-search'">导出Excel</button>
+                </div>
+            </form>
+        </div>
+        <div class="box-content">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;height:400px" title="轻众筹订单管理"
+                   url="/easyfund/ajax_orders"
+                   title="Load Data" iconCls="icon-save"
+                   sortName="oid" sortOrder="DESC" pageSize=10 pagePosition="both"
+                   rownumbers="true" pagination="true">
+                <thead>
+                    <tr>
+                        <th field="oid" width="70" align="center">订单号</th>
+                        <th field='pro_id' width='70' align='center'>项目ID</th>
+                        <th field="wx_trade_no" width="200" align="center">微信流水号</th>
+                        <th field="refund" width="100" align="center">退款状态/操作</th>
+                        <th field="topic" width="70" align="center">场景名称</th>
+                        <th field="ef_status" width="100" align="center">众筹状态</th>
+                        <th field="st_name" width="120" align="center">发起人用户名</th>
+                        <th field="st_mobile" width="150" align="center">发起人手机号</th>
+                        <th field="sp_name" width="100" align="center">支持者昵称</th>
+                        <th field="sp_mobile" width="150" align="center">支持者手机号</th>
+                        <th field="sp_remark" width="200" align="center">支持者留言</th>
+                        <th field="amount" width="100" align="center">支持金额</th>
+                        <th field="pay_way" width="70" align="center">支付渠道</th>
+                        <th field="paytime" width="150" align="center">支付时间</th>
+                        <th field="od_status" width="70" align="center">订单状态</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    $(function(){
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd hh:mm:ss",
+            pickTime: true
+        });
+
+        $("#search").click(function(){
+            $('#tt').datagrid('load',{
+                oid:$("#oid").val(),
+                topic:$("#topic").val(),
+                st_id:$("#st_id").val(),
+                st_mobile:$("#st_mobile").val(),
+                sp_mobile:$("#sp_mobile").val(),
+                pro_status:$("#pro_status").val(),
+                od_status:$("#od_status").val(),
+                pro_id:$("#pro_id").val(),
+//                pay_way:$("#pay_way").val(),
+                pay_start_time: $('#pay-start-time').val(),
+                pay_end_time: $('#pay-end-time').val(),
+                trade_no: $('#trade_no').val()
+            });
+
+        });
+        $("#tt").datagrid({
+            onLoadSuccess:function(){
+                $("a.change-refund-data").on('click',function(evt){
+                    evt.preventDefault();
+                    if(confirm('您确定要改变退款状态？') == 0){
+                        return FALSE;
+                    }
+                    var data = $(this).data('refund');
+                    $.ajax({
+			type:"GET",
+			url:"/easyfund/change_refund_status",
+			data:{oid:data.oid,pro_id:data.pro_id},
+			dataType:'json',
+			success:function(data){
+                            alert(data.msg);
+                            $('.pagination-load').click();
+			}
+                    });
+
+                });
+
+            }
+
+        });
+    });
+
+</script>

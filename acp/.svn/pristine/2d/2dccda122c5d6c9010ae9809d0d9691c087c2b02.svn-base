@@ -1,0 +1,121 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false,
+        });
+        
+        $('#datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+        
+    });
+</script>
+<style type="text/css">
+    td,tr{
+        white-space: nowrap;
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/market_manage/recruit">市场管理</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="市场管理-招聘页（职位）" style="height:150px;padding:10px;margin: 0;" data-options="collapsible:true">
+            <form method="POST" name='form1' id="form1" action="#">
+                <div class="span10">
+                    <div class="row-fluid">
+                        <div class="span3">招聘ID:<br />
+                        	<input type="text" id='recruit_id' name='recruit_id' value="" placeholder="招聘ID" />
+                        </div>
+                        <div class="span3">职位名称:<br />
+							<input type="text" id='job_name' name='job_name' value="" placeholder="职位名称" />
+	                    </div>                        
+                    </div>
+                    <div class="row-fluid">
+                        <div class="span4">开始时间：<br>
+	                        <div id="datetimepicker1" class="input-append">
+		                        <input data-format="yyyy-MM-dd 00:00:00" type="text" placeholder="开始时间" name='start_time' id='start_time' value=""></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div>   
+                        </div>
+                    
+                        <div class="span4">结束时间：<br>
+	                        <div id="datetimepicker2" class="input-append">
+		                        <input data-format="yyyy-MM-dd 00:00:00" type="text" placeholder="结束时间" name='end_time' id='end_time' value=""></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div>   
+                        </div>
+                    </div>
+                    
+                </div>
+                <div class="span1" style="width:100px;text-align: center;vertical-align:middle;overflow:hidden;padding-top:32px;">                 
+                    <button class="btn btn-primary" id="btn_search" name="btn_search">查询</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br> 
+                    <a class="btn btn-primary" id="btn_create" name="btn_create" href="/market_manage/create_recruit_job/<?php echo $rid?>">新添职位</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>                
+                </div>               
+            </form>
+        </div>              	
+       
+        <div class="box-content" style="overflow:scroll;height:300px;">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;" title="查询结果" 
+                   url="/market_manage/ajax_recruit_job/<?php echo $rid?>" iconCls="icon-save"
+                    pageSize=20 pagePosition="both"             
+                   rownumbers="true" pagination="true" showFooter="true">
+                <thead>
+                    <tr>                       
+                        <th field="job_sort" align="center" sortable="true">排序</th>
+                        <th field="rid" align="center">招聘ID</th>
+                        <th field="job_name" align="center">工作职位</th>
+                        <th field="job_type" align="center">工作类别</th>
+                        <th field="job_status" align="center">工作性质</th>
+                        <th field="job_work" align="center">工作职责</th>
+                        <th field="job_need" align="center">工作要求</th>
+                        <th field="job_kind" align="center">招聘类型</th>
+                        <th field="op_user" align="center">创建人</th>
+                        <th field="ctime" align="center">创建时间</th>
+                        <th field="work" align="center">操作</th>
+                    </tr>
+                </thead>
+            </table>            
+        </div>
+    </div><!--/span-->
+</div>
+<script type="text/javascript">
+$(document).ready(function(){   
+	 $('#btn_search').click(function(e){
+		 e.preventDefault();
+		 form1.action = "/market_manage/ajax_recruit_job/<?php echo $rid?>";
+		 $('#tt').datagrid('load', {
+			 recruit_id:$("#recruit_id").val(),
+			 job_name: $("#job_name").val(),
+			 start_time: $("#start_time").val(),
+			 end_time: $("#end_time").val(),
+         });
+	 });
+	 
+});
+</script>
+<?php $this->load->view('ckad/footer')?>

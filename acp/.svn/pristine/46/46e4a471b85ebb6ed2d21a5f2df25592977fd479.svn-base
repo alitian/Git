@@ -1,0 +1,159 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div class="row">
+        <div>
+            <h1>编辑器白名单管理</h1>
+            <hr>
+            <div class="form-container">
+                <form action="/main/add_editor_white" method="post" enctype="multipart/form-data" role="form" id="editor_form">
+                    <div class="form-group">
+                        <label for="type">所属类别:</label>
+                        <select name="cate[]" class="type first_type">
+                            <option value="">--请选择--</option>
+                            <option value="video" <?=$editor_info['cate']=="video"?"selected":""?>>视频</option>
+                            <option value="audio" <?=$editor_info['cate']=="audio"?"selected":""?>>音频后缀</option>
+                            <option value="link"<?=$editor_info['cate']=="link"?"selected":""?>>超链接</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="name">中文名称:</label>
+                        <input type="text" class="form-control chname first_chname" id="name" placeholder="请输入中文名称(十五字以内)" name="ch_name[]" value="<?=$editor_info["ch_name"]?>">
+                    </div>
+                    <div class="form-group">
+                        <label for="editor"><?=$editor_info['cate']=="audio"?"音频后缀":"域名"?>:</label>
+                        <input type="text" onblur="check_domain(this)" data-id="<?=$editor_info['id']?>" class="form-control domain first_domain" id="editor" placeholder="请输入域名" name="domain[]" value="<?=$editor_info["domain"]?>">
+                    </div>
+                    <?php if(!$editor_info):?>
+                        <div class="do_clone">
+                            <hr>
+                            <div class="form-group">
+                                <label for="type">所属类别:</label>
+                                <select name="cate[]" class="type">
+                                    <option value="">--请选择--</option>
+                                    <option value="video" <?=$editor_info['cate']=="video"?"selected":""?>>视频</option>
+                                    <option value="audio" <?=$editor_info['cate']=="audio"?"selected":""?>>音频后缀</option>
+                                    <option value="link"<?=$editor_info['cate']=="link"?"selected":""?>>超链接</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="name">中文名称:</label>
+                                <input type="text" class="form-control chname" id="name" placeholder="请输入中文名称(十五字以内)" name="ch_name[]">
+                            </div>
+                            <div class="form-group">
+                                <label for="editor">域名:</label>
+                                <input type="text" class="form-control domain" id="editor" placeholder="请输入域名" name="domain[]" onblur="check_domain(this)">
+                                <button id="add_rule" class="btn btn-danger btn-lg" style="margin-left:10px;" type="button">+新增</button>
+                            </div>
+                        </div>
+                    <?php endif;?>
+                    <div style="height:40px;"></div>
+                    <input type="hidden" name="id" value="<?=$editor_info["id"]?>">
+                    <input type="hidden" name="is_new" value="1">
+                    <button type="button" class="btn btn-primary btn-lg" id="do_submit">保存</button>
+                    <button type="reset" class="btn btn- btn-lg">取消</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    $(function(){
+       $(document).on('click','#add_rule',function(){
+           var append_html = $(".do_clone").last().clone();
+           $(this).remove();
+           $(".do_clone").last().after(append_html);
+       });
+    });
+    var is_submit=1;
+    $("#do_submit").click(function(){
+        $(".chname").each(function(){
+            var ch_name = $(this).val();
+            if(ch_name.length>15){
+                alert("十五字以内");
+                is_submit=0;
+                $(this).focus();
+                return false;
+            }
+        });
+        if(!is_submit){
+            is_submit=1;
+            return false;
+        }
+        var domain2 = $.trim($(".domain").eq(1).val());
+        var type2 = $.trim($(".type").eq(1).val());
+        var chname2 = $.trim($(".chanme").eq(1).val());
+        if(!domain2&&!type2&&!chname2){
+            if(!$.trim($(".first_chname").val())){
+                alert("请填写中文名称");
+                $(".first_chname").focus();
+                return false;
+            }
+            if(!$.trim($(".first_type").val())){
+                alert("请填写类别");
+                $(".first_type").focus();
+                return false;
+            }
+            if(!$.trim($(".first_domain").val())){
+                alert("请填写域名");
+                $(".first_domain").focus();
+                return false;
+            }
+        }else{
+            var num = $(".type").length;
+            for(var i=0;i<num;i++){
+                if(!$.trim($(".chname").eq(i).val())){
+                    alert("请填写中文名称");
+                    $(".chname").eq(i).focus();
+                    return false;
+                }
+                if(!$.trim($(".type").eq(i).val())){
+                    alert("请填写类别");
+                    $(".type").eq(i).focus();
+                    return false;
+                }
+                if(!$.trim($(".domain").eq(i).val())){
+                    alert("请填写域名");
+                    $(".domain").eq(i).focus();
+                    return false;
+                }
+            }
+        }
+
+        $("#editor_form").submit();
+    });
+    $(document).on('change',".type",function(){
+        var type_name = $(this).val();
+        if(type_name=='audio'){
+            $(this).parent("div").siblings(".form-group").find(".domain").attr('placeholder','请输入音频后缀');
+            $(this).parent("div").siblings(".form-group").find(".domain").prev().text("音频后缀:");
+        }else{
+            $(this).parent("div").siblings(".form-group").find(".domain").attr('placeholder','请输入域名');
+            $(this).parent("div").siblings(".form-group").find(".domain").prev().text("域名:");
+        }
+    });
+    function check_domain(obj){
+        var that = $(obj);
+        var domain = $.trim(that.val());
+        var id = that.data('id');
+        var cate = that.parent("div").siblings(".form-group").find(".type").val();
+        if(domain){
+            $.ajax({
+                type:"post",
+                url:"main/check_domain",
+                dataType:"json",
+                data:{domain:domain,id:id,cate:cate},
+                success:function(return_data){
+                    if(return_data.status){
+                        alert(return_data.msg);
+                        that.focus();
+                        is_submit=0;
+                    }
+                }
+            })
+        }
+    }
+//    $(".domain").blur(function(){
+//
+//    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

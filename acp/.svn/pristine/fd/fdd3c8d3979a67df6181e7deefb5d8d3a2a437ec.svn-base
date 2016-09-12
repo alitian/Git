@@ -1,0 +1,71 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="/static/validation/jquery.validationEngine-zh_CN.js"></script>
+<script type="text/javascript" src="/static/validation/jquery.validationEngine.js"></script>
+<link rel="stylesheet" type="text/css" href="/static/validation/css/validationEngine.jquery.css">
+<script language="javascript">
+    $(function () {
+        jQuery(".upload_form").validationEngine();
+    })
+</script>
+<form enctype="multipart/form-data" class="upload_form" method="post" action="">
+    <table>
+        <tr>
+            <td>
+                合作伙伴logo：
+            </td>
+            <td>
+                <input type='file' name='image' value="" class="validate[required]" />
+            </td>
+        </tr>
+        <tr>
+            <td>
+                合作伙伴链接：</td>
+            <td><input type="text" name="link" value="" class="validate[required,custom[url]]" />
+            </td>
+        </tr>
+        <tr>
+            <td>
+                排序[倒序]：</td>
+            <td><input type="text" style="width:20px;" name="list_num" class="validate[custom[integer]]" maxlength="3" size="3" value="0" />
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <input type='submit' value="保存" />
+            </td>
+        </tr>
+    </table>
+
+</form>
+<form enctype="multipart/form-data" class="upload_form" method="post" action="">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th colspan="3"><br />
+                    合作专区 <input class="btn" type='submit' value="保存排序" />
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($partners as $partner): ?>
+                <tr>
+                    <td>
+                        <input type="text" style="width:20px;" name="list_nums[<?= $partner['id'] ?>]" class="validate[custom[integer]]" maxlength="3" size="3" value="<?= $partner['list_num'] ?>" />
+                    </td>
+                    <td>
+                        <a href="<?= $partner['content'] ?>" target="_blank"><img src="<?= cdn_url($partner['title']); ?>" style="max-height: 100px;max-width: 100px" /></a>
+                    </td>
+                    <td>
+                        <a href="<?= $partner['content'] ?>" target="_blank"><?= $partner['content'] ?></a>
+                    </td>
+                    <td>
+                        <a href='/homepage/partner?del=<?= $partner['id'] ?>'>删除</a>
+                    </td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+</form>
+
+
+<?php $this->load->view('ckad/footer'); ?>

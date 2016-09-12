@@ -1,0 +1,36 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Weixin_msg extends CI_Controller {
+
+    public function weixin_tpl_send() {
+       // exit('1234');
+        ignore_user_abort();
+        $interval = 1;
+        $this->load->library('rmq');
+        $i = 1;
+        do{
+            try{
+                $mess = Rmq::get('up_pro_weixin');
+                //print_r($mess);
+                if(!empty($mess)){
+                    require_once BASEPATH . 'libraries/ipush/Ipush_factory.php';
+                    $obj = new Ipush_factory("Ipush_weixin");
+                    $wx_push = $obj->instance();
+                    $back = $wx_push->send_tpl ( $mess );
+                    $send = $wx_push->get_tpl ( $back, $mess ['tpl_id'] );
+                    echo ('发送成功');              
+                }else{
+                    echo ('已无数据');
+                }
+            } catch (Exception $ex) {
+                $errmsg = $ex->getMessage();
+                echo $errmsg;
+            } 
+            $i++;
+            sleep($interval); // 等待*秒钟
+        }while($i > 3);     
+    }
+}

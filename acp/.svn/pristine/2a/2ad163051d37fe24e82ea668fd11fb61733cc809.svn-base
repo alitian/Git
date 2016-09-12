@@ -1,0 +1,72 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class User extends Deamon_Controller {
+
+    public function update_sys_tag() {
+        $sql = "SELECT id,pro_tag FROM md_product WHERE pro_tag<>''";
+        $res = $this->db->query($sql)->result_array();
+        $user_tag = $pro_tag = array();
+        foreach ($res as $item) {
+            $pro_tag[$item['id']] = explode(',', $item['pro_tag']);
+        }
+        $sql = "SELECT user_id,pro_id FROM md_product_back WHERE if_pay='1'";
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $item) {
+            if (!isset($user_tag[$item['user_id']])) {
+                $user_tag[$item['user_id']] = array();
+            }
+            if (isset($pro_tag[$item['pro_id']])) {
+                $user_tag[$item['user_id']] = array_merge($user_tag[$item['user_id']], $pro_tag[$item['pro_id']]);
+            }
+
+            $user_tag[$item['user_id']] = array_unique($user_tag[$item['user_id']]);
+            sort($user_tag[$item['user_id']]);
+        }
+
+        $sql = "SELECT user_id,pro_id FROM md_product_favors";
+        $res = $this->db->query($sql)->result_array();
+        foreach ($res as $item) {
+            if (!isset($user_tag[$item['user_id']])) {
+                $user_tag[$item['user_id']] = array();
+            }
+            if (isset($pro_tag[$item['pro_id']])) {
+                $user_tag[$item['user_id']] = array_merge($user_tag[$item['user_id']], $pro_tag[$item['pro_id']]);
+            }
+
+            $user_tag[$item['user_id']] = array_unique($user_tag[$item['user_id']]);
+            sort($user_tag[$item['user_id']]);
+        }
+        foreach ($user_tag as &$item) {
+            $item = implode(',', $item);
+        }
+        foreach ($user_tag as $user_id => $sys_tag) {
+            $this->db->query("update md_users SET sys_tags='{$sys_tag}' WHERE id='{$user_id}'");
+        }
+        echo "更新：" . count($user_tag);
+    }
+    function deal_histroy_pro_score(){  
+        //exit('1');
+    	$score_sql = "SELECT `id`,`user_id`,`pro_id`,`amount`,`ctime` FROM `md_product_back` WHERE `ctime` BETWEEN '2014-06-12 00:00:00' AND '2015-12-18 15:17:26' AND `if_pay`=1";
+    	$user_score_mes = $this->db->query($score_sql)->result_array();
+    	foreach($user_score_mes as $item){
+    		$user_sql = "SELECT * FROM `md_users` WHERE id={$item['user_id']}";
+    		$user_mes = $this->db->query($user_sql)->row_array();
+                $score = floor($item['amount']);
+                $new_score = $user_mes['all_score'] + $score;
+		if($new_score >= 0){
+                    $new_all_score = $new_score;
+		}else{
+                    $new_all_score = 0;
+		}   		
+    		$updata_sql = "UPDATE `md_users` SET `all_score`=".$new_all_score."  WHERE `id`='" . $item['user_id']."' ";
+    		$res = $this->db->query($updata_sql); 
+                $ip_address = $this->input->ip_address();
+                $inner_sql = "INSERT INTO `md_users_score`(`user_id`, `type`, `type_name`, `score`, `ip_address`, `op_man`) VALUES ('".$item['user_id']."','1024','历史项目','".$score."','".$ip_address."','系统')";
+                $inner_res = $this->db->query($inner_sql);
+    	}
+    	echo "处理完成";        
+    }
+}

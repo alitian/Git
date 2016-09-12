@@ -1,0 +1,2 @@
+<?php die('forbidden'); ?>
+{"appid":"101117144","appkey":"147111a16907727d11c3d4687c48de73","callback":"2.modian.sinaapp.com/user/qqloginaction","scope":"get_user_info","errorReport":true,"storageType":"file","host":"localhost","user":"root","password":"root","database":"test"}

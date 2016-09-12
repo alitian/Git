@@ -1,0 +1,874 @@
+<?php	
+	class Bbs_verify_model extends CI_Model{
+
+		const MD_USER_TABLE = 'md_users';
+		const MD_BBS_POST_TABLE = 'bbs_post';
+		const MD_BBS_POST_CONTENT_TABLE = 'bbs_post_content';
+		const MD_BBS_POST_TAG_MAP_TABLE = 'bbs_post_tag_map';
+		const MD_BBS_POST_MANAGER_LOG_TABLE = 'bbs_post_manager_log';
+		const MD_BBS_REPLY_MANAGER_LOG_TABLE = 'bbs_reply_manager_log';
+		const MD_BBS_TAG_TABLE  = 'bbs_tag';
+		const MD_BBS_TAG_MAP_TABLE  = 'bbs_tag_map';
+		const MD_BBS_REPLY_TABLE_PREFIX = 'bbs_reply_';
+		const MD_BBS_REPLY_CONTENT_TABLE_PREFIX = 'bbs_reply_content_';
+		const MD_BBS_REPLY_RECOMMEND_TABLE = 'bbs_reply_recommend';
+
+		public function __construct()
+		{
+			parent::__construct();
+			$this->load->model('bbs/bbs_m');
+			$this->load->model('bbs/bbs_tag_m');
+			$this->load->model('bbs/bbs_post_m');
+			$this->load->model('bbs/bbs_reply_m');
+		}
+
+		/**
+		 *	获取顶级的tag列表，作为帖子的筛选条件
+		 *
+		 * @return 		array 		$toptag_list
+		 *
+		 */
+		public function get_toptag_list()
+		{
+			$select = 't.tag_id, t.tag_name';
+			// $join_condition = 'tag_id';
+			$join_condition = 't.tag_id = m.tag_id';
+			$where = array(
+						'parent_id' => 0
+					);
+			$order_by = 'ctime DESC';
+			$this->moxi_db->select($select);	
+			$this->moxi_db->from(self::MD_BBS_TAG_MAP_TABLE . ' m');
+			$this->moxi_db->join(self::MD_BBS_TAG_TABLE . ' t', $join_condition, 'LEFT');
+			$this->moxi_db->where($where);
+			$this->moxi_db->order_by($order_by);
+			$tag_query = $this->moxi_db->get();
+			$toptag_list = $tag_query->result_array();
+			return $toptag_list;
+		}
+
+		/** 
+		 * 	通过帖子ID来获取帖子
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$post_status
+		 *
+		 */
+		public function get_post_by_post_id($post_id, $post_status)
+		{
+			$where['post_id'] = $post_id;
+			if($post_status == 1){
+				$where['isverified'] = 1;
+				$where['isshow'] = 1;
+			}elseif($post_status == 2){
+				$where['isverified'] = 1;
+				$where['isshow'] = 0;
+			}else{
+				$where['isverified'] = 0;
+				$where['isshow'] = 1;
+			}
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where($where);
+			$post_query = $this->moxi_db->get();
+
+			// 虽然只有1条数据，但是还是保持一个二维数组格式，页面上不用进行调整
+			$post_list = $post_query->result_array();
+
+			// 如果未查询到返回空
+			if(empty($post_list)){
+				return array();
+			}
+
+			foreach($post_list as &$post){
+				$post['time'] = date('Y-m-d H:i:s', $post['ctime']);
+				$uid_array[] = $post['author_id'];
+			}
+
+			$this->load->model('bbs_md_user_model');
+			$user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($uid_array);
+
+			foreach($post_list as &$post_info){
+				foreach($user_list as $user_info){
+					if($post_info['author_id'] == $user_info['id']){
+						$post_info['user_info'] = $user_info;
+						break;
+					}
+				}
+			}
+
+			return $post_list;
+		}
+
+		/**
+		 *	获取帖子列表页 
+		 *
+		 * @param 	int 		$perpage
+		 * @param 	int 		$nextpage
+		 * @param 	int 		$tag_id
+		 * @param 	int 		$post_status
+		 * @param 	int 		$time
+		 * @param 	string 		$nickname
+		 * @return 	array 		$post_list
+		 *
+		 */
+		public function get_post_list($perpage, $nextpage, $tag_id = 0, $post_status, $time = 1, $nickname = '')
+		{
+			$offset = ($nextpage - 1) * $perpage;
+			$where = array();
+
+			// 对于tag_id的筛选，还是依靠关联查询
+			if($tag_id){
+				$where['m.tag_id'] = $tag_id;
+				$join_condition = 'm.post_id = p.post_id';
+
+				// 这里改为了nickname，我们得去摩点的用户表中取查询
+				if($nickname != 'null' && !empty($nickname)){
+					$this->db->from(self::MD_USER_TABLE);
+					$this->db->where('nickname', $nickname);
+					$this->db->select('id');
+					$md_user_query = $this->db->get();
+					$md_user_list = $md_user_query->result_array();
+
+					// 可能查询不到该用户，我们直接返回空就行
+					if(empty($md_user_list)){
+						return array();
+					}
+					
+					foreach($md_user_list as $row){
+						$uid_array[] = $row['id'];
+					}
+					$this->moxi_db->where_in('p.author_id', $uid_array);
+				}
+				if($time == 2){
+					$order_by = 'p.ctime ASC';
+				}else{
+					$order_by = 'p.ctime DESC';
+				}
+				if($post_status == 1){
+					$where['p.isverified'] = 1;
+					$where['p.isshow'] = 1;
+				}elseif($post_status == 2){
+					$where['p.isverified'] = 1;
+					$where['p.isshow'] = 0;
+				}else{
+					$where['p.isverified'] = 0;
+					$where['p.isshow'] = 1;
+				}
+				$this->moxi_db->from(self::MD_BBS_POST_TAG_MAP_TABLE . ' m');
+				$this->moxi_db->join(self::MD_BBS_POST_TABLE . ' p', $join_condition, 'LEFT');
+			}else{
+
+				// 这里改为了nickname，我们得去摩点的用户表中取查询
+				if($nickname != 'null' && !empty($nickname)){
+					$this->db->from(self::MD_USER_TABLE);
+					$this->db->where('nickname', $nickname);
+					$this->db->select('id');
+					$md_user_query = $this->db->get();
+					$md_user_list = $md_user_query->result_array();
+					
+					// 可能查询不到该用户，我们直接返回空就行
+					if(empty($md_user_list)){
+						return array();
+					}
+					
+					foreach($md_user_list as $row){
+						$uid_array[] = $row['id'];
+					}
+					$this->moxi_db->where_in('author_id', $uid_array);
+				}
+				if($time == 2){
+					$order_by = 'ctime ASC';
+				}else{
+					$order_by = 'ctime DESC';
+				}
+				if($post_status == 1){
+					$where['isverified'] = 1;
+					$where['isshow'] = 1;
+				}elseif($post_status == 2){
+					$where['isverified'] = 1;
+					$where['isshow'] = 0;
+				}else{
+					$where['isverified'] = 0;
+					$where['isshow'] = 1;
+				}
+				$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			}
+			$this->moxi_db->where($where);
+			$this->moxi_db->limit($perpage, $offset);
+			$this->moxi_db->order_by($order_by);
+
+			$post_query = $this->moxi_db->get();
+			$post_list = $post_query->result_array();
+
+			// 如果未查询到返回空
+			if(empty($post_list)){
+				return array();
+			}
+
+			foreach($post_list as &$post){
+				$post['time'] = date('Y-m-d H:i:s', $post['ctime']);
+				$uid_array[] = $post['author_id'];
+			}
+
+			$this->load->model('bbs_md_user_model');
+			$user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($uid_array);
+
+			foreach($post_list as &$post_info){
+				foreach($user_list as $user_info){
+					if($post_info['author_id'] == $user_info['id']){
+						$post_info['user_info'] = $user_info;
+						break;
+					}
+				}
+			}
+
+			return $post_list;
+		}
+
+		/**
+		 *	获取帖子总数 
+		 *
+		 * @param 	int 		$tag_id
+		 * @param 	int 		$post_status
+		 * @param 	string 		$nickname
+		 * @return 	int 		$total_post
+		 *
+		 */
+		public function get_total_post($tag_id = 0, $post_status = 0, $nickname = '')
+		{
+			$where = array();
+
+			// 对于tag_id的筛选，还是依靠关联查询
+			if($tag_id){
+				$where['m.tag_id'] = $tag_id;
+				$join_condition = 'm.post_id = p.post_id';
+
+				// 这里改为了nickname，我们得去摩点的用户表中取查询
+				if($nickname != 'null' && !empty($nickname)){
+					$this->db->from(self::MD_USER_TABLE);
+					$this->db->where('nickname', $nickname);
+					$this->db->select('id');
+					$md_user_query = $this->db->get();
+					$md_user_list = $md_user_query->result_array();
+
+					// 可能查询不到该用户，我们直接返回空就行
+					if(empty($md_user_list)){
+						return 0;
+					}
+					
+					foreach($md_user_list as $row){
+						$uid_array[] = $row['id'];
+					}
+					$this->moxi_db->where_in('p.author_id', $uid_array);
+				}
+				if($post_status == 1){
+					$where['p.isverified'] = 1;
+					$where['p.isshow'] = 1;
+				}elseif($post_status == 2){
+					$where['p.isverified'] = 1;
+					$where['p.isshow'] = 0;
+				}else{
+					$where['p.isverified'] = 0;
+					$where['p.isshow'] = 1;
+				}
+				$this->moxi_db->from(self::MD_BBS_POST_TAG_MAP_TABLE . ' m');
+				$this->moxi_db->join(self::MD_BBS_POST_TABLE . ' p', $join_condition, 'LEFT');
+			}else{
+
+				// 这里改为了nickname，我们得去摩点的用户表中取查询
+				if($nickname != 'null' && !empty($nickname)){
+					$this->db->from(self::MD_USER_TABLE);
+					$this->db->where('nickname', $nickname);
+					$this->db->select('id');
+					$md_user_query = $this->db->get();
+					$md_user_list = $md_user_query->result_array();
+
+					// 可能查询不到该用户，我们直接返回空就行
+					if(empty($md_user_list)){
+						return 0;
+					}
+					foreach($md_user_list as $row){
+						$uid_array[] = $row['id'];
+					}
+					$this->moxi_db->where_in('author_id', $uid_array);
+				}
+				if($post_status == 1){
+					$where['isverified'] = 1;
+					$where['isshow'] = 1;
+				}elseif($post_status == 2){
+					$where['isverified'] = 1;
+					$where['isshow'] = 0;
+				}else{
+					$where['isverified'] = 0;
+					$where['isshow'] = 1;
+				}
+				$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			}
+			$this->moxi_db->where($where);
+			$total_post = $this->moxi_db->count_all_results();
+			return $total_post;
+		}
+
+		/**
+		 *	审核通过
+		 *
+		 * 	@param 		string 		$reason
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$uid
+		 * 	@return 	int 		$return 
+		 *
+		 */
+		public function verify_post_successed($reason, $post_id, $uid)
+		{
+			$set = array(
+						'isverified' => 1			
+					);
+			$where = array(
+						'post_id' => $post_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+
+			// 如果更新失败，则后面就不用进行了，表示审核操作异常
+			if(!$bool){
+				return 0;
+			}
+
+			// 获取帖子的tagids
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			$this->moxi_db->where('post_id', $post_id);
+			$post_query = $this->moxi_db->get();
+			$post_info = $post_query->row_array();
+			$tag_id_array = explode(',', $post_info['tagids']);
+
+			// 当管理员审核成功后，帖子对应的标签的 post_num + 1
+			foreach($tag_id_array as $tag_id){
+				$bool_tag = $this->bbs_tag_m->update_tag_post_num($tag_id);
+			}
+			if(!$bool_tag){
+				return -1; 		// 表示标签的post_num更新失败
+			}
+
+			$set = array(
+						'manager_uid' => $uid,
+						'manager_post_id' => $post_id,
+						'manager_type' => 6,
+						'manager_reason' => $reason,
+						'ctime' => time()
+					);
+			$bool_manager = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+			if(!$bool_manager){
+				return -2; 		// 添加操作记录失败
+			}
+			return 1;
+		}
+
+		/**
+		 *	审核未通过
+		 *
+		 * 	@param 		string 		$reason
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$uid
+		 * 	@param 		string 		$type - 指代不同的删除操作。$type = "delete" 表示：在已审核的列表中删除。$type = "fail" 表示：审核失败
+		 * 	@return 	bool 		$return 
+		 *
+		 */
+		public function verify_post_failed($reason, $post_id, $uid, $type)
+		{
+			$set = array(
+						'isshow' => 0
+					);
+			if($type == 'delete'){
+				$set['isverified'] = 1;
+				$manager_type = 12; 	// 表示 "删除原有的已审核过的帖子"
+			}else{
+				$set['isverified'] = 0;
+				$manager_type = 7; 		// 表示 "删除未通过审核的帖子(审核未通过)"
+			}
+			$where = array(
+						'post_id' => $post_id
+					);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, $set, $where);
+
+			// 如果更新失败，则后面就不用进行了，表示审核操作异常
+			if(!$bool){
+				return FALSE;
+			}
+			$set = array(
+						'manager_uid' => $uid,
+						'manager_post_id' => $post_id,
+						'manager_type' => $manager_type,
+						'manager_reason' => $reason,
+						'ctime' => time()
+					);
+			$return = $this->moxi_db->insert(self::MD_BBS_POST_MANAGER_LOG_TABLE, $set);
+			return $return;
+		}
+
+		/**
+		 *
+		 * 	删除帖子的所有对应关系
+		 *
+		 * 	@param 			int 		$post_id
+		 */
+		public function del_post_all_tag_map($post_id){
+			$this->moxi_db->where('post_id', $post_id);
+			$bool = $this->moxi_db->delete('bbs_post_tag_map');
+			return $bool;
+		}
+
+		/**
+		 *	获取回复列表 
+		 *
+		 * @param 	int 		$perpage
+		 * @param 	int 		$nextpage
+		 * @param 	int 		$tag_id
+		 * @param 	int 		$time
+		 * @param 	string 		$nickname
+		 * @param 	int 		$post_id
+		 * @param 	int 		$reply_status
+		 * @return 	array 		$reply_list
+		 *
+		 */
+		public function get_reply_list($perpage, $nextpage, $time = 1, $nickname = '', $post_id = 0, $reply_status = 0)
+		{
+			$offset = ($nextpage - 1) * $perpage;
+			if($reply_status == 1){
+				$where .= ' WHERE `isshow` = 1 AND `isverified` = 1';
+			}elseif($reply_status == 2){
+				$where .= ' WHERE `isshow` = 0 AND `isverified` = 1';
+			}else{
+				$where .= ' WHERE `isshow` = 1 AND `isverified` = 0';
+			}
+
+			// 这里改为了nickname，我们得去摩点的用户表中取查询
+			if($nickname != 'null' && !empty($nickname)){
+				$this->db->from(self::MD_USER_TABLE);
+				$this->db->where('nickname', $nickname);
+				$this->db->select('id');
+				$md_user_query = $this->db->get();
+				$md_user_list = $md_user_query->result_array();
+
+				// 可能查询不到该用户，我们直接返回空就行
+				if(empty($md_user_list)){
+					return array();
+				}
+
+				foreach($md_user_list as $row){
+					$uid_str .= $row['id'] . ',';
+				}
+				$uid_str = '(' . rtrim($uid_str, ',') . ')';
+				$where .= ' AND `reply_fuid` IN ' . $uid_str;
+			}
+			$limit = " LIMIT $offset, $perpage";
+			if($time == 2){
+				$order_by = ' ORDER BY ctime ASC';
+			}else{
+				$order_by = ' ORDER BY ctime DESC';
+			}
+
+			// 一旦传入post_id，必然直接定位到一个分表中，没必要查所有
+			if($post_id){
+				$where .= " AND `post_id` = {$post_id}";
+				$sql = "select * from bbs_reply_" . ($post_id % 10) . " left join bbs_reply_content_" . ($post_id % 10) . " USING(`reply_id`) {$where}" . $order_by . $limit;
+			}else{
+				$sql = " 
+						select * from bbs_reply_0 left join bbs_reply_content_0 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_1 left join bbs_reply_content_1 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_2 left join bbs_reply_content_2 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_3 left join bbs_reply_content_3 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_4 left join bbs_reply_content_4 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_5 left join bbs_reply_content_5 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_6 left join bbs_reply_content_6 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_7 left join bbs_reply_content_7 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_8 left join bbs_reply_content_8 USING(`reply_id`) {$where}
+						union
+						select * from bbs_reply_9 left join bbs_reply_content_9 USING(`reply_id`) {$where}
+				" . $order_by . $limit;
+			}
+			$reply_query = $this->moxi_db->query($sql);
+			$reply_list = $reply_query->result_array();
+
+			// 如果未查询到返回空
+			if(empty($reply_list)){
+				return array();
+			}
+
+			$post_id = array();
+			foreach($reply_list as $reply_info){
+				$post_id[] = $reply_info['post_id'];
+				$fuid[] = $reply_info['reply_fuid'];
+			}
+
+			// 一次性查询出所有的帖子列表
+			$this->moxi_db->from(self::MD_BBS_POST_TABLE);
+			if($post_id){
+				$this->moxi_db->where_in('post_id', $post_id);
+			}
+			$post_query = $this->moxi_db->get();
+			$post_list = $post_query->result_array();
+
+			// 通过条件匹配，将帖子标题，添加到查询到的回复列表里，记录到 'post_info' 元素中
+			foreach($reply_list as &$reply){
+				$reply['time'] = date('Y-m-d H:i:s', $reply['ctime']);
+				$reply['content'] = md_common::csubstr($reply['content'], 0, 30);
+				foreach($post_list as &$post){
+					$post['subject'] = md_common::csubstr($post['subject'], 0, 30);
+					if($reply['post_id'] == $post['post_id']){
+						$reply['post_info'] = $post;
+					}
+				}
+			}
+
+			// 调用用户接口，获取用户名
+			$this->load->model('bbs_md_user_model');
+			$user_list = $this->bbs_md_user_model->get_user_list_by_uid_array($fuid);
+
+			foreach($reply_list as &$reply_info){
+				foreach($user_list as $user_info){
+					if($reply_info['reply_fuid'] == $user_info['id']){
+						$reply_info['user_info'] = $user_info;
+						break;
+					}
+				}
+			}
+
+			return $reply_list;
+		}
+
+		/**
+		 *	获取回复总数 
+		 *
+		 * 	@param 		string 		$nickname
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_status
+		 * 	@return 	int 		$total_reply
+		 *
+		 */
+		public function get_total_reply($nickname = '', $post_id = 0, $reply_status = 0)
+		{
+			if($reply_status == 1){
+				$where .= ' WHERE `isshow` = 1 AND `isverified` = 1';
+			}elseif($reply_status == 2){
+				$where .= ' WHERE `isshow` = 0 AND `isverified` = 1';
+			}else{
+				$where .= ' WHERE `isshow` = 1 AND `isverified` = 0';
+			}
+
+			// 这里改为了nickname，我们得去摩点的用户表中取查询
+			if($nickname != 'null' && !empty($nickname)){
+				$this->db->from(self::MD_USER_TABLE);
+				$this->db->where('nickname', $nickname);
+				$this->db->select('id');
+				$md_user_query = $this->db->get();
+				$md_user_list = $md_user_query->result_array();
+
+				// 可能查询不到该用户，我们直接返回空就行
+				if(empty($md_user_list)){
+					return 0;
+				}
+
+				foreach($md_user_list as $row){
+					$uid_str .= $row['id'] . ',';
+				}
+				$uid_str = '(' . rtrim($uid_str, ',') . ')';
+				$where .= ' AND `reply_fuid` IN ' . $uid_str;
+			}
+
+
+			// 一旦传入post_id，必然直接定位到一个分表中，没必要查所有
+			if($post_id){
+				$where .= " AND `post_id` = {$post_id}";
+				$sql = "select count(*) as num from bbs_reply_" . ($post_id % 10) . $where;
+			}else{
+				$sql = " 
+						select count(*) as num from bbs_reply_0 {$where}
+						union
+						select count(*) as num from bbs_reply_1 {$where}
+						union
+						select count(*) as num from bbs_reply_2 {$where}
+						union
+						select count(*) as num from bbs_reply_3 {$where}
+						union
+						select count(*) as num from bbs_reply_4 {$where}
+						union
+						select count(*) as num from bbs_reply_5 {$where}
+						union
+						select count(*) as num from bbs_reply_6 {$where}
+						union
+						select count(*) as num from bbs_reply_7 {$where}
+						union
+						select count(*) as num from bbs_reply_8 {$where}
+						union
+						select count(*) as num from bbs_reply_9 {$where}
+				";
+			}
+			$reply_query = $this->moxi_db->query($sql);
+			$reply_list = $reply_query->result_array();
+			$total_reply = 0;
+			foreach($reply_list as $reply_info){
+				$total_reply += $reply_info['num'];
+			}
+			return $total_reply;
+		}
+
+		/**
+		 *	回复审核通过
+		 *
+		 * 	@param 		string 		$reason
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_id
+		 * 	@param 		int 		$uid
+		 * 	@param 		int 		$reply_rid  -----------------  新增，二级回复对应的一级回复
+		 * 	@return 	int 		$bool
+		 *
+		 */
+		public function verify_reply_successed($reason, $post_id, $reply_id, $uid, $reply_rid)
+		{
+			$table_reply = self::MD_BBS_REPLY_TABLE_PREFIX . ($post_id % 10);
+
+			$set = array(
+						'isverified' => 1			
+					);
+			$where = array(
+						'reply_id' => $reply_id
+					);
+			$bool = $this->moxi_db->update($table_reply, $set, $where);
+			if(!$bool){
+				return 0; 		// 如果更新失败，则后面就不用进行了，表示审核操作异常
+			}
+
+			// 帖子的回复数 +1
+	        $bool_post = $this->bbs_post_m->update_post_reply_num($post_id);
+			if(!$bool_post){
+				return -1; 		// 表示帖子的回复数更新失败
+			}
+
+			// 如果是二级回复，对于一级回复的 reply_r_num +1
+			if($reply_rid){
+		        $bool_reply = $this->bbs_post_m->update_post_reply_num($post_id, $reply_rid);
+				if(!$bool_reply){
+					return -3; 		// 表示回复的二级回复数更新失败
+				}
+			}
+
+			$set = array(
+						'manager_uid' => $uid,
+						'manager_post_id' => $post_id,
+						'manager_reply_id' => $reply_id,
+						'manager_type' => 1,
+						'manager_reason' => $reason,
+						'ctime' => time()
+					);
+			$bool_manager = $this->moxi_db->insert(self::MD_BBS_REPLY_MANAGER_LOG_TABLE, $set);
+			if(!$bool_manager){
+				return -2;		// 添加操作记录失败
+			}
+			return 1;
+		}
+
+		/**
+		 *	回复审核未通过
+		 *
+		 * 	@param 		string 		$reason
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_id
+		 * 	@param 		int 		$uid
+		 * 	@param 		string 		$type - 指代不同的删除操作。$type = "delete" 表示：在已审核的列表中删除。$type = "fail" 表示：审核失败
+		 * 	@return 	bool 		$return 
+		 *
+		 */
+		public function verify_reply_failed($reason, $post_id, $reply_id, $uid, $type)
+		{
+			$table_reply = self::MD_BBS_REPLY_TABLE_PREFIX . ($post_id % 10);
+			$set = array(
+						'isshow' => 0
+					);
+			if($type == 'delete'){
+				$set['isverified'] = 1;
+				$manager_type = 7; 		// 表示 "删除原有的已审核过的回复"
+			}else{
+				$set['isverified'] = 0;
+				$manager_type = 2; 		// 表示 "删除未通过的回复审核(审核未通过)"
+			}
+			$where = array(
+						'reply_id' => $reply_id
+					);
+			$bool = $this->moxi_db->update($table_reply, $set, $where);
+
+			// 如果更新失败，则后面就不用进行了，表示审核操作异常
+			if(!$bool){
+				return FALSE;
+			}
+			$set = array(
+						'manager_uid' => $uid,
+						'manager_post_id' => $post_id,
+						'manager_reply_id' => $reply_id,
+						'manager_type' => $manager_type,
+						'manager_reason' => $reason,
+						'ctime' => time()
+					);
+			$return = $this->moxi_db->insert(self::MD_BBS_REPLY_MANAGER_LOG_TABLE, $set);
+			return $return;
+		}
+
+		/**
+		 *
+		 * 	更新标签下帖子数 +1
+		 *
+		 * 	@param 		array 		$tag_id_array ------------- 不同于以往，这里的帖子，可能有多个标签，我们传入一个数组
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_tag_postnum_increase($tag_id_array)
+		{
+			$this->moxi_db->where_in('tag_id', $tagid_array);
+			$this->moxi_db->set('post_num', 'post_num + 1', FALSE);
+			$bool = $this->moxi_db->update(self::MD_BBS_TAG_TABLE);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	更新帖子下回复数 +1
+		 *
+		 * 	@param 		int 		$tag_id
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_post_replynum_increase($post_id)
+		{
+			$where = array(
+						'post_id' => $post_id
+					);
+			$this->moxi_db->set('reply_num', 'reply_num + 1', FALSE);
+			$bool = $this->moxi_db->update(self::MD_BBS_POST_TABLE, NULL, $where);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	更新回复下二级回复数 +1
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_id
+		 * 	@return 	bool 		$bool
+		 *
+		 */
+		public function update_reply_reply_r_num_increase($post_id, $reply_id)
+		{
+			$reply_table = self::MD_BBS_REPLY_TABLE_PREFIX . ($post_id % 10);
+			$where = array(
+						'reply_id' => $reply_id
+					);
+			$this->moxi_db->set('reply_r_num', 'reply_r_num + 1', FALSE);
+			$bool = $this->moxi_db->update($reply_table, NULL, $where);
+			return $bool;
+		}
+
+		/**
+		 *
+		 * 	获取推荐回复 - 新增了推荐回复表
+		 *
+		 */
+		public function get_recommend_reply_list()
+		{
+			$this->moxi_db->from(self::MD_BBS_REPLY_RECOMMEND_TABLE);
+			$this->moxi_db->order_by('sortid DESC, ctime DESC');
+			$reply_query = $this->moxi_db->get();
+			$recommend_reply_list = $reply_query->result_array();
+			if(empty($recommend_reply_list))
+				return array();
+			
+			return $recommend_reply_list;
+		}
+
+		/**
+		 * 	新增回复推荐
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_id
+		 *
+		 */
+		public function add_recommend_reply($post_id, $reply_id)
+		{
+
+			// 查找回复内容和用户ID
+			$reply_table = self::MD_BBS_REPLY_TABLE_PREFIX . ($post_id % 10) . ' r';
+			$reply_content_table = self::MD_BBS_REPLY_CONTENT_TABLE_PREFIX . ($post_id % 10) . ' rc';
+			$join_condition = 'r.reply_id = rc.reply_id';
+			$where = array(
+						'r.post_id' => $post_id,
+						'r.reply_id' => $reply_id
+					);
+			$this->moxi_db->select('r.reply_fuid, rc.content');
+			$this->moxi_db->from($reply_table);
+			$this->moxi_db->join($reply_content_table, $join_condition, 'INNER');
+			$this->moxi_db->where($where);
+			$reply_info = $this->moxi_db->get()->row_array();
+
+			$content = $reply_info['content'];
+			if(empty($content)){
+				return -3;
+			}
+
+			// 查找 项目ID 和 短标题
+			$this->db->select('id, short_title');
+			$this->db->from('md_product');
+			$this->db->where('moxi_post_id', $post_id);
+			$product_info = $this->db->get()->row_array();
+
+			$set = array(
+						'post_id' => $post_id,
+						'reply_id' => $reply_id,
+						'reply_content' => $reply_info['content'], 		// 冗余该字段，缺点是：一旦推荐后，回复内容被修改，这里导致不更新！
+						'uid' => $reply_info['reply_fuid'],
+						'pro_id' => $product_info['id'],
+						'pro_title' => $product_info['short_title'],
+						'sortid' => 1,
+						'ctime' => time()
+					);
+			$bool = $this->moxi_db->insert(self::MD_BBS_REPLY_RECOMMEND_TABLE, $set);
+			if($bool){
+
+				// 添加管理记录
+				$set = array(
+							'manager_uid' => $this->uid,
+							'manager_post_id' => $post_id,
+							'manager_reply_id' => $reply_id,
+							'manager_type' => 5,
+							'manager_reason' => '推荐回复',
+							'ctime' => time()
+						);
+				$return = $this->moxi_db->insert(self::MD_BBS_REPLY_MANAGER_LOG_TABLE, $set);
+				return 1;
+			}else{
+				return -1;
+			}
+		}
+
+		/**
+		 * 	删除回复推荐(这个没用，更改推荐顺序为0，表示删除。暂留着吧)
+		 *
+		 * 	@param 		int 		$post_id
+		 * 	@param 		int 		$reply_id
+		 *
+		 */
+		public function del_recommend_reply($post_id, $reply_id)
+		{
+			$where = array(
+						'post_id' => $post_id,
+						'reply_id' => $reply_id,
+					);
+			$this->moxi_db->where($where);
+			$bool = $this->moxi_db->delete(self::MD_BBS_REPLY_RECOMMEND_TABLE);
+			return $bool;
+		}
+	}

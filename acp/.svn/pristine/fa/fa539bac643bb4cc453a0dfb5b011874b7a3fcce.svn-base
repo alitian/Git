@@ -1,0 +1,122 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+
+	class Bbs_censor extends Acp_Controller {
+
+		public $site_url;
+		public $base_url;
+		public $uid;
+		public $perpage = 20;
+		public $censor_path;
+
+		public function __construct(){
+			parent::__construct();
+			$this->uid = $_SESSION['admin_id'] ? $_SESSION['admin_id'] : 0;
+			$this->censor_path = BASEPATH . 'config/';
+			$this->load->helper('url');
+			$this->base_url = base_url();
+			$this->site_url = site_url();
+			$this->load->model('bbs_censor_model');
+			$vars = array(
+						'base_url' => $this->base_url,
+						'site_url' => $this->site_url,
+						'uid' => $this->uid
+					);
+			$this->load->vars($vars);
+		}
+
+		/**
+		 *
+		 * 	添加该方法，不进行页面输出的敏感词替换(被这个方法坑死了。。。)
+		 *
+		 */
+		public function _output($output)
+		{
+			echo $output;
+			exit;
+		}
+
+		/**
+		 *
+		 * 	敏感词管理
+		 *
+		 * 	@param 		string 			$type
+		 */
+		public function censor($type = 'banned')
+		{
+			switch($type)
+			{
+				case 'banned':
+					$censor_file = 'bbs_banned.php';
+					break;
+				case 'mod':
+					$censor_file = 'bbs_mod.php';
+					break;
+				case 'replace':
+					$censor_file = 'bbs_replace.php';
+					break;
+			}
+
+			$file_path = $this->censor_path . $censor_file;
+
+			if( is_really_writable($file_path) )
+			{
+				$censor_list = file($file_path);
+				$censor_str = join('', $censor_list);
+
+			} else {
+				echo '没有权限操作<' . $file_path . '>文件，请联系技术人员，修改权限';	
+				exit;
+			}
+
+			$vars = array(
+						'type' => $type,
+						'censor_str' => $censor_str
+					);
+			$this->load->view('bbs_censor/censor', $vars);
+		}
+
+		/**
+		 *
+		 * 	保存敏感词
+		 *
+		 * 	@param 		string 			$type
+		 */
+		public function censor_save($type)
+		{
+			switch($type)
+			{
+				case 'banned':
+					$censor_file = 'bbs_banned.php';
+					break;
+				case 'mod':
+					$censor_file = 'bbs_mod.php';
+					break;
+				case 'replace':
+					$censor_file = 'bbs_replace.php';
+					break;
+			}
+
+			$file_path = $this->censor_path . $censor_file;
+
+			if( is_really_writable($file_path) )
+			{
+				$censor_str = $this->input->post('censor_str');
+
+				$result = file_put_contents($file_path, $censor_str, LOCK_EX);
+				$back_url = $this->site_url . 'bbs_censor/censor/' . $type;
+				if($result===FALSE){
+					md_common::display_javascript("操作异常",$back_url);
+					return;
+				}
+				header("location:$back_url");
+
+
+			} else {
+				echo '没有权限操作<' . $file_path . '>文件，请联系技术人员，修改权限';
+				exit;
+			}
+
+		}
+
+	}

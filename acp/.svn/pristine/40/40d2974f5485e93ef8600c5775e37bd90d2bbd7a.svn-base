@@ -1,0 +1,576 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Weixin_manage extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->db->read_main = true;
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->helper('excel');
+        $this->load->model('User_m');
+        $this->load->library('md_common');
+        $this->load->library('md_refund');
+        $this->load->model('Weixin_msg_m');
+    }
+
+    /**
+     * 微信制定推广首页
+     * Enter description here ...
+     */
+    public function weixin_spread() {
+        $data = array();
+        if(isset($_GET['spread_id'])){
+            $spread_mes = $this->Weixin_msg_m->get_spread_mes($_GET['spread_id']);
+            $s_con_arr = explode('^',$spread_mes['content']);           
+            $data['spread_mes'] = $spread_mes;
+            $data['s_con_arr'] = $s_con_arr;
+        }       
+        //print_r($data);exit;
+        $this->load->view('weixin_spread/weixin_spread', $data);
+    }
+
+    public function ajax_weixin_spread() {
+        $res = array();
+        $result = array();
+        $res = $this->weixin_spread_search(1);
+
+        $result = array(
+            'total' => $res["num"],
+            'rows' => $res["search"],
+            'footer' => '',
+        );
+
+        echo json_encode($result);
+    }
+
+    public function weixin_spread_search($mode = 1) {
+        
+        $search_arr["spread_id"] = isset($_POST['spread_id']) ? $_POST['spread_id'] : '';
+        $search_arr["spread_title"] = isset($_POST['spread_title']) ? $_POST['spread_title'] : '';
+        $search_arr["create_userid"] = isset($_POST['create_userid']) ? $_POST['create_userid'] : '';
+        $search_arr["create_user"] = isset($_POST['create_user']) ? $_POST['create_user'] : '';
+        $search_arr["create_start_time"] = isset($_POST['create_start_time']) ? $_POST['create_start_time'] : '';
+        $search_arr["create_end_time"] = isset($_POST['create_end_time']) ? $_POST['create_end_time'] : '';
+        $search_arr["send_type"] = isset($_POST['send_type']) ? $_POST['send_type'] : '';
+        $search_arr["send_status"] = isset($_POST['send_status']) ? $_POST['send_status'] : '';
+        $search_arr["send_start_time"] = isset($_POST['send_start_time']) ? $_POST['send_start_time'] : '';
+        $search_arr["send_end_time"] = isset($_POST['send_end_time']) ? $_POST['send_end_time'] : '';
+
+        $search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+        $search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+        $start = ($search_arr["page"] > 1) ? ($search_arr["page"] - 1) * $search_arr["rows"] : 0;
+        $end = ($search_arr["page"] > 1) ? ($search_arr["page"]) * $search_arr["rows"] : $search_arr["rows"];
+        $result = $this->Weixin_msg_m->all_wx_spread_search($search_arr);
+        $num = $this->Weixin_msg_m->all_wx_spread_search($search_arr,-1);
+        //print_r($result);exit;
+        $list_info = array();
+        if (!empty($result)) {
+            foreach ($result as $key => $val) {
+                $res['spread_id'] = $val['id'];
+                $res['spread_title'] = $val['spread_title'];
+                $res['spread_users_name'] = $val['status_name'];
+                $res['spread_users_deals'] = $val['status_deals'];
+                $res['spread_template'] = $val['send_wx_tpl'];
+                if($val['send_wx_tpl'] == 10){
+                    $res['spread_template_name'] = '众筹项目启动通知';
+                }elseif($val['send_wx_tpl'] == 13){
+                    $res['spread_template_name'] = '账号未绑定通知';
+                }      
+                if($val['send_type'] == 1){
+                    $res['spread_type'] = '定时发布';
+                }elseif($val['send_type'] == 2){
+                    $res['spread_type'] = '实时发布';
+                }               
+                $res['start_time'] = $val['send_start_time'];
+                switch($val['send_status']){
+                    case '1':
+                        $res['spread_status'] = '待发布';
+                        break;
+                    case '2':
+                        $res['spread_status'] = '已发布';
+                        break;                                
+                }             
+                $res['op_user'] = $val['op_man'];
+                $res['ctime'] = $val['ctime'];
+                
+                if ($val["if_show"] == 1) {
+                    if($val['send_status'] == 1){
+                        $res["work"] = ' <a href="/weixin_manage/down_weixin_spread/' . $val["id"] . '" id="down_spread" class="down_spread" onclick="if(confirm(\'确实要将推广<' . $val['spread_title'] . '>下线吗？\')) return true;else return false;">下线</a> | <a href="/weixin_manage/edit_weixin_spread/'.$val["id"].'" target="_blank">编辑修改</a> | <a  href="/weixin_manage/weixin_spread?spread_id='.$val["id"].'">预览</a>';  
+                    }else{
+                        $res["work"] = ' <a href="/weixin_manage/down_weixin_spread/' . $val["id"] . '" id="down_spread" class="down_spread" onclick="if(confirm(\'确实要将推广<' . $val['spread_title'] . '>下线吗？\')) return true;else return false;">下线</a> | <a  href="/weixin_manage/weixin_spread?spread_id='.$val["id"].'">预览</a>';                          
+                    }                                       
+                } elseif ($val["if_show"] == 0) {
+                    if($val['send_status'] == 1){
+                        $res["work"] = ' <a href="/weixin_manage/up_weixin_spread/' . $val["id"] . '" id="go_spread" class="go_spread" onclick="if(confirm(\'确实要将推广<' . $val['spread_title'] . '>上线吗？\')) return true;else return false;">上线</a> | <a href="/weixin_manage/edit_weixin_spread/'.$val["id"].'" target="_blank">编辑修改</a> | <a  href="/weixin_manage/weixin_spread?spread_id='.$val["id"].'">预览</a>';                       
+                    }else{
+                       $res["work"] = ' <a href="/weixin_manage/up_weixin_spread/' . $val["id"] . '" id="go_spread" class="go_spread" onclick="if(confirm(\'确实要将推广<' . $val['spread_title'] . '>上线吗？\')) return true;else return false;">上线</a> | <a  href="/weixin_manage/weixin_spread?spread_id='.$val["id"].'">预览</a>';                      
+                    }
+                  
+                }
+                $list_info[] = $res;
+            }
+        }
+
+        $allpro_list_info = array();
+        $allpro_list_info["search"] = $list_info;
+        $allpro_list_info["num"] = $num;
+        return $allpro_list_info;           
+    }
+    
+    /**
+     * 下线一个消息推送内容
+     */
+    public function down_weixin_spread($spread_id) {
+        $down_sql = "UPDATE `md_weixin_spread` SET `if_show`=0 WHERE `id`='{$spread_id}'";
+        $down = $this->db->query($down_sql);
+        redirect('weixin_manage/weixin_spread');
+    }
+
+    /**
+     * 上线一个消息推送内容
+     */
+    public function up_weixin_spread($spread_id) {
+        $up_sql = "UPDATE `md_weixin_spread` SET `if_show`=1 WHERE `id`='{$spread_id}'";
+        $up = $this->db->query($up_sql);
+        redirect('weixin_manage/weixin_spread');
+    }
+    
+    /**
+     * 编辑某一个消息推送内容
+     */
+    public function edit_weixin_spread($spread_id) {
+        $data = array();
+        $spread_mes = $this->Weixin_msg_m->get_spread_mes($spread_id);
+        $s_con_arr = explode('^',$spread_mes['content']); 
+        $data['spread_mes'] = $spread_mes;
+        $data['s_con_arr'] = $s_con_arr;
+        $user_status = $this->Weixin_msg_m->get_users_arr_mess();
+        foreach($user_status as $key=>$item){
+            $user_status[$key]['users_count'] = $this->Weixin_msg_m->ajax_users_arr_count($item['id']);
+        }
+        $data['user_status'] = $user_status;
+       // print_r($data);exit;
+        $this->load->view('weixin_spread/edit_weixin_spread', $data);
+    }
+    
+    function edit_weixin_spread_save() {
+        $user_id = $_SESSION['admin_id'];
+        $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+        $ctime = date("Y-m-d H:i:s");
+        $innser['user_id'] = $user_id;
+        $innser['op_man'] = $op_man;
+        $innser['ctime'] = $ctime;
+        $spread_id = $_POST['spread_id'];
+        $innser['send_pro_id'] = $_POST['send_pro_id'];        
+        $innser['spread_title'] = $_POST['spread_title'];
+        $innser['user_status_id'] = $_POST['user_status_id'];
+        $innser['send_status'] = 1;
+        $innser['send_type'] = $_POST['send_type'];
+        $innser['send_start_time'] = $_POST['send_time'];
+        $innser['send_wx_tpl'] = $_POST['send_wx_tpl'];
+        $innser['content'] = $_POST['wx_tpl_content'];
+        $innser['unit_key'] = MD5($innser['content']);
+        // print_r($innser);exit;
+        $update_wx_spread = $this->Weixin_msg_m->update_weixin_spread($innser,$spread_id);
+        if ($update_wx_spread != 0) {
+            echo json_encode(array('status' => '1'));
+        }else{
+            echo json_encode(array('status' => '-1'));
+        }
+    }
+
+    /**
+     * 刷新某一个用户群组的用户数
+     */
+    function ajax_status_count(){
+        $status_id = $_POST['status_id'];
+        $users_count = $this->Weixin_msg_m->ajax_users_arr_count($status_id);
+        //echo $users_count;exit;
+        echo json_encode(array('status' => '1','count'=>$users_count,'status_id'=>$status_id));
+    }
+    /**
+     * 进入创建新消息推送
+     * Enter description here ...
+     */
+    public function create_weixin_spread() {
+        $data = array();
+        $sql = 'SELECT COUNT(DISTINCT(`id`)) as user_count FROM `md_users`';
+        $user_count = $this->db->query($sql)->row_array();
+        $fans_nouser_sql = 'SELECT COUNT(DISTINCT(`id`)) as fans_nouser_count FROM `md_users_open_weixin` WHERE user_id=0 AND subscribe=1'; 
+        $fans_nouser_count = $this->db->query($fans_nouser_sql)->row_array();
+        $data['user_count'] = $user_count['user_count'];
+        $data['fans_count'] = $fans_nouser_count['fans_nouser_count'];
+        $user_status = $this->Weixin_msg_m->get_users_arr_mess();
+        foreach($user_status as $key=>$item){
+            $user_status[$key]['users_count'] = $this->Weixin_msg_m->ajax_users_arr_count($item['id']);
+        }
+        $data['user_status'] = $user_status;
+       // print_r($data['user_status']);exit;
+        $this->load->view('weixin_spread/create_weixin_spread', $data);
+    }
+
+
+    /**
+     * 添加一个消息推送内容
+     */
+    public function add_weixin_spread() {
+        $user_id = $_SESSION['admin_id'];
+        $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+        $ctime = date("Y-m-d H:i:s");
+        
+        $innser['user_id'] = $user_id;
+        $innser['op_man'] = $op_man;
+        $innser['ctime'] = $ctime;
+        $innser['send_pro_id'] = $_POST['send_pro_id'];
+        $innser['spread_title'] = $_POST['spread_title'];
+        $innser['user_status_id'] = $_POST['user_status_id'];
+        $innser['send_status'] = 1;
+        $innser['send_type'] = $_POST['send_type'];
+        $innser['send_start_time'] = $_POST['send_time'];
+        $innser['send_wx_tpl'] = $_POST['send_wx_tpl'];
+        $innser['content'] = $_POST['wx_tpl_content'];       
+        $innser['unit_key'] = MD5($innser['content']);
+       // print_r($innser);exit;
+        $if_have = $this->Weixin_msg_m->if_have_weixin_spread($innser['unit_key']);
+        if(!empty($if_have)){
+            echo json_encode(array('status' => '-1'));
+        }else{
+            $new_wx_spread = $this->Weixin_msg_m->inner_new_weixin_spread($innser);
+            if($new_wx_spread != 0){
+                echo json_encode(array('status' => '1'));
+            }  
+        }
+    }
+
+    public function ajax_user_count() {
+        $search_mes = $this->ajax_mess();
+        $user_count_sql = "SELECT COUNT(DISTINCT(u.`user_id`)) as selcount FROM `md_user_status` u                
+                WHERE 1 AND {$search_mes}";
+        $sel_count = $this->db->query($user_count_sql)->row_array (); 
+        if($sel_count['selcount'] > 0){
+            echo json_encode(array('status' => '1', 'count' => $sel_count['selcount']));
+        }else{
+            echo json_encode(array('status' => '-1', 'count' => 0));
+        }
+        
+    }
+
+    /**
+     * 创建新的推送用户群
+     * Enter description here ...
+     */
+    public function add_new_user_arr() {         
+        $user_id = $_SESSION['admin_id'];
+        $op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+        $ctime = date("Y-m-d H:i:s");
+        $new_user_name = $_POST['new_user_name'];//用户群名称
+        $new_user_deal = $_POST['new_user_deal'];//用户群刷选范围说明
+        $inner_mes = $this->ajax_mess();        
+	$user_sql = "SELECT DISTINCT(u.`user_id`) as user_id FROM `md_user_status` u                
+                WHERE 1 AND {$inner_mes}";
+               // echo $user_count_sql;exit;
+        $inner = array();
+        $inner['user_id'] = $user_id;
+        $inner['op_man'] = $op_man;
+        $inner['status_name'] = $new_user_name;
+        $inner['status_deals'] = $new_user_deal;
+        $inner['status_select'] = $user_sql;
+        $inner['ctime'] = $ctime;
+        $inner['if_show'] = 1;
+        $inner['unit_key'] = md5($new_user_name.'-'.$user_sql);
+        $if_have = $this->Weixin_msg_m->if_have_users_arr($inner['unit_key']);
+        if(!empty($if_have)){
+            echo json_encode(array('status' => '-1'));
+        }else{
+            $new_users = $this->Weixin_msg_m->inner_new_users_arr($inner);
+            if( $new_users != 0){
+                echo json_encode(array('status' => '1'));
+            }            
+        }        
+    }
+
+    /**
+     * 刷新数据的基本调用方法
+     * Enter description here ...
+     */
+    public function ajax_mess() {
+
+        $user_type = json_decode($_POST['user_type'],true); //选择用户群属性
+        $user_meth = json_decode($_POST['user_meth'],true); //属性的限制情况
+        $create_content = json_decode($_POST['create_content'],true); //条件限制值
+        $meth = json_decode($_POST['meth'],true); //多条件中不同属性间的条件
+        $select = array();
+        for ($i = 0; $i < count($user_type); $i++) {
+            switch ($user_type[$i]) {
+                #注册时间
+                case 1:
+                    switch ($user_meth[$i]) {
+                        #限制条件 =
+                        case 0:
+                            $select[$i] = "u.`register_time`='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 >
+                        case 1:
+                            $select[$i] = "u.`register_time`>'" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 <
+                        case 2:
+                            $select[$i] = "u.`register_time`<'" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 =
+                        case 3:
+                            $select[$i] = "u.`register_time`='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 <=
+                        case 4:
+                            $select[$i] = "u.`register_time`<='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 >=
+                        case 5:
+                            $select[$i] = "u.`register_time`>='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 !=
+                        case 6:
+                            $select[$i] = "u.`register_time`!='" . $create_content[$i] . "'";
+                            break;
+                    }
+                    break;
+                #最后访问时间
+                case 2:
+                    switch ($user_meth[$i]) {
+                        case 0:
+                            $select[$i] = "u.`last_login`='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 >
+                        case 1:
+                            $select[$i] = "u.`last_login`>'" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 <
+                        case 2:
+                            $select[$i] = "u.`last_login`<'" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 =
+                        case 3:
+                            $select[$i] = "u.`last_login`='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 <=
+                        case 4:
+                            $select[$i] = "u.`last_login`<='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 >=
+                        case 5:
+                            $select[$i] = "u.`last_login`>='" . $create_content[$i] . "'";
+                            break;
+                        #限制条件 !=
+                        case 6:
+                            $select[$i] = "u.`last_login`!='" . $create_content[$i] . "'";
+                            break;
+                    }
+                    break;
+                #是否绑定微信号
+                case 3:
+                    switch ($create_content[$i]) {
+                        case '是':
+                            $select[$i] = "u.`if_binding` = '1'"; //md_weiixn_binding表判断
+                            break;
+                        case '否':
+                            $select[$i] = "u.`if_binding` = '0'";
+                            break;
+                    }
+                    break;    
+                #注册来源	
+                case 4:
+                    $select[$i] = "u.`register_platform`='" . $create_content[$i] . "'";
+                    break;
+                #用户标签
+                case 5:
+                    $select[$i] = "u.`user_tag` LIKE '%," . $create_content[$i] . ",%'";
+                    break;
+                #支持过的项目
+                case 6:
+                    $select[$i] = "u.`back_pro` LIKE '%;" . $create_content[$i] . ";%' "; //product_back
+                    break;
+                #支持项目数
+                case 7:
+                    switch ($user_meth[$i]) {
+                        #限制条件 =
+                        case 0:
+                            $select[$i] = "u.`back_pro_count`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >
+                        case 1:
+                            $select[$i] = "u.`back_pro_count`>'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <
+                        case 2:
+                            $select[$i] = "u.`back_pro_count`<'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 =
+                        case 3:
+                            $select[$i] = "u.`back_pro_count`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <=
+                        case 4:
+                           $select[$i] = "u.`back_pro_count`<='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >=
+                        case 5:
+                            $select[$i] = "u.`back_pro_count`>='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 !=
+                        case 6:
+                            $select[$i] = "u.`back_pro_count`!='" . $create_content[$i] . "' ";
+                            break;
+                    }               
+                    break;
+                #关注过项目
+                case 8:
+                    $select[$i] = "u.`favor_pro` LIKE '%;" . $create_content[$i] . ";%' "; //product_favor
+                    break;
+                #关注项目数
+                case 9:
+                    switch ($user_meth[$i]) {
+                        #限制条件 =
+                        case 0:
+                            $select[$i] = "u.`favor_pro_count`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >
+                        case 1:
+                            $select[$i] = "u.`favor_pro_count`>'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <
+                        case 2:
+                            $select[$i] = "u.`favor_pro_count`<'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 =
+                        case 3:
+                            $select[$i] = "u.`favor_pro_count`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <=
+                        case 4:
+                           $select[$i] = "u.`favor_pro_count`<='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >=
+                        case 5:
+                            $select[$i] = "u.`favor_pro_count`>='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 !=
+                        case 6:
+                            $select[$i] = "u.`favor_pro_count`!='" . $create_content[$i] . "' ";
+                            break;
+                    }                           
+                    break;
+                #累计支持金额
+                case 10:
+                    switch ($user_meth[$i]) {
+                        #限制条件 =
+                        case 0:
+                            $select[$i] = "u.`all_back_amount`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >
+                        case 1:
+                            $select[$i] = "u.`all_back_amount`>'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <
+                        case 2:
+                            $select[$i] = "u.`all_back_amount`<'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 =
+                        case 3:
+                            $select[$i] = "u.`all_back_amount`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <=
+                        case 4:
+                           $select[$i] = "u.`all_back_amount`<='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >=
+                        case 5:
+                            $select[$i] = "u.`all_back_amount`>='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 !=
+                        case 6:
+                            $select[$i] = "u.`all_back_amount`!='" . $create_content[$i] . "' ";
+                            break;
+                    }                         
+                    break;
+                #平均支持金额
+                case 11:
+                    switch ($user_meth[$i]) {
+                        #限制条件 =
+                        case 0:
+                            $select[$i] = "u.`aver_back_amount`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >
+                        case 1:
+                            $select[$i] = "u.`aver_back_amount`>'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <
+                        case 2:
+                            $select[$i] = "u.`aver_back_amount`<'" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 =
+                        case 3:
+                            $select[$i] = "u.`aver_back_amount`='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 <=
+                        case 4:
+                           $select[$i] = "u.`aver_back_amount`<='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 >=
+                        case 5:
+                            $select[$i] = "u.`aver_back_amount`>='" . $create_content[$i] . "' ";
+                            break;
+                        #限制条件 !=
+                        case 6:
+                            $select[$i] = "u.`aver_back_amount`!='" . $create_content[$i] . "' ";
+                            break;
+                    }                         
+                    break;
+                #是否绑定手机号
+                case 12:
+                    switch ($create_content[$i]) {
+                        case '是':
+                            $select[$i] = "u.`binding_mobel` != ''"; 
+                            break;
+                        case '否':
+                            $select[$i] = "u.`binding_mobel` = ''";
+                            break;
+                    }
+                    break;
+                #是否绑定邮箱
+                case 13:
+                    switch ($create_content[$i]) {
+                        case '是':
+                            $select[$i] = "u.`binding_email` != ''"; 
+                        case '否':
+                            $select[$i] = "u.`binding_email` = ''";
+                    }
+                    break;
+                #用户性别
+                case 14:
+                    $select[$i] = "u.`gender` = '" . $create_content[$i] . "'";                                
+                    break;
+                
+            }
+        }
+        //根据链接属性 组合 查询语句
+        $all_select = $select[0];
+        for ($j = 0; $j < count($select)-1; $j++) {
+            if ($meth[$j] == 1) {
+                $all_select = $all_select . ' AND ' . $select[$j + 1];
+            } elseif ($meth[$j] == 2) {
+                $all_select = $all_select . ' OR ' . $select[$j + 1];
+            }
+        }
+        return $all_select;
+        // echo json_encode(array('status'=>1,'des'=>$all_select));
+    }
+
+}

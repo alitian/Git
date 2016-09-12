@@ -1,0 +1,11 @@
+<div class="btn-toolbar">
+    <div class="btn-group">
+        <a class="btn btn-large" href="/project/check/<?= $pro_id; ?>">项目审核</a>
+        <a class="btn btn-large" href="/project/edit/<?= $pro_id; ?>">页面编辑</a>
+        <a class="btn btn-large" href="/project/set_place/<?= $pro_id; ?>">推荐位设置</a>
+        <a class="btn btn-large" href="/project/edit_reward/<?= $pro_id; ?>">修改回报</a>
+        <a class="btn btn-large" href="/project/end_time/<?= $pro_id; ?>">调整结束时间</a>
+        <a class="btn btn-large" href="/project/vote_list/<?= $pro_id; ?>">编辑投票</a>
+        <a class="btn btn-large" href="/project/sub_product/<?= $pro_id; ?>">添加子项目</a>
+    </div>
+</div>

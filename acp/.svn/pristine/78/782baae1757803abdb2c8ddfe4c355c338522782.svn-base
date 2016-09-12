@@ -1,0 +1,26 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Project_settlement extends ACP_Controller {
+
+    public function __construct() {
+        parent :: __construct();
+    }
+
+    public function index() {
+//        $this->db->from('md_product_achive');
+//        $this->db->where('amount_total >', 'goal');
+//        $res = $this->db->get()->result_array();
+//        var_dump($this->db->last_query());
+        $sql = "SELECT a.pro_id,p.name FROM md_product_archive a INNER JOIN md_product p ON a.pro_id=p.id where a.amount_total > a.goal";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        $this->load->view('project_settlement/index', $data);
+    }
+
+    public function send_email() {
+        $this->load->library('Common');
+        $this->Common->send_();
+    }
+}

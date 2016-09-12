@@ -1,0 +1,31 @@
+<div id="module-video-live" class="well">
+  <div class="module-drag-sort pull-right">&#9776;</div>
+  <h3 style="border-bottom: 1px solid #e5e5e5;margin-bottom:21px;">视频直播</h3>
+  <div class="switch">
+    <input type="checkbox" data-module="7">
+  </div>
+  <p></p>
+  <div class="module-detail">
+  <?php if (isset($SSM_7['pro_info'])): ?>
+  <form name="formVideoLive" action="">
+    <div class="row-fluid" style="display:none;">
+      <input type="text" name="ssubj_id" value='<?=$ssubj_id?>' readonly>
+    </div>
+    <?php foreach ($SSM_7['pro_info'] as $pro): ?>
+    <div class="row-fluid">
+      <div class="input-prepend">
+        <span class="add-on"><?=$pro['pro_short_title']?></span>
+        <input class="input-large" name="pro_site[<?=$pro['pro_id']?>]" type="text" value="<?=$pro['site']?>" placeholder="项目直播网址">
+      </div>
+    </div>
+    <?php endforeach; ?>
+    <?php if (!empty($SSM_7['pro_info'])): ?>
+    <div class="row-fluid">
+      <!-- <button type="button" class="btn">取消</button> -->
+      <button type="button" name="sure" class="btn btn-primary">保存</button>
+    </div>
+    <?php endif; ?>
+  </form>
+  <?php endif; ?>
+  </div>
+</div>

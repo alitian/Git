@@ -1,0 +1,269 @@
+<?php $this->load->view('ckad/header');?>
+<script type="text/javascript" src="<?=$this->config->item('base_url');?>static/js/ajaxfileupload.js"></script>
+
+<style>
+    .doc-when-create-item,
+    .doc-when-back-item,
+    .doc-when-share-item {
+        display: inline-block;
+        margin-right: 7px;
+        margin-bottom: 7px;
+        border: 1px solid #ccc;
+    }
+</style>
+
+<div>
+    <form class="panel" id="easyfund" action="easyfund/add_easyfund" method="post" style="padding: 8.5px;margin: 0 0 9px;border: 1px solid rgba(0, 0, 0, 0.15);-webkit-border-radius: 4px;moz-border-radius: 4px;border-radius: 4px;">
+            <table class="table table-condensed table-hover">
+                <tbody>
+                    <?php if (isset($topic)): ?>
+                    <tr style="">
+                        <td style="width: 100px;">场景ID:</td>
+                        <td><input type="text" name="topic_id" value="<?=$topic['id']?>" placeholder="场景ID" readonly></td>
+                    </tr>
+                    <?php endif; ?>
+                    <tr>
+                        <td style="width: 100px;">场景名称:</td>
+                        <td><input type="text" name="topic" value="<?=$topic['topic']?>" placeholder="场景名称" ></td>
+                    </tr>
+                    <tr>
+                        <td>发起文案:</td>
+                        <td>
+                            <?php if (isset($topic_create_doc)): ?>
+                            <?php foreach ($topic_create_doc as $doc): ?>
+                            <div class="doc-when-create-item">
+                                <a href="#" class="close del-doc-when-create" data-docid="<?=$doc['id']?>">&times;</a>
+                                <textarea name="create_doc[]" rows="3" cols="30"><?=$doc['content']?></textarea>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                            <p><a href="#" id="doc-when-create">添加文案</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>支持文案:</td>
+                        <td>
+                            <?php if (isset($topic_back_doc)): ?>
+                            <?php foreach ($topic_back_doc as $doc): ?>
+                            <div class="doc-when-back-item">
+                                <a href="#" class="close del-doc-when-back" data-docid="<?=$doc['id']?>">&times;</a>
+                                <textarea name="back_doc[]" rows="3" cols="30"><?=$doc['content']?></textarea>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                            <p><a href="#" id="doc-when-back">添加文案</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>分享文案:</td>
+                        <td>
+                            <?php if (isset($topic_share_doc)): ?>
+                            <?php foreach ($topic_share_doc as $doc): ?>
+                            <div class="doc-when-share-item">
+                                <a href="#" class="close del-doc-when-share" data-docid="<?=$doc['id']?>">&times;</a>
+                                <textarea name="share_doc[]" rows="3" cols="30"><?=$doc['content']?></textarea>
+                            </div>
+                            <?php endforeach; ?>
+                            <?php endif; ?>
+                            <p><a href="#" id="doc-when-share">添加文案</a></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>筹资金额:</td>
+                        <td><input type="text" name="goal" value="<?=$topic['goal']?>" placeholder="筹资金额" ></td>
+                    </tr>
+                    <tr>
+                        <td>状态:</td>
+                        <td>
+                            <?php if($topic['if_show']!=0): ?>
+                                <input type="radio" name="if_show" value="1" checked="checked">上线&nbsp;&nbsp;&nbsp;&nbsp;<input type="radio" name="if_show" value="0">下线
+                            <?php else: ?>
+                                <input type="radio" name="if_show" value="1" >上线&nbsp;&nbsp;&nbsp;&nbsp;<input type="radio" name="if_show" value="0" checked="checked">下线
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>有效期（天）:</td>
+                        <td><input type="text" name="effect_day" value="<?=$topic['effect_day']?>" placeholder="有效期（天）"></td>
+                    </tr>
+                    <tr>
+                        <td>上传ICON:</td>
+                        <td><input id="logo" type="file" size="45" name="logo" class="input">
+                            <button class="button" id="buttonUpload" onclick="return ajaxFileUpload();">上传</button>
+                            <img id="show" class="avatar-medium" height="60" width="60" src="">
+                            <input type="text" name="logopath" id="logopath" value="" >
+                            <button id="buttonDelete" class="button">删除</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>模版类型:</td>
+                        <td>
+                            <?php if($topic['type']!=0): ?>
+                                <input type="radio" name="type" valu="0">普通&nbsp;&nbsp;&nbsp;&nbsp;<input type="radio" name="type" value="1" checked="checked">表白
+                            <?php else: ?>
+                                <input type="radio" name="type" valu="0" checked="checked">普通&nbsp;&nbsp;&nbsp;&nbsp;<input type="radio" name="type" value="1">表白
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><input type="submit" value="保存" id="submit" class="button"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </form>
+</div>
+
+<script>
+    $(function() {
+        var deleteDocItem = function(docid, ht) {
+            if (docid > 0) {
+                $.ajax({
+                    type: 'POST',
+                    url: '/easyfund/delete_doc_item',
+                    data: {
+                        docid: docid
+                    },
+                    dataType:'json',
+                    success: function(res) {
+                        if (res.status == 0)
+                            ht.remove();
+                        else
+                            alert(res.msg);
+                    }
+                });
+            } else {
+                ht.remove();
+            }
+        };
+
+        $('#doc-when-create').on('click', function(evt) {
+            evt.preventDefault();
+            html = '<div class="doc-when-create-item">\
+                        <a href="#" class="close del-doc-when-create">&times;</a>\
+                        <textarea name="create_doc[]" rows="5" cols="30" ></textarea>\
+                    </div>';
+            $(this).parent().before(html);
+        });
+        $('form#easyfund').on('click', '.doc-when-create-item a.del-doc-when-create', function(evt) {
+            evt.preventDefault();
+            // $(this).parent().remove();
+            deleteDocItem(parseInt($(this).data('docid')), $(this).parent());
+        });
+        $('#doc-when-back').on('click', function(evt) {
+            evt.preventDefault();
+            html = '<div class="doc-when-back-item">\
+                        <a href="#" class="close del-doc-when-back">&times;</a>\
+                        <textarea name="back_doc[]" rows="5" cols="30" ></textarea>\
+                    </div>';
+            $(this).parent().before(html);
+        });
+        $('form#easyfund').on('click', '.doc-when-back-item a.del-doc-when-back', function(evt) {
+            evt.preventDefault();
+            // $(this).parent().remove();
+            deleteDocItem(parseInt($(this).data('docid')), $(this).parent());
+        });
+        $('#doc-when-share').on('click', function(evt) {
+            evt.preventDefault();
+            html = '<div class="doc-when-share-item">\
+                        <a href="#" class="close del-doc-when-share">&times;</a>\
+                        <textarea name="share_doc[]" rows="5" cols="30" ></textarea>\
+                    </div>';
+            $(this).parent().before(html);
+        });
+        $('form#easyfund').on('click', '.doc-when-share-item a.del-doc-when-share', function(evt) {
+            evt.preventDefault();
+            // $(this).parent().remove();
+            deleteDocItem(parseInt($(this).data('docid')), $(this).parent());
+        });
+    });
+</script>
+
+<script type="text/javascript">
+    $(document).ready(function(){
+        $("#logopath").hide();
+        $("#show").hide();
+        $("#buttonDelete").hide();
+    });
+
+    $('#buttonDelete').click(function(evt){
+       evt.preventDefault();
+       $("#logopath").attr("src","");
+       $("#show").hide();
+       $("#buttonDelete").hide();
+       $("#logopath").attr("value","");
+       alert('请重新上传图片');
+    });
+
+    $("#submit").click(function(evt) {
+        evt.preventDefault();
+        var topic = $('#easyfund input[name="topic"]').val();
+        var goal = $('#easyfund input[name="goal"]').val();
+        var logopath = $('#easyfund input[name="logopath"]').val();
+        if(topic == "") {
+            alert('场景名称不能为空');
+            return false;
+        } else if(countByteLength(topic,1) > 6) {
+            alert('场景名称不能超过6个字');
+            return false;
+        }
+        if(goal == "") {
+            alert('众筹金额不能为空');
+            return false;
+        }
+        if(logopath == "") {
+            alert('无上传的图片');
+            return false;
+        }
+        var dataString = $('#easyfund').serialize();
+        $.ajax({
+            type: 'POST',
+            url: '/easyfund/add_easyfund',
+            data: dataString,
+            dataType:'json',
+            success: function(res) {
+                console.log(res);
+                if (res.status == 0)
+                    window.location.href = res.url;
+                else
+                    alert(res.msg);
+            }
+        });
+    });
+
+function ajaxFileUpload(){
+                  $.ajaxFileUpload
+                     (
+                       {
+                            url:'/easyfund/ajax_upload_file',
+                            secureuri:false,
+                            fileElementId:'logo',
+                            dataType: 'json',
+                            success: function (data){
+                                   alert(data.msg);
+                                  $("#show").attr("src",data.path);
+                                  $("#logopath").attr("value",data.from);
+                                  if(data.msg=='上传成功'){
+                                    $("#show").show();
+                                    $("#buttonDelete").show();
+                                }
+                            }
+                        }
+                     );
+                       return false;
+
+}
+    function countByteLength(str, cnCharByteLen) {
+            var byteLen = 0;
+            for (var i = 0; i < str.length; i++) {
+                //alert（str.charAt（i））;
+                if ((/[\x00-\xff]/g).test(str.charAt(i)))
+                    byteLen += 1;
+                else
+                    byteLen += cnCharByteLen;
+            }
+            //alert(byteLen);
+        return byteLen;
+    }
+
+</script>
+<?php $this->load->view('ckad/footer');?>

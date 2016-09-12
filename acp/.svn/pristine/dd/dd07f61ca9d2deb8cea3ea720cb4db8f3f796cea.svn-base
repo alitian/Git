@@ -1,0 +1,210 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('md_app_manager/sub_menu') ?>
+<div class="containers">
+    <div>
+        <div style="margin-top: 10px">
+            <form action="/md_app_manager/show_item_list" class="form-inline" id="item_form" method="post">
+                <span style="font-size: 1.2rem">输入项目ID&nbsp;&nbsp;</span><input type="text" name="pro_id" style="width: 150px;height: 30px;" value="<?=$pro_id?>">
+                <input type="hidden" name="type" value="1">
+                <a href="javascript:;" class="btn btn-primary btn-sm" id="add_item" style="margin-left: 10px; padding: 10px 15px;">搜索</a>
+            </form>
+        </div>
+        <hr>
+        <?php if($rcmd_lists): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th>权重</th>
+                        <th width="20%">推荐图</th>
+                        <th>推荐标题</th>
+                        <th>推荐链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                    <?php foreach($rcmd_lists as $rcmd_info): ?>
+                        <tr>
+                            <td><input sortid="<?= $rcmd_info['weight'] ?>" subid="<?= $rcmd_info['id'] ?>" type="text" class="sortid" value="<?= $rcmd_info['weight'] ?>" style="width:40px;margin-bottom:0px;"></td>
+                            <td><img src="<?=cdn_url($rcmd_info['media']) ?>" width="200px" height="100px"></td>
+                            <td><?= $rcmd_info['title'] ?></td>
+                            <td><?= $rcmd_info['link']?></td>
+                            <td>
+                                <a class="del" href="javascript:;" data-id="<?=$rcmd_info['id']?>">删除</a>
+                                |   <a href="javascript:;" class="edit" data-id="<?=$rcmd_info['id']?>" data-media="<?=$rcmd_info['media']?>" data-title="<?=$rcmd_info['title']?>" data-media_src="<?=cdn_url($rcmd_info['media'])?>">编辑</a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+        <?php elseif(empty($rcmd_lists) && $item_info):?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="20%">推荐图</th>
+                        <th>推荐标题</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                        <tr>
+                            <td class="update_logo_<?=$item_info['id']?>" data-src="<?=$item_info['logo2']?>"><?php if($item_info['logo2']){ ?><img src="<?= cdn_url($item_info['logo2']) ?>" style="width: 200px;height: 100px;" /><?php }else{ echo '无图';}?></td>
+                            <td class="update_title_<?=$item_info['id']?>"><?= $item_info['name'] ?></td>
+                            <td>
+                                <a class="recommend btn btn-success" type="button" href="javascript:;" data-id="<?=$item_info['id']?>"><i class=" icon-thumbs-up"></i> 推荐</a>
+                            </td>
+                        </tr>
+                </table>
+            </div>
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<iframe src="" style="display:none" name="winupload"></iframe>
+<input type="hidden" name="check_upload" id="check_upload" value="0">
+<!--modal start -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title" id="myModalLabel">项目编辑</h4>
+            </div>
+            <div class="modal-body">
+                <label for="pro_id">推荐标题:</label>
+                <input type="text" id="pro_title" name="title" style="width:100%"  placeholder="请输入推荐主题,建议不超过18个字">
+
+                <label for="pro_id">推荐图片:</label>
+                <img src="" alt="" id="preview_cover">
+                <input type="hidden" id="pro_media" name="media">
+                <input type="hidden" id="rcmd_id"   name="rcmd_id">
+                <form id="up_form" action="md_app_manager/upload/1" method="post" enctype="multipart/form-data" target="winupload">
+                    <input class="form-control" type="file" id="upfile" name="upfile">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="edit_rcmd_item">保存</button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+<!--modal end-->
+<script>
+    $("#add_item").click(function(){
+        $("#item_form").submit();
+    });
+    $("#upfile").change(function(){
+        $("#up_form").submit();
+    });
+    $(".sortid").blur(function(){
+        var value = $(this).val();
+        var id    = $(this).attr('subid');
+        if(isNaN(value)){
+            alert('只能填写数字');
+            $(this).focus();
+            return false;
+        }
+        $.ajax({
+            type :'post',
+            url  : "<?=site_url('md_app_manager/change_weight')?>",
+            data : {'id':id,'weight':value}, //这儿type1表示专题列表权重
+            dataType :'json',
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                }
+            }
+        });
+    });
+    $('.del').click(function(){
+        if( ! confirm('你确定删除吗')){
+            return false;
+        }
+        var that = $(this);
+        var id = parseInt(that.data('id'));
+        $.ajax({
+            type:"post",
+            url:"<?=site_url('md_app_manager/del_rcmd_by_id')?>",
+            data:{'id':id},
+            dataType:"json",
+            success:function(return_data){
+                if(return_data.status){
+                    alert(return_data.msg);
+                    that.parents("tr").remove();
+                }
+            }
+        });
+    });
+    $(".edit").click(function(){
+        var title = $(this).data("title");
+        var media = $(this).data("media");
+        var media_src = $(this).data("media_src");
+        var rcmd_id   = $(this).data("id");
+        $("#pro_title").val(title);
+        $("#pro_media").val(media);
+        $("#rcmd_id").val(rcmd_id);
+        $("#preview_cover").attr({'src':media_src});
+        $("#myModal").modal("show");
+    });
+
+    $("#edit_rcmd_item").click(function(){
+        var title = $("#pro_title").val();
+        var media = $("#pro_media").val();
+        var id    = $("#rcmd_id").val();
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        if( ! $.trim(media)){
+            alert('推荐图片不能为空！');
+            return false;
+        }
+        $.ajax({
+            type : 'post',
+            url  : '/md_app_manager/edit_rcmd_item',
+            data : {'title':title,'media':media,'id':id},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    $("#myModal").modal("hide");
+                    window.location.reload();
+                }
+            }
+
+        })
+    });
+    //type 1表示项目
+    $(".recommend").click(function(){
+        var id = $(this).data('id');
+        $.ajax({
+            type : 'post',
+            url  : '/md_app_manager/add_rcmd_item',
+            data : {'pro_id':id,'type':1},
+            dataType : 'json',
+            success:function(return_data){
+                alert(return_data.msg);
+                if(return_data.status){
+                    window.location.href='/md_app_manager/item_list';
+                }
+            }
+
+        })
+    })
+</script>
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,37 @@
+<?php
+//error_reporting(E_ALL);
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Pro_cron extends CI_Controller {
+
+    /**
+     * 整理所有项目的发起者
+     * 统一存入 `md_product_members`表中
+     */
+    function deal_pro_creaters(){
+        
+        $pro_sql = 'SELECT p.`id`,p.`user_id`,u.`email` FROM `md_product` p INNER JOIN `md_users` u ON u.id=p.user_id WHERE p.`if_show`=1';
+        $pro_des = $this->db->query($pro_sql)->result_array();   
+        $deal_pro_member = array();
+        foreach($pro_des as $key=>$val){
+            $deal_pro_member['pro_id'] = $val['id'];
+            $deal_pro_member['user_id'] = $val['user_id'];
+            $deal_pro_member['email'] = $val['email'];
+            $deal_pro_member['role'] = '项目发起者';
+            $deal_pro_member['status'] = 1;
+            $deal_pro_member['if_show'] = 2;
+            $deal_pro_member['ctime'] = date('Y-m-d H:i:s');
+            $if_have_sql = "SELECT `id` FROM `md_product_members` WHERE `pro_id`='".$val['id']."' AND `user_id`='".$val['user_id']."'";
+            $if_have = $this->db->query($if_have_sql)->row_array(); 
+            if(!empty($if_have['id'])){
+                $this->db->where('id', $if_have['id']);
+		$this->db->update('md_product_members', $deal_pro_member);	
+            }else{
+                $res = $this->db->insert('md_product_members', $deal_pro_member);
+                $res = $this->db->insert_id();
+            }
+        }
+        echo 'deal success';
+    }
+}

@@ -1,0 +1,143 @@
+<?php $this->load->view('ckad/header') ?>
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/default/easyui.css">
+<link rel="stylesheet" type="text/css" href="<?= static_url(); ?>js/easyui/icon.css">
+<script type="text/javascript" src="<?= static_url(); ?>js/easyui/jquery.easyui.min.js"></script>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<div class="row-fluid">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="查询" style="height:320px;padding:10px;margin: 0;" data-options="collapsible:true">
+            <div class="row-fluid">
+                <form method="POST" target="_blank" name='form1' id="form1" action="">
+                    <div class="span11">
+                        <div class="row-fluid"> 
+                            <div class="span3">项目ID:<br /><input type="text" id="pro_id" name="pro_id" value="" /></div>
+                            <div class="span3">项目名称:<br /><input type="text" id="pro_name" name="pro_name" value="" /></div>
+                            <div class="span3">支付时间:<br />
+                                <div id="datetimepicker1" class="input-append">
+                                    <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" id='pay_start_time' name='pay_start_time' style="width:165px;"></input>
+                                    <span class="add-on">
+                                        <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                        </i>
+                                    </span>
+                                </div></div>
+                            <div class="span3">支付时间:<br />
+                                <div id="datetimepicker2" class="input-append">
+                                    <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="截止时间" id='pay_end_time' name='pay_end_time' style="width:165px;"></input>
+                                    <span class="add-on">
+                                        <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                        </i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row-fluid">     
+                            <div class="span3">项目类别:<br />
+                                <select id="pro_type" name="pro_type">
+                                    <option value=""></option>
+                                    <option value="-1">独立项目</option>
+                                    <option value="0">活动项目</option>
+                                </select>
+                            </div>
+                            <div class="span3">用户ID:<br /><input type="text" id="user_id" name="user_id" value="" /></div>
+                            <div class="span3">用户名称:<br /><input type="text" id="user_name" name="user_name" value="" /></div>
+                            <div class="span3">用户手机号:<br /><input type="text" id="user_mobile" name="user_mobile" value="" /></div>
+                        </div>         
+                        <div class="row-fluid">
+                            <div class="span3">摩点订单号:<br /><input type="text" id="bak_id" name="bak_id" value="" /></div> 
+                            <div class="span3">支付状态:<br /><select id="if_pay" name="if_pay">
+                                    <option value="">全部</option>
+                                    <option value="0">未支付</option>
+                                    <option value="2">支付失败</option>
+                                    <option value="1">已支付</option>
+                                    <option value="3">已退款</option>
+                                </select>
+                            </div>                                                      
+                            <div class="span3">支付方式:<br /><select id="pay_platform" name="pay_platform">
+                                    <option value="">全部</option>
+                                    <option value="alipay_wap">支付宝</option>
+                                    <option value="weixin_wap">微信</option>
+                                </select>
+                            </div>
+                            <div class="span3">下单渠道:<br /><select id="pay_plan" name="pay_plan">
+                                    <option value="">全部</option>
+                                    <option value="web">web</option>
+                                    <option value="wap">wap</option>
+                                    <option value="android">android</option>
+                                    <option value="ios">ios</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row-fluid">     
+                            <div class="span3">外部订单号:<br /><input type="text" id="pay_out_num" name="pay_out_num" value="" /></div> 
+                        </div>
+                    </div>
+                    <div class="span1" style="height:200px;text-align: center;vertical-align: middle;overflow:hidden;padding-top:30px;">
+                        <button class="btn btn-large btn-primary" type="button" id="search" data-options="iconCls:'icon-search'">查询</button><br /><br />
+                        <button class="btn btn-large" type="button" id="export2excel" iconCls="icon-save" onclick="form1.action='/weidashang/export_wds_order_list';form1.submit()">导出Excel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <div class="box-content">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;height:400px" title="筹资管理" 
+                   url="/weidashang/ajax_all_order_list"
+                   title="Load Data" iconCls="icon-save" pageSize=10 pagePosition="both"
+                   rownumbers="true" pagination="true">
+                <thead>
+                    <tr>
+<!--                        <th field="operation" align="center" sortable="true">操作</th>-->
+                        <th field="back_id" sortable="true">摩点订单号</th>
+                        <th field="pay_out_num" sortable="true">外部订单号</th>                      
+                        <th field="pro_id" width="50" align="center" sortable="true">项目ID</th>
+                        <th field="pro_name" sortable="true">项目名称</th>
+                        <th field="pro_start_date" width="150" align="center" sortable="true">项目开始时间</th>
+                        <th field="pro_end_date" width="150" align="center" sortable="true">项目结束时间</th>
+                        <th field="user_id" align="center" sortable="true">用户ID</th>
+                        <th field="user_name" width="150" align="center" sortable="true">用户名称</th>
+                        <th field="user_mobile" width="150" align="center" sortable="true">手机号</th>
+                        <th field="amount" width="150" align="center" sortable="true">支持金额</th>
+                        <th field="pay_plan" align="center">下单渠道</th>
+                        <th field="pay_platform" width="80" sortable="true">支付方式</th>
+                        <th field="bak_date" sortable="true">支付日期</th>
+                        <th field="bak_time" sortable="true">支付时间</th>
+                        <th field="bak_status" sortable="true">支付状态</th>
+                        <th field="pro_type" sortable="true">项目类别</th>
+                    </tr>
+                </thead>
+            </table>
+
+        </div>
+    </div><!--/span-->
+</div><!--/row-->
+<!-- content ends -->
+<script>
+    $(function() {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: true
+        });
+        $("#search").click(function(e) {
+             e.preventDefault();
+             form1.action = "/weidashang/ajax_all_order_list";
+            $('#tt').datagrid('load', {
+                pro_id: $("#pro_id").val(),
+                pro_name:$("#pro_name").val(),
+                pay_start_time:$("#pay_start_time").val(),
+                pay_end_time:$("#pay_end_time").val(),
+                pro_type:$("#pro_type").val(),
+                user_id:$("#user_id").val(),
+                user_name:$("#user_name").val(),
+                user_mobile:$("#user_mobile").val(),
+                bak_id:$("#bak_id").val(),
+                if_pay:$("#if_pay").val(),
+                pay_platform:$("#pay_platform").val(),
+                pay_plan:$("#pay_plan").val(),
+                pay_out_num:$("#pay_out_num").val(),
+            });
+        })
+    });
+</script>
+<?php
+$this->load->view('ckad/footer')?>

@@ -1,0 +1,3178 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Main extends Acp_Controller {
+
+    /**
+     * Index Page for this controller.
+     *
+     * Maps to the following URL
+     * 		http://example.com/index.php/welcome
+     * 	- or -
+     * 		http://example.com/index.php/welcome/index
+     * 	- or -
+     * Since this controller is set as the default controller in
+     * config/routes.php, it's displayed at http://example.com/
+     *
+     * So any other public methods not prefixed with an underscore will
+     * map to /index.php/welcome/<method_name>
+     * @see http://codeigniter.com/user_guide/general/urls.html
+     */
+    public function __construct() {
+        parent::__construct();
+
+        $this->load->helper('url');
+        $this->load->model('Common');
+        $this->load->model('User_m');
+        $this->load->model('Product_m');
+        $this->load->model('Admin_m');
+        $this->load->model('Search_m');
+        $this->load->model('score_model');
+        //加载图片处理配置，及类库
+        $this->load->library('md_imagick');
+    }
+
+    // 上传微信媒体文件
+    public function uploads_wx_media() {
+        $data = array();
+
+        switch (strtoupper($_SERVER['REQUEST_METHOD'])) {
+            case 'POST':
+                $file_type = 'image';
+                $path_file = "/tmp/{$_FILES['img']['name']}";
+                move_uploaded_file($_FILES["img"]["tmp_name"], $path_file);
+
+                $this->load->library('md_weixin_api');
+                $res = $this->md_weixin_api->media_upload($path_file, $file_type);
+                $data['errmsg'] = json_encode($res);
+                if (isset($res['media_id'])) {
+                    $insert_d['scene_id'] = intval($this->input->post('scene_id', true));
+                    $insert_d['media_name'] = trim($this->input->post('media_name', true));
+                    $insert_d['media_id'] = $res['media_id'];
+                    $insert_d['type'] = $res['type'];
+                    $insert_d['weight'] = 0;
+                    $insert_d['number'] = intval($this->input->post('number', true));
+                    $insert_d['ctime'] = date('Y-m-d H:i:s', $res['created_at']);
+
+                    $this->db->insert('hd_manzhan_wx_media', $insert_d);
+                }
+                break;
+            default:
+                # code...
+                break;
+        }
+
+        $this->db->select('id, scene_id, media_name, media_id, type, number, ctime');
+        $this->db->from('hd_manzhan_wx_media');
+        $data['res'] = $this->db->get()->result_array();
+
+        $this->load->view('ckad/wx_media', $data);
+    }
+
+    public function edit_wx_media() {
+        $mid = intval($this->input->post('id', true));
+        $media_name = trim($this->input->post('media_name', true));
+        $number = intval($this->input->post('number', true));
+
+        if (isset($_FILES['img']['name']) && !empty($_FILES['img']['name'])) {
+            $file_type = 'image';
+            $path_file = "/tmp/{$_FILES['img']['name']}";
+            move_uploaded_file($_FILES["img"]["tmp_name"], $path_file);
+            $this->load->library('md_weixin_api');
+            $res = $this->md_weixin_api->media_upload($path_file, $file_type);
+            $data['errmsg'] = json_encode($res);
+            if (isset($res['media_id'])) {
+                $this->db->where('id', $mid);
+                $this->db->update(
+                        'hd_manzhan_wx_media', array(
+                    'number' => $number,
+                    'media_name' => $media_name,
+                    'media_id' => $res['media_id'],
+                    'ctime' => date('Y-m-d H:i:s', $res['created_at'])
+                        )
+                );
+            }
+        } else {
+            $this->db->where('id', $mid);
+            $this->db->update(
+                    'hd_manzhan_wx_media', array(
+                'number' => $number,
+                'media_name' => $media_name
+                    )
+            );
+        }
+
+        redirect('/main/uploads_wx_media');
+    }
+    //获取二维码列表
+    public function get_qrcode_list($type,$curpage=1,$perpage=10,$query=array()){
+        $type = intval($type);      //type 1为普通 2为微信
+        $curpage = intval($curpage);
+        $perpage = intval($perpage);
+        $offset = ($curpage-1)*$perpage;
+        $this->db->from("md_qrcode");
+        $this->db->where("type",$type);
+        if(!empty($query)){
+            foreach($query as $k=>$v){
+                switch($k){
+                    case 'ctime':
+                        $this->db->where('ctime >=',$v);
+                        break;
+                    case 'etime':
+                        $v = date("Y-m-d",strtotime($v)+86400);
+                        $this->db->where('ctime <',$v);
+                        break;
+                    case 'topic':
+                        $this->db->like('topic',$v);
+                        break;
+                    default:
+                        $this->db->where($k,$v);
+                        break;
+                }
+            }
+        }
+        $this->db->limit($perpage,$offset);
+        $this->db->order_by("id","DESC");
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+
+    public function get_total_qrcode_by_type($type,$query=array()){
+        $type = intval($type);
+        $this->db->from("md_qrcode");
+        if(!empty($query)){
+            foreach($query as $k=>$v){
+                switch($k){
+                    case 'ctime':
+                        $this->db->where('ctime >=',$v);
+                        break;
+                    case 'etime':
+                        $v = date("Y-m-d",strtotime($v)+86400);
+                        $this->db->where('ctime <',$v);
+                        break;
+                    default:
+                        $this->db->where($k,$v);
+                        break;
+                }
+            }
+        }
+        $this->db->where("type",$type);
+        $result = $this->db->get()->num_rows();
+        return $result;
+    }
+    public function qrcode_list($type,$curpage=1){
+        $type         = $type ? intval($type):1;
+        $curpage      = $curpage ? intval($curpage):1;
+        $query['etime']        = isset($_GET["etime"])?$this->input->get("etime",true):"";
+        $query['ctime']        = isset($_GET["ctime"])?$this->input->get("ctime",true):"";
+        $query['topic']        = isset($_GET["topic"])?$this->input->get("topic",true):"";
+        $query['scene_id']     = isset($_GET["scene_id"])?(int)$this->input->get("scene_id",true):"";
+
+        $query = array_filter($query);  //过滤空条件
+        $qrcode_list  = $this->get_qrcode_list($type,$curpage,10,$query);
+         $qrcode_num = $this->get_total_qrcode_by_type($type,$query);
+
+
+        // 当前页的链接，但是缺失 '分页页数'
+        $cur_url = "/main/qrcode_list/$type";
+        $config = array(
+            'uri_segment' => 4, // 在url的第二段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $qrcode_num,
+            'per_page' => 10,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+            'full_tag_open' => '<ul class="pagination">',
+            'full_tag_close' => '</ul>',
+            'first_tag_open' => '<li>',
+            'first_tag_close' => '</li> &nbsp;&nbsp;',
+            'last_tag_open' => '<li>',
+            'last_tag_close' => '</li> &nbsp;&nbsp;',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li> &nbsp;&nbsp;',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li> &nbsp;&nbsp;',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li> &nbsp;&nbsp;',
+            'cur_tag_open' => '<strong>',
+            'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $this->load->vars('type',$type);
+        $this->load->vars("query",$query);
+        $this->load->vars('curpage', $curpage);
+        $this->load->vars('qrcode_list', $qrcode_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view('ckad/qrcode_make');
+
+    }
+
+    public function add_qrcode($type){
+        $data['type'] = intval($type);
+        $this->load->view("ckad/add_qrcode",$data);
+    }
+    //ajax
+    public function check_scene_id(){
+        $scene_id = (int)$this->input->post("scene_id");
+        $this->db->select("scene_id");
+        $this->db->from("md_qrcode");
+        $this->db->where("scene_id",$scene_id);
+        $result  = $this->db->get()->row_array();
+        if($result){  //有记录
+            $return_data = array(
+                'errcode' => 1,
+                'msg'     => "场景id已经存在"
+            );
+        }else{
+            $return_data = array(
+                'errcode' => 0,
+            );
+        }
+        echo json_encode($return_data);
+    }
+
+    public function download_qrcode(){
+        //文件下载
+        $filename=urldecode($_GET["url"]);
+        $file  =  fopen($filename, "rb");
+        Header( "Content-type:  application/octet-stream ");
+        Header( "Accept-Ranges:  bytes ");
+        $filename = time().".png";
+        Header( "Content-Disposition:  attachment;  filename=".$filename);
+        $contents = "";
+        while (!feof($file)) {
+            $contents .= fread($file, 8192);
+        }
+        echo $contents;
+        fclose($file);
+    }
+    // 生成微信的两类二维码
+    public function qrcode_make_weixin() {
+        $data['page'] = 'weixin';
+        $data['preview'] = "http://static.clewm.net/static/images/defqr_dd81ccc.png";
+
+        $this->load->vars("type",2);   //2位微信二维码
+        $postdata = $this->input->post(null, true);
+        if (!empty($postdata)) {
+            $type     = intval($postdata['t']); // 1: 临时；2: 永久
+            $scene_id = intval(trim($postdata['id'])); // 场景id
+            $topic    = trim($postdata["topic"]);       //主题名称
+            $time = intval(trim($postdata['time'])); // 临时二维码的过期时间
+            if (empty($time)&&$type==1)
+                $time = 1800; // 30分钟
+
+            if (empty($type) || empty($scene_id)) {
+                $data['err_msg'] = '输入参数有误';
+                $this->load->view('ckad/add_qrcode', $data);
+                return 0;
+            }
+
+            $img_url = '';
+            $this->load->library('md_weixin_api');
+            switch (intval($type)) {
+                case 1:
+                    $img_url = $this->md_weixin_api->create_qr($scene_id, $time);
+                    break;
+                case 2:
+                    $img_url = $this->md_weixin_api->create_qr_limit($scene_id);
+                    break;
+                default:
+                    # code...
+                    break;
+            }
+
+            if (!empty($img_url)) {
+                //插入数据库
+                $insert_data["scene_id"]  = $scene_id;
+                if($type==1){
+                    $insert_data["etime"] = date("Y-m-d H:i:s",time()+$time);
+                }else{
+                    $insert_data['etime'] = 0;
+                }
+                $insert_data['type']      = 2;      //2表示微信二维码
+                $insert_data["topic"]     =  $topic;
+                $insert_data["scene_id"]  =  $scene_id;
+                $insert_data["pic"]       =  $img_url;
+                $this->db->insert("md_qrcode",$insert_data);
+                $insert_id = $this->db->insert_id();
+                if($insert_id){
+                    $data['succ_msg'] = ($type == 1) ? "以下是生成的 临时二维码 - 场景id: {$scene_id}" : "以下是生成的 永久二维码 - 场景id: {$scene_id}";
+                    $data['preview'] = $img_url;
+                }else{
+                    $data['err_msg'] = '生成二维码出错了';
+                }
+
+            } else {
+                $data['err_msg'] = '生成二维码出错了';
+            }
+        }
+        $this->load->view('ckad/add_qrcode', $data);
+    }
+
+    // 生成普通二维码
+    public function qrcode_make() {
+        $data['page'] = 'common';
+        $data['preview'] = "http://static.clewm.net/static/images/defqr_dd81ccc.png";
+
+        $this->load->vars("type",1);   //1位普通二维码
+        $postdata = $this->input->post(null, true);
+        if (!empty($postdata)) {
+            $text = trim($postdata['qrcode_text']);
+            $level = trim($postdata['level']);
+            $topic = trim($postdata['topic']);
+            if (!empty($text)) {
+                $uploads_path = _gc('uploads_path') . '/tmp_qrcode/'. date('Y') . '/' . date('m') . '/' . date('d') ."/";
+                $db_path = "uploads/tmp_qrcode/". date('Y') . '/' . date('m') . '/' . date('d') ."/";
+                if (!file_exists($uploads_path) && !mkdir($uploads_path, 0777, true)) {
+                    $data['err_msg'] = '创建文件目录失败';
+                    $this->load->view('ckad/add_qrcode', $data);
+                    return 0;
+                }
+
+                $qrcode_file = 'qrcode_'.time().'.png';
+                include_once(BASEPATH . 'libraries/phpqrcode/qrlib.php');
+                QRcode::png($text, $uploads_path . $qrcode_file, $level, 24);
+
+                // 添加 logo
+                $logo_file = 'logo_'.time().'.jpg';
+                if (!empty($_FILES['logo']['name'])) {
+                    if ($_FILES['logo']['size'] > 2000000) {
+                        $data['err_msg'] = '文件大小不能超过2M';
+                        $this->load->view('ckad/add_qrcode', $data);
+                        return 0;
+                    }
+
+                    if (move_uploaded_file($_FILES['logo']['tmp_name'], $uploads_path . $logo_file)) {
+                        $QR = imagecreatefromstring(file_get_contents($uploads_path . $qrcode_file));
+                        $logo = imagecreatefromstring(file_get_contents($uploads_path . $logo_file));
+                        $QR_width = imagesx($QR); //二维码图片宽度
+                        $QR_height = imagesy($QR); //二维码图片高度
+                        $logo_width = imagesx($logo); //logo图片宽度
+                        $logo_height = imagesy($logo); //logo图片高度
+                        $logo_qr_width = $QR_width / 5;
+                        $scale = $logo_width / $logo_qr_width;
+                        $logo_qr_height = $logo_height / $scale;
+                        $from_width = ($QR_width - $logo_qr_width) / 2;
+                        //重新组合图片并调整大小
+                        imagecopyresampled($QR, $logo, $from_width, $from_width, 0, 0, $logo_qr_width, $logo_qr_height, $logo_width, $logo_height);
+
+                        $qrcode_file = 'qrcode-with-logo_'.time().'.png';
+                        imagepng($QR, $uploads_path . $qrcode_file);
+//                        imagejpeg($QR, $uploads_path . $qrcode_file);
+
+                    } else {
+                        $data['err_msg'] = 'logo上传失败';
+                        $this->load->view('ckad/add_qrcode', $data);
+                        return 0;
+                    }
+                }
+                //插入数据库
+                $insert_data['etime'] = 0;           //永久有效
+                $insert_data['type']      = 1;      //1表示普通二维码
+                $insert_data["topic"]     =  $topic;
+                $insert_data["pic"]       =  cdn_url($db_path.$qrcode_file);
+                $this->db->insert("md_qrcode",$insert_data);
+                $insert_id = $this->db->insert_id();
+                if($insert_id){
+                    $data['succ_msg'] = '以下是生成的二维码';
+                    $data['preview'] = cdn_url($db_path.$qrcode_file);
+                }else{
+                    $data['err_msg'] = '生成二维码出错了';
+                }
+
+            } else {
+                $data['err_msg'] = '没有输入内容';
+            }
+        }
+        $this->load->view('ckad/add_qrcode', $data);
+    }
+
+    public function slider() {
+        $sliderKey = 'index_slider.txt';
+        $domain = 'modian';
+        //默认轮播图片
+        $init = array(
+            1 => array('src' => 'img/img1.jpg', 'link' => '#'),
+            2 => array('src' => 'img/img2.jpg', 'link' => '#'),
+            3 => array('src' => 'img/img3.jpg', 'link' => '#'),
+            4 => array('src' => 'img/img4.jpg', 'link' => '#'),
+            5 => array('src' => '', 'link' => ''),
+        );
+        $sql = "SELECT * FROM md_about WHERE type='999'";
+        $r = $this->db->query($sql)->row_array();
+        if ($r['content']) {
+            $init = unserialize($r['content']);
+        } else {
+            $this->Common->add('md_about', array('title' => '轮播图', 'content' => serialize($init), 'list_num' => 0, 'type' => '999'));
+        }
+
+
+        //删除图片
+        if (isset($_GET['delete'])) {
+            if (isset($init[$_GET['delete']])) {
+                $init[$_GET['delete']]['src'] = '';
+                $init[$_GET['delete']]['link'] = '';
+                $this->Common->update('md_about', array('title' => '轮播图'), array('content' => serialize($init)));
+                redirect('main/slider');
+            }
+        }
+
+        $data['list'] = $init;
+        $this->load->view('ckad/slider', $data);
+    }
+
+    public function m_slider() {
+        $domain = 'modian';
+        //默认轮播图片
+        $init = array(
+            1 => array('src' => 'img/m_slider_1.jpg', 'link' => '#'),
+            2 => array('src' => 'img/m_slider_2.jpg', 'link' => '#'),
+            3 => array('src' => 'img/m_slider_3.jpg', 'link' => '#'),
+            4 => array('src' => '', 'link' => ''),
+            5 => array('src' => '', 'link' => ''),
+        );
+        $sql = "SELECT * FROM md_about WHERE type='998'";
+        $r = $this->db->query($sql)->row_array();
+        if ($r['content']) {
+            $init = unserialize($r['content']);
+        } else {
+            $this->Common->add('md_about', array('title' => '移动端轮播图', 'content' => serialize($init), 'list_num' => 0, 'type' => '998'));
+        }
+
+
+        //删除图片
+        if (isset($_GET['delete'])) {
+            if (isset($init[$_GET['delete']])) {
+                $init[$_GET['delete']]['src'] = '';
+                $init[$_GET['delete']]['link'] = '';
+                $this->Common->update('md_about', array('title' => '移动端轮播图'), array('content' => serialize($init)));
+                redirect('main/m_slider');
+            }
+        }
+
+        $data['list'] = $init;
+        $this->load->view('ckad/m_slider', $data);
+    }
+
+    public function upslider() {
+        //默认轮播图片
+
+        $sql = "SELECT * FROM md_about WHERE type='999'";
+        $r = $this->db->query($sql)->row_array();
+
+        $init = unserialize($r['content']);
+
+        if (isset($_FILES)) {
+            $t = time();
+            for ($i = 1; $i < 6; $i++) {
+                $name = 'slider_upload' . $i;
+
+                if (isset($_FILES[$name]) && $_FILES[$name]['name'] != '') {
+                    $exten = $this->Common->get_extension($_FILES[$name]['name']);
+                    $from = "sliders/slider_{$t}_{$i}{$exten}";
+                    copy($_FILES[$name]['tmp_name'], _gc('uploads_path') . $from);
+                    //$result = $this->md_imagick->upload($from, $from);
+                    $init[$i]['src'] = $from;
+                }
+            }
+        }
+
+        foreach ($init as $key => $value) {
+            $init[$key]['link'] = !empty($_POST['link'][$key - 1]) ? $_POST['link'][$key - 1] : $value;
+        }
+
+        $this->Common->update('md_about', array('title' => '轮播图'), array('content' => serialize($init)));
+        redirect('main/slider');
+    }
+
+    public function m_upslider() {
+        //默认轮播图片
+
+        $sql = "SELECT * FROM md_about WHERE type='998'";
+        $r = $this->db->query($sql)->row_array();
+
+        $init = unserialize($r['content']);
+
+        if (isset($_FILES)) {
+            $t = time();
+            for ($i = 1; $i < 6; $i++) {
+                $name = 'slider_upload' . $i;
+                if (isset($_FILES[$name]) && $_FILES[$name]['name'] != '') {
+                    $exten = $this->Common->get_extension($_FILES[$name]['name']);
+                    $from = "sliders/m_slider_{$t}_{$i}{$exten}";
+                    copy($_FILES[$name]['tmp_name'], _gc('uploads_path') . $from);
+                    //$result = $this->md_imagick->upload($from, $from);
+                    $init[$i]['src'] = $from;
+                }
+            }
+        }
+
+        foreach ($init as $key => $value) {
+            $init[$key]['link'] = !empty($_POST['link'][$key - 1]) ? $_POST['link'][$key - 1] : $value;
+        }
+
+        $this->Common->update('md_about', array('title' => '移动端轮播图'), array('content' => serialize($init)));
+        redirect('main/m_slider');
+    }
+
+    /* 查看发起项目并进行审核 */
+
+    public function index($list_type = 'all', $order = 'ctime', $start = 0) {
+
+        // 获取查找条件值
+        $pro_name = isset($_GET['pro_name']) ? $_GET['pro_name'] : '';
+        $pro_ctime_start = isset($_GET['pro_ctime_start']) ? $_GET['pro_ctime_start'] : '';
+        $pro_ctime_end = isset($_GET['pro_ctime_end']) ? $_GET['pro_ctime_end'] : '';
+        if (strtotime($pro_ctime_start) > strtotime($pro_ctime_end)) {  // 确保时间段的正确性
+            $tmp = $pro_ctime_end;
+            $pro_ctime_end = $pro_ctime_start;
+            $pro_ctime_start = $tmp;
+        }
+        $filter = $isphase = isset($_GET['isphase']) ? $_GET['isphase'] : '';
+        $offset = isset($_GET['per_page']) ? $_GET['per_page'] : '';
+
+        // 根据项目发起时间排序
+        $this->db->order_by("md_product.ctime", "desc");
+        if ($list_type == 'examine') {
+            $this->db->where('md_product.if_show', '2');
+            $this->db->where("md_product.examine_time !=", "'0000-00-00 00:00:00'");
+        }
+        $this->db->select("md_product.*,md_users.username");
+        $this->db->join("md_users", "md_product.user_id=md_users.id", "inner");
+
+        // 增加查找条件
+        if (!empty($pro_name)) {
+            $this->db->like('md_product.name', $pro_name);
+        }
+        if (!empty($pro_ctime_start)) {
+            $this->db->where("md_product.ctime >= ", $pro_ctime_start);
+        }
+        if (!empty($pro_ctime_end)) {
+            $this->db->where("md_product.ctime <= ", $pro_ctime_end);
+        }
+
+        $query = $this->db->get("md_product");
+        $product = $query->result_array();
+
+        // 这里对结果集进行过滤
+        if (!empty($filter)) {
+            $product = $this->_filter_product_data($product, $filter);
+            // var_dump($product);exit();
+        }
+
+        // 将每页显示数增加至20个
+        $per_page = 20;
+        $total_rows = count($product);
+        $query_strings = "?";
+        if (!empty($pro_name))
+            $query_strings .= "&pro_name=$pro_name";
+        if (!empty($pro_ctime_start))
+            $query_strings .= "&pro_ctime_start=$pro_ctime_start";
+        if (!empty($pro_ctime_end))
+            $query_strings .= "&pro_ctime_end=$pro_ctime_end";
+        if (!empty($isphase))
+            $query_strings .= "&isphase=$isphase";
+        $config = array(
+            'uri_segment' => 5,
+            'base_url' => site_url("main/index/{$list_type}/" . $order . $query_strings),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+            'page_query_string' => TRUE,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+        $data['type'] = $list_type;
+
+        // 获取分页数据
+        if (empty($offset))
+            $offset = 0;
+        else
+            $offset = intval($offset);
+        $product = $this->_page_data($product, $per_page, $offset);
+
+        $data["product"] = $product;
+        $data["pro_name"] = $pro_name;
+        $data["pro_ctime_start"] = $pro_ctime_start;
+        $data["pro_ctime_end"] = $pro_ctime_end;
+        $data["isphase"] = $isphase;
+        $data["list_type"] = $list_type;
+
+        $this->load->view('ckad/index', $data);
+    }
+
+    /**
+     * 根据管理全部项目中的过滤条件过滤数据
+     */
+    function _filter_product_data($result, $condition) {
+        $datetime = date("Y-m-d H:i:s", time());
+        $tmp_result = array();
+        $index = 0;
+
+        if (strcmp($condition, "筹备中的项目") == 0) {
+            foreach ($result as $i => $v) {
+                // 尚未提交
+                if (!empty($v['examine_time']) &&
+                        $v['examine_time'] == "0000-00-00 00:00:00") {
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "待审核的项目") == 0) {
+            foreach ($result as $i => $v) {
+                // 已提交但未审核
+                if (!empty($v['examine_time']) &&
+                        $v['examine_time'] != "0000-00-00 00:00:00" &&
+                        $v['examine_modify_time'] == "0000-00-00 00:00:00" &&
+                        $v['if_show'] == 2) {
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "审核失败的项目") == 0) {
+            foreach ($result as $i => $v) {
+                // 已提交且已审核，但未通过
+                if (!empty($v['examine_time']) &&
+                        $v['examine_time'] != "0000-00-00 00:00:00" &&
+                        $v['examine_modify_time'] != "0000-00-00 00:00:00" &&
+                        $v['if_show'] == 3) {
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "筹资中的项目") == 0) {
+            foreach ($result as $i => $v) {
+                // 已提交，且已审核，且审核通过，且已经开始，且未结束
+                if (!empty($v['examine_time']) &&
+                        $v['examine_time'] != "0000-00-00 00:00:00" &&
+                        $v['examine_modify_time'] != "0000-00-00 00:00:00" &&
+                        $v['if_show'] == 1 &&
+                        $v['start_time'] != "0000-00-00 00:00:00" &&
+                        $datetime <= $v['end_time']) {
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "筹资成功的项目") == 0) {
+            foreach ($result as $i => $v) {
+                if ($v['if_installments'] == 0) {
+                    $phase_money = $v['install_money'] != '||' ? explode('|', $v['install_money']) : '';
+                    // $goal = $phase_money[0] + $phase_money[1] + $phase_money[2];
+                    $goal = $phase_money[0];
+                } else {
+                    $goal = $v['install_money'];
+                }
+                $has_backed = $this->Product_m->get_product_back_amount_v2($v['id']);
+
+                // 已提交，且已审核，且审核通过，且已经开始，且众筹结束，且达到筹资金额
+                if (!empty($v['examine_time']) &&
+                        $v['examine_time'] != "0000-00-00 00:00:00" &&
+                        $v['examine_modify_time'] != "0000-00-00 00:00:00" &&
+                        $v['if_show'] == 1 &&
+                        $v['start_time'] != "0000-00-00 00:00:00" &&
+                        $datetime > $v['end_time'] &&
+                        $has_backed >= $goal) {
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "筹资失败的项目") == 0) {
+            foreach ($result as $i => $v) {
+                if ($v['if_installments'] == 0) {
+                    $phase_money = $v['install_money'] != '||' ? explode('|', $v['install_money']) : '';
+                    // $goal = $phase_money[0] + $phase_money[1] + $phase_money[2];
+                    $goal = $phase_money[0];
+                } else {
+                    $goal = $v['install_money'];
+                }
+                $has_backed = $this->Product_m->get_product_back_amount_v2($v['id']);
+
+                // 已提交，且已审核，且审核通过，且已经开始，且众筹结束，且未达到筹资金额
+                if (!empty($v['examine_time']) &&
+                        $v['examine_time'] != "0000-00-00 00:00:00" &&
+                        $v['examine_modify_time'] != "0000-00-00 00:00:00" &&
+                        $v['if_show'] == 1 &&
+                        $v['start_time'] != "0000-00-00 00:00:00" &&
+                        $datetime > $v['end_time'] &&
+                        $has_backed < $goal) {
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "筹资额状态全部") == 0) {
+            foreach ($result as $i => $v) {
+                if ($v['if_installments'] == 0) {
+                    $phase_money = $v['finance_goal'] != '||' ? explode('|', $v['finance_goal']) : '';
+                    // $goal = $phase_money[0] + $phase_money[1] + $phase_money[2];
+                    $goal = $phase_money[0];
+                } else {
+                    $goal = $v['finance_goal'];
+                }
+                $has_backed = $this->Product_m->get_product_back_amount_v2($v['pro_id']);
+
+                /*
+                 * dota2 补漏
+                 */
+                if ($v['pro_id'] == 55) {
+                    $has_backed += 110430;
+                }
+
+                $v['finance_goal'] = $goal;
+                $v['finance_curr'] = $has_backed;
+                $v['progress'] = round(($has_backed / $goal) * 100, 2) . "%";
+
+                if ($has_backed >= $goal) {
+                    $v['finance_status'] = "已筹满";
+                } else {
+                    $v['finance_status'] = "未筹满";
+                }
+                $tmp_result += array("$index" => $v);
+                $index++;
+            }
+        } elseif (strcmp($condition, "已筹满") == 0) {
+            foreach ($result as $i => $v) {
+                if ($v['if_installments'] == 0) {
+                    $phase_money = $v['finance_goal'] != '||' ? explode('|', $v['finance_goal']) : '';
+                    // $goal = $phase_money[0] + $phase_money[1] + $phase_money[2];
+                    $goal = $phase_money[0];
+                } else {
+                    $goal = $v['finance_goal'];
+                }
+                $has_backed = (int) $this->Product_m->get_product_back_amount_v2($v['pro_id']);
+
+                /*
+                 * dota2 补漏
+                 */
+                if ($v['pro_id'] == 55) {
+                    $has_backed += 110430;
+                }
+
+                $v['finance_goal'] = $goal;
+                $v['finance_curr'] = $has_backed;
+                $v['progress'] = round(($has_backed / $goal) * 100, 2) . "%";
+
+                if ($has_backed >= $goal) {
+                    $v['finance_status'] = "已筹满";
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "未筹满") == 0) {
+            foreach ($result as $i => $v) {
+                if ($v['if_installments'] == 0) {
+                    $phase_money = $v['finance_goal'] != '||' ? explode('|', $v['finance_goal']) : '';
+                    // $goal = $phase_money[0] + $phase_money[1] + $phase_money[2];
+                    $goal = $phase_money[0];
+                } else {
+                    $goal = $v['finance_goal'];
+                }
+                $has_backed = $this->Product_m->get_product_back_amount_v2($v['pro_id']);
+
+                /*
+                 * dota2 补漏
+                 */
+                if ($v['pro_id'] == 55) {
+                    $has_backed += 110430;
+                }
+
+                $v['finance_goal'] = $goal;
+                $v['finance_curr'] = $has_backed;
+                $v['progress'] = round(($has_backed / $goal) * 100, 2) . "%";
+
+                if ($has_backed < $goal) {
+                    $v['finance_status'] = "未筹满";
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "时间状态全部") == 0) {
+            foreach ($result as $i => $v) {
+                if ($datetime > $v['pro_end_date']) {
+                    $v['time_status'] = "已结束";
+                } else {
+                    $v['time_status'] = "未结束";
+                }
+                $tmp_result += array("$index" => $v);
+                $index++;
+            }
+        } elseif (strcmp($condition, "已结束") == 0) {
+            foreach ($result as $i => $v) {
+                if ($datetime > $v['pro_end_date']) {
+                    $v['time_status'] = "已结束";
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } elseif (strcmp($condition, "未结束") == 0) {
+            foreach ($result as $i => $v) {
+                if ($datetime <= $v['pro_end_date']) {
+                    $v['time_status'] = "未结束";
+                    $tmp_result += array("$index" => $v);
+                    $index++;
+                }
+            }
+        } else {
+            $tmp_result = $result;
+        }
+
+        $result = $tmp_result;
+        return $result;
+    }
+
+    /**
+     * 模拟数据库的 limit 特性
+     */
+    function _page_data($data, $per_page, $offset) {
+        $tmp_data = array();
+        $index = 0;
+        // echo "here wo are <br>";var_dump($per_page);var_dump($offset);
+        foreach ($data as $i => $v) {
+            if ($i < $offset) {
+                continue;
+            } elseif ($i < ($offset + $per_page)) {
+                $tmp_data += array("$index" => $v);
+                $index++;
+            } else {
+                break;
+            }
+        }
+        $data = $tmp_data;
+        return $data;
+    }
+
+    function admin_list($start = 0) {
+        # 1 查询所有管理员信息
+        $where['if_show'] = 1;
+        $total_rows = $this->Admin_m->get_multiple_count('md_admin', $where);
+        $per_page = 15;
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('main/admin_list'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $orderby = 'ctime DESC';
+        $data = $this->Admin_m->get_multiple('md_admin', $where, $start, $per_page, $orderby);
+
+        $viewdata['pagination'] = $pagination;
+        $viewdata['data'] = $data;
+
+        # 2.加载页面
+        $this->load->view('ckad/listing', $viewdata);
+    }
+
+    function save_action($action = 'create', $id = '') {
+        switch ($action) {
+            case 'create':
+                $this->create();
+                break;
+            case 'update':
+                $this->update($id);
+                break;
+            default:
+                redirect('main/admin_list');
+        }
+    }
+
+    function create() {
+        $viewdata['action'] = 'create';
+        if ($_POST) {
+            # 验证必填项
+            $error = array();
+            $data['name'] = $this->input->post('name', true);
+            $data['password'] = $this->input->post('password', true);
+            $data['email'] = $this->input->post('email', true);
+            $type = $this->input->post('type', true);
+            $data['type'] = $type[0];
+            $data['permission'] = $this->input->post('permission', true);
+
+            $error = $this->_validate_admin($data);
+
+            if (empty($error)) {
+                #保存
+                $data['password'] = base64_encode($data['password']);
+                if ($data['type'] == 1)
+                    $data['permission'] = 'all';
+                else
+                    $data['permission'] = implode(',', $data['permission']);
+                $result = $this->Admin_m->save('md_admin', $data);
+                $_SESSION['save_message'] = '添加成功';
+                redirect('main/admin_list');
+            }
+            else {
+                $viewdata['error'] = $error;
+                $viewdata['data'] = $data;
+
+                $this->load->view('ckad/edit', $viewdata);
+            }
+        } else
+            $this->load->view('ckad/edit', $viewdata);
+    }
+
+    function update($id) {
+        # 1 查询detail
+        $data = $this->Admin_m->get_single_record('md_admin', array('id' => $id, 'if_show' => 1));
+        $data['password'] = base64_decode($data['password']);
+        $viewdata['id'] = $id;
+        $viewdata['data'] = $data;
+        $viewdata['action'] = 'update';
+
+        if ($_POST) {
+            # 验证必填项
+            $error = array();
+            $data['name'] = $this->input->post('name', true);
+            $data['password'] = $this->input->post('password', true);
+            $data['email'] = $this->input->post('email', true);
+            $type = $this->input->post('type', true);
+            $data['type'] = $type[0];
+            $data['permission'] = $this->input->post('permission', true);
+
+            $error = $this->_validate_admin($data);
+            if (empty($error)) {
+                #保存
+                $data['password'] = base64_encode($data['password']);
+                if ($data['type'] == 1)
+                    $data['permission'] = 'all';
+                else
+                    $data['permission'] = implode(',', $data['permission']);
+
+                $result = $this->Admin_m->update('md_admin', $id, $data);
+                $_SESSION['save_message'] = '修改成功';
+                redirect('main/admin_list');
+            }
+            else {
+                $viewdata['error'] = $error;
+                $viewdata['data'] = $data;
+                $this->load->view('ckad/edit', $viewdata);
+            }
+        } else
+            $this->load->view('ckad/edit', $viewdata);
+    }
+
+    function delete($id) {
+        $res = $this->Admin_m->delete('md_admin', $id);
+        $_SESSION['save_message'] = '删除成功';
+        redirect('main/admin_list');
+    }
+
+    function _validate_admin($data = array()) {
+        $error = array();
+        if (empty($data['name']))
+            $error['name'] = '*请输入用户名';
+        elseif (mb_strlen($data['name']) > 30)
+            $error['name'] = '*用户名超过30个字符';
+        if (empty($data['email']))
+            $error['email'] = '*请输入邮箱';
+        elseif (!preg_match('/^[A-Za-z0-9-_.+%]+@[A-Za-z0-9-.]+\.[A-Za-z]{2,4}$/', $data['email']))
+            $error['email'] = '*邮箱格式有误';
+        if (empty($data['password']))
+            $error['password'] = '*请输入密码';
+        elseif (strlen($data['password']) < 6)
+            $error['password'] = '*密码最少为6位';
+        elseif (strlen($data['password']) > 16)
+            $error['password'] = '*密码不能超过16位';
+        if (empty($data['type']))
+            $error['type'] = '*请选择管理员类型';
+        elseif ($data['type'] == 2) {
+            if (empty($data['permission']))
+                $error['permission'] = '*请选择管理员可以管理的模块';
+            elseif (count($data['permission']) == 10)
+                $error['permission'] = '*普通管理员不能管理全部模块';
+        }
+
+        return $error;
+    }
+
+    //帮助页面编辑
+    function about($start = 0) {
+        if ($_POST) {
+            foreach ($_POST as $key => $value) {
+                $res[$key] = $value;
+            }
+            $type = (int) $_POST['type'];
+            $this->Common->get_about($type, 1);
+            unset($res['about_id']);
+            if ($_POST['about_id']) {
+                $res2 = $this->Common->update("md_about", array('id' => $_POST['about_id']), $res);
+            } else {
+                $res2 = $this->Common->add('md_about', $res);
+            }
+            #$res2 = $this->db->insert('md_about', $res);
+        }
+
+//        $res = $this->Common->get_select_records('md_about', array('type in '=> '(1,2,3)'), 'ctime DESC');
+        $sql = "select * from md_about WHERE `type` IN (1,2,3,4) order by ctime DESC";
+        $res = $this->db->query($sql)->result_array();
+
+        if ($_GET['edit']) {
+            foreach ($res as $item) {
+                if ($item['id'] == $_GET['edit']) {
+                    $data['about_edit'] = $item;
+                }
+            }
+        }
+
+        $per_page = 15;
+        $total_rows = count($res);
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('main/about'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+
+
+        $limit = "LIMIT " . $start . ',' . $per_page;
+        $data['start'] = $start;
+        $sql = "select * from md_about WHERE `type` IN (1,2,3,4) order by ctime DESC $limit";
+
+        //$res = $this->db->query($sql)->result_array();
+        $data['res'] = $this->db->query($sql)->result_array();
+        $this->load->view("ckad/about", $data);
+    }
+
+    public function ajax_backer() {
+        $rows = $_POST['rows'];
+        $cur_page = $_POST['page'];
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $pro_name = $_POST['pro_name'];
+        $user_id = $_POST['user_id'];
+        $rew_content = $_POST['rew_content'];
+        $if_pay = $_POST['if_pay'] != '' ? $_POST['if_pay'] : 4;
+        $where = " WHERE 1";
+        if ($if_pay <= 3) {
+            $where .= " AND `md_product_back`.if_pay = '$if_pay' ";
+        }
+        if ($pro_name) {
+            $where .= " AND `md_product`.`name` LIKE '%{$pro_name}%'";
+        }
+        if ($rew_content) {
+            $where .= " AND `md_product_rewards`.`content` LIKE '%{$rew_content}%'";
+        }
+        if ($user_id) {
+            $where .= " AND `md_product_back`.`user_id`='{$user_id}'";
+        }
+        $sql = "SELECT md_product_back.*,md_product.name as pro_name,md_users.username,md_product_rewards.content as rew_content FROM md_product_back"
+                . " INNER JOIN md_product ON md_product_back.pro_id=md_product.id"
+                . " INNER JOIN md_users ON md_product_back.user_id=md_users.id"
+                . " INNER JOIN md_product_rewards ON md_product_back.rew_id=md_product_rewards.id"
+                . $where;
+        $query = $this->db->query($sql);
+        $count = count($query->result_array());
+
+        $sql = "SELECT md_product_back.*,md_product.name as pro_name,md_users.username,md_product_rewards.content as rew_content FROM md_product_back"
+                . " INNER JOIN md_product ON md_product_back.pro_id=md_product.id"
+                . " INNER JOIN md_users ON md_product_back.user_id=md_users.id"
+                . " INNER JOIN md_product_rewards ON md_product_back.rew_id=md_product_rewards.id"
+                . $where
+                . " ORDER BY {$sort} {$order}";
+        $sql .= " LIMIT " . ($cur_page - 1) * $rows . " ,{$rows}";
+        $query = $this->db->query($sql);
+        $rows = $query->result_array();
+        $if_pay_name = array('1' => '已支付', '0' => '未支付', '3' => '已退款', '2' => '已失效');
+        foreach ($rows as &$row) {
+            $row['if_pay'] = $if_pay_name[$row['if_pay']];
+        }
+        $result = array('total' => $count, 'rows' => $rows);
+        echo json_encode($result);
+    }
+
+    public function backer($start = 0) {
+
+
+        $this->load->view('ckad/backer');
+    }
+
+    //审核评论
+    function comments($start = 0, $pro_id = 0) {
+        $pro_id = $this->input->get("pro_id", true);
+        $module = $this->input->get("module", true);
+        $ctype = $this->input->get("ctype", true);
+        $ctime = $this->input->get("ctime", true);
+        $this->db->order_by("ctime", "desc");
+        $this->db->select("md_product_comments.*,md_users.username,md_product.name");
+        $this->db->from("md_product_comments");
+        if (!empty($pro_id)) {
+            $this->db->where("pro_id", $pro_id);
+        }
+        if ($module == 2) {
+            $this->db->where("pro_update_id", 0);
+        } else if ($module == 1) {
+            $this->db->where("pro_update_id > ", 0);
+        }
+        if ($ctype == 1) {
+            $this->db->where("top_id", 0);
+        } else if ($ctype == 2) {
+            $this->db->where("top_id > ", 0);
+        }
+        if ($ctime > 0) {
+            $tmp = time() - 3600 * 24 * $ctime;
+            $ft = date("Y-m-d H:i:s", $tmp);
+            $this->db->where("md_product_comments.ctime > ", $ft);
+        }
+        if (!empty($pro_id)) {
+            $this->db->where("pro_id", $pro_id);
+        }
+        $modulelist = array(1 => "项目更新", 2 => "评论模块");
+        $ctypelist = array(1 => "评论", 2 => "留言");
+        $timelist = array(1 => 7, 2 => 15, 3 => 30);
+        $this->db->join("md_users", "md_users.id=md_product_comments.user_id", "left");
+        $this->db->join("md_product", "md_product.id=md_product_comments.pro_id", "left");
+        $query = $this->db->get();
+        $comments = $query->result_array();
+
+        $per_page = 15;
+        $total_rows = count($comments);
+        $base_url = site_url('main/comments') . '?pro_id=' . $pro_id;
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => $base_url,
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+            'page_query_string' => TRUE,
+        );
+        $this->db->select("id,name");
+        $this->db->from("md_product");
+        $this->db->where("if_show", 1);
+        $query = $this->db->get();
+        $projectlist = $query->result_array();
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+        $this->db->order_by("top_time", "desc");
+        $this->db->order_by("md_product_comments.ctime", "desc");
+        $this->db->select("md_product_comments.*,md_users.username,md_product.name");
+        $this->db->from("md_product_comments");
+        if (!empty($pro_id)) {
+            $this->db->where("pro_id", $pro_id);
+        }
+        if ($module == 2) {
+            $this->db->where("pro_update_id", 0);
+        } else if ($module == 1) {
+            $this->db->where("pro_update_id > ", 0);
+        }
+        if ($ctype == 1) {
+            $this->db->where("top_id", 0);
+        } else if ($ctype == 2) {
+            $this->db->where("top_id > ", 0);
+        }
+        if ($ctime > 0) {
+            $tmp = time() - 3600 * 24 * $ctime;
+            $ft = date("Y-m-d H:i:s", $tmp);
+            $this->db->where("md_product_comments.ctime > ", $ft);
+        }
+        $this->db->join("md_users", "md_users.id=md_product_comments.user_id", "left");
+        $this->db->join("md_product", "md_product.id=md_product_comments.pro_id", "left");
+        $this->db->limit($per_page, isset($_GET['per_page']) ? $_GET['per_page'] : 0);
+        $query = $this->db->get();
+        $data['res'] = $query->result_array();
+        $data['projectlist'] = $projectlist;
+        $data['modulelist'] = $modulelist;
+        $data['ctypelist'] = $ctypelist;
+        $data['ctimelist'] = $timelist;
+        $this->load->view("ckad/comments", $data);
+    }
+
+    /**
+     * 定位评论(id)到所在项目(pro_id)评论页面中该评论所在位置
+     */
+    function skip_2_comment() {
+        $top_id = $id = $_GET['id'];
+        $pro_id = $_GET['pro_id'];
+
+        $sql = "SELECT id, top_id FROM md_product_comments WHERE id=" . $id;
+        $query = $this->db->query($sql);
+        // 设置 id子评论的主评论 id，因为只有一条查询记录，故无需循环
+        $row = $query->row_array();
+        // foreach ($query->result_array() as $row) {
+        if ($row['top_id'] != 0)
+            $top_id = $row['top_id'];
+        // }
+        // 在项目的所有主评论中，定位该评论所在行数
+        $sql = "SELECT id, type, if_show FROM md_product_comments WHERE pro_id = $pro_id and top_id = 0 and if_show = 1 and type = 0 and pro_update_id = 0 ORDER BY top_time DESC, ctime DESC";
+        $query = $this->db->query($sql);
+        $row_num = 0;
+        foreach ($query->result_array() as $row) {
+            $row_num++;
+            if ($row['id'] == $top_id) {
+                $if_show = $row['if_show'];
+                break;
+            }
+        }
+        // var_dump($row_num);
+        // 定位评论所在页数
+        define('PER_PAGE', 30);
+        $page = (int) ($row_num / (PER_PAGE + 1)) * PER_PAGE;
+        // var_dump($page);
+        // 生产环境中，请注意替换下面url中的硬编码
+        if ($if_show == 1) {
+            $base_url = _gc('main_site_url', 'config');
+            $url = "$base_url/main/comments/$pro_id/$page#comment-$id";
+            // $url = "http://beta.modian.com/main/comments/$pro_id/$page#comment-$id";
+            // var_dump($url);
+            redirect($url, 'location', 301);
+        }
+    }
+
+    function delete_about($id = "") {
+        $res = $this->Common->delete('md_about', array('id' => $id));
+        redirect("main/about");
+    }
+
+    //删除评论
+    function delete_comments() {
+        $id = (int) $this->input->get("id", true);
+        $pro_id = $this->input->get("pro_id");
+        $ctime = $this->input->get("ctime");
+        $ctype = $this->input->get("ctype");
+        $module = $this->input->get("module");
+
+        $res = $this->Common->delete('md_product_comments', array('id' => $id));
+        $cache_key = sprintf(md_common::GET_COMMENTS_FOR_MANAGEMENT, $pro_id);
+        md_memcache::delete($cache_key);
+        $cache_key = sprintf(md_common::PRODUCT_COMMENTS_PAGE, $pro_id);
+        md_memcache::delete($cache_key);
+        $params = "";
+        if (!empty($pro_id)) {
+            $params .="&pro_id=" . $pro_id;
+        }
+        if (!empty($ctype)) {
+            $params .= "&ctype=" . $ctype;
+        }
+        if (!empty($ctime)) {
+            $params .= "&ctime=" . $ctime;
+        }
+        if (!empty($module)) {
+            $params .= "&module=" . $module;
+        }
+        redirect("main/comments?" . $params);
+    }
+
+    //删除站内通知
+    function delete_message() {
+        $message_id = $this->input->get('id');
+        $where = array(
+            'id' => $message_id,
+        );
+        $res = $this->Common->delete('md_message', $where);
+
+        if ($res)
+            redirect('main/send_message');
+    }
+
+    //人工帮助
+    function humanhelp($start = 0) {
+
+        $res = $this->Common->get_select_records('md_humanhelp', '', 'ctime DESC');
+
+        $per_page = 15;
+        $total_rows = count($res);
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('main/humanhelp'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        $limit = $per_page . ',' . $start;
+        $data['res'] = $this->Common->get_select_records('md_humanhelp', '', 'ctime DESC', $limit);
+
+        $this->load->view("ckad/humanhelp", $data);
+    }
+
+    public function login() {
+        $viewdata = array();
+
+        if ($_POST) {
+            # step 1 : 验证用户名密码
+            $email = $this->input->post('loginname', true);
+            $password = $this->input->post('password', true);
+
+            if (!empty($email) && !empty($password)) {
+                $sql = "SELECT adu.*,grp.group_item_ids FROM md_admin adu
+INNER JOIN md_admin_group grp ON adu.admin_group=grp.id
+WHERE email='{$email}' AND `password`='" . md5($password) . "' AND if_show=1";
+                $result = $this->db->query($sql)->row_array();
+                if (empty($result)) {
+                    $error['login_error'] = '*用户名或密码错误，请重新输入';
+                    $viewdata['data'] = $_POST;
+                    $viewdata['error'] = $error;
+                    unset($_POST);
+                    $this->load->view('ckad/login', $viewdata);
+                } else {
+                    $_SESSION['admin_name'] = $result['name'];
+                    $_SESSION['admin_id'] = $result['id'];
+                    $_SESSION['admin_email'] = $result['email'];
+                    $_SESSION['admin_type'] = $result['type'];
+                    $_SESSION['power_ids'] = ",{$result['group_item_ids']},";
+                    $_SESSION['power_uri'] = md_admin_get_uid($result['group_item_ids']);
+                    $_SESSION['power_uri'] = array_merge($_SESSION['power_uri'], $this->_public_uri);
+                    if (isset($_SESSION['admin_from_url'])) {
+                        $from_url = $_SESSION['admin_from_url'];
+                        unset($_SESSION['admin_from_url']);
+                        redirect($from_url);
+                    } else {
+                        redirect('main/site');
+                    }
+                }
+            } else {
+                if (empty($email))
+                    $error['username'] = '*请输入用户名';
+                if (empty($password))
+                    $error['password'] = '*请输入密码';
+            }
+        }
+        else {
+            $this->load->view('ckad/login', $viewdata);
+        }
+    }
+
+    function logout() {
+        unset($_SESSION['admin_id']);
+        unset($_SESSION['admin_name']);
+        unset($_SESSION['admin_email']);
+        unset($_SESSION['admin_type']);
+        unset($_SESSION['admin_permisssion']);
+
+        redirect('main/login');
+    }
+
+    public function index_sort() {
+        if ($_POST) {
+            switch ($_POST['type']) {
+                case 'list_num':
+                    foreach ($_POST as $k => $item) {
+                        if (stripos($k, 'list_num_') !== false) {
+                            $id = intval(str_replace('list_num_', '', $k));
+                            $sql = "UPDATE md_product SET list_num='{$item}' WHERE id={$id}";
+                            $this->db->query($sql);
+                        }
+                    }
+                    break;
+                case 'top_sort':
+                    foreach ($_POST as $k => $item) {
+                        if (stripos($k, 'top_sort_') !== false) {
+                            $id = intval(str_replace('top_sort_', '', $k));
+                            $sql = "UPDATE md_product SET top_sort='{$item}' WHERE id={$id}";
+                            $this->db->query($sql);
+                        }
+                        if (stripos($k, 'top_title_') !== false) {
+                            $id = intval(str_replace('top_title_', '', $k));
+                            $sql = "UPDATE md_product SET top_title='{$item}' WHERE id={$id}";
+                            $this->db->query($sql);
+                        }
+                    }
+                    break;
+                case 'short_title':
+                    foreach ($_POST as $k => $item) {
+                        if (stripos($k, 'short_title_') !== false) {
+                            $id = str_replace('short_title_', '', $k);
+                            $sql = "UPDATE md_product SET short_title='{$item}' WHERE id={$id}";
+                            $this->db->query($sql);
+                        }
+                    }
+                    break;
+                case 'clear_cache':
+                    $r = md_memcache::flush();
+                    break;
+            }
+        }
+        $sql = "SELECT * FROM md_product WHERE flag LIKE '%T%' AND if_show=1 ORDER BY top_sort DESC";
+        $data['products_top'] = $this->db->query($sql)->result_array();
+        $sql = "SELECT * FROM md_product WHERE flag LIKE '%F%' AND if_show=1 ORDER BY list_num DESC";
+        $data['products_index'] = $this->db->query($sql)->result_array();
+        $date = date("Y-m-d");
+        $sql = "SELECT *,duration-DATEDIFF('{$date} 23:59:59',examine_modify_time) as remain_days FROM md_product WHERE if_show=1 ORDER BY id DESC";
+        $data['products_all'] = $this->db->query($sql)->result_array();
+        $this->load->view('ckad/index_sort', $data);
+    }
+
+    public function product($id = 0) {
+        if ($id != 0) {
+            redirect('project/check/' . $id);
+
+            //编辑单个app是否推荐、头条、首行，第二行
+            if ($_POST) {
+                $flag = $this->input->post('flag', true);
+                if ($flag) {
+                    $update['flag'] = implode(",", $this->input->post('flag', true));
+                } else {
+                    $update['flag'] = '';
+                }
+                $first_figure = '';
+                $first_figure_pc = $_POST['first_figure_pc'];
+                $first_figure_mobile = $_POST['first_figure_mobile'];
+
+                if ($first_figure_pc) {
+                    $first_figure['pc'] = $first_figure_pc;
+                }
+                if ($first_figure_mobile) {
+                    $first_figure['mobile'] = $first_figure_mobile;
+                }
+                if ($first_figure) {
+                    $first_figure = serialize($first_figure);
+                }
+                $update['first_figure'] = $first_figure;
+                $update['start_time'] = $_POST['start_time'];
+                $update['slide'] = $this->Common->do_upload("slide");
+                $update['short_title'] = $this->input->post('short_title', true);
+                $update['html_buttom'] = $_POST['html_buttom'];
+                $this->Common->update('md_product', array('id' => $id), $update);
+                unset($update);
+                $this->Product_m->get_product_info($product_id, '', 1);
+//                $this->Product_m->get_product_info($product_id, 1, 1);
+            }
+
+            $this->db->select("md_product.*,md_users.username,md_users.realname,md_users.id_number,md_users.id_image,md_users.gender,md_users.tel,md_users.email");
+            $this->db->join("md_users", "md_product.user_id=md_users.id", "INNER");
+            $this->db->where("md_product.id", $id);
+            $query = $this->db->get("md_product");
+
+            $res = $query->row_array();
+            $res['end_time'] = $update['end_time'] = date("Y-m-d H:i:s", $res['duration'] * 24 * 3600 + strtotime($res['start_time']));
+            if ($_POST) {
+                $this->Common->update('md_product', array('id' => $id), $update);
+            }
+            //处理图片地址
+            $pattern = '/\&lt\;img(?:.*?)src=\&quot\;(uploads\/prod\/(?:.*?)|uploads\/old\/(?:.*?))\&quot\;(?:[^\/]*?)\/\&gt\;/i';
+            preg_match_all($pattern, $res['content'], $matches);
+            foreach ($matches[1] as $key => $value) {
+                //$value = strstr($value,'old')?str_replace('uploads/old', '', $value):$value;
+                $replace[] = cdn_url($value, 'p', 'fix');
+            }
+            $res['content'] = str_replace($matches[1], $replace, $res['content']);
+
+            $res['content'] = $res['content'];
+            $data["res"] = $res;
+
+            $flag = $res['flag'];
+            $data['flag'] = explode(',', $flag);
+
+            if ($data["res"]['first_figure']) {
+                $data['res']['first_figure'] = unserialize($data['res']['first_figure']);
+            }
+
+            $rewards = $this->Common->get_select_records('md_product_rewards', array('pro_id' => $id));
+            $data['rewards'] = $rewards;
+
+            $this->load->view('ckad/product', $data);
+        }
+    }
+
+    //发送站内通知
+    function send_message($start = 0) {
+        $data = array();
+        # 查询所有发送的未读的站内信
+        $message = $this->Common->get_all_send_message();
+
+        $per_page = 15;
+        $total_rows = count($message);
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('main/send_message'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+
+        $data['message'] = $this->Common->get_all_send_message($per_page, $start);
+
+        if ($_POST) {
+            # 1.  查询所有用户
+            $users = $this->User_m->get_all_user();
+
+            # 2. 发送站内信给所有用户
+            $title = "摩点团队站内信";
+            $content = $this->input->post('content', TRUE);
+
+            foreach ($users as $user) {
+                $email = $user['email'];
+                $insert = array();
+                $insert['to_uid'] = $user['id'];
+                $insert['title'] = $title;
+                $insert['content'] = $content;
+                $insert['system'] = 1;
+
+                $res = $this->Common->send_email($email, $title, $content);
+
+                # 3. 将发送的信息插入md_message表
+                $result = $this->Common->add('md_message', $insert);
+            }
+        }
+
+        $this->load->view('ckad/message', $data);
+    }
+
+    /* 审核产品 */
+
+    public function sh_pro() {
+        $pro_id = (int) $this->input->post("id", true);
+        $status = (int) $this->input->post("status", true);
+
+        if ($pro_id) {
+            $product = $this->Product_m->get_product_info($pro_id);
+            $data = array(
+                'if_show' => $status,
+                'examine_modify_time' => date('Y-m-d H:i:s'),
+            );
+            if ($product['start_time'] == '0000-00-00 00:00:00') {
+                $data['start_time'] = $data['examine_modify_time'];
+                $data['end_time'] = date("Y-m-d H:i:s", $product['duration'] * 24 * 3600 + strtotime($data['start_time']));
+            }
+            $query = $this->Common->update('md_product', array('id' => $pro_id), $data);
+
+            if ($query) {
+                md_memcache::flush();
+                $user_detail = $this->User_m->get_user_info($product['user_id']);
+                # 发送邮件和站内信通知用户审核结果
+                $title = '摩点团队审核通知';
+                if ($status == 1) { //审核通过
+                    $title = '您提交的' . $product['name'] . '项目成功通过审核！';
+                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '，<br/>';
+                    $content .= '您发起的' . $product['name'] . '项目已经通过审核，您可以到项目管理中查看项目效果并发布更新。如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！';
+                    $content .= '<br/><br/>祝好<br/>摩点团队';
+                } elseif ($status == 3) { //审核未通过
+                    $title = '您提交的' . $product['name'] . '项目未通过审核！';
+                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '，<br/>';
+                    $content .= '抱歉的通知您，您发起的' . $product['name'] . '项目没有通过审核，麻烦您按照项目规范来修改您的项目。如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！';
+                    $content .= '<br/><br/>祝好<br/>摩点团队';
+                }
+                #邮件
+                $this->Common->send_email($product['email'], $title, $content);
+
+                #站内信通知
+                $insert = array();
+                $insert['to_uid'] = $product['user_id'];
+                $insert['title'] = $title;
+                $insert['content'] = $content;
+                $insert['system'] = 1;
+                $result = $this->Common->add('md_message', $insert);
+                echo 1;
+            } else {
+                echo 3;
+            }
+        }
+    }
+
+    //用记反馈
+    function sugg($start = 0) {
+
+        $res = $this->Common->get_select_records('md_sugg', '', 'ctime DESC');
+
+        $per_page = 15;
+        $total_rows = count($res);
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('main/sugg'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        $limit = $per_page . ',' . $start;
+        $data['res'] = $this->Common->get_select_records('md_sugg', '', 'ctime DESC', $limit);
+        $this->load->view("ckad/sugg", $data);
+    }
+
+    /**
+     * 用户管理
+     * 用户标签管理/编辑
+     * Enter description here ...
+     * @param unknown_type $order
+     * @param unknown_type $start
+     */
+    public function user($order = 'ctime', $start = 0) {
+        #$query = $this->db->get("md_users");
+        $where = array();
+        $str_where = "1";
+        $search_arr["user_id"] = isset($_GET['user_id']) ? $_GET['user_id'] : '';
+        $search_arr["username"] = isset($_GET['username']) ? $_GET['username'] : '';
+        $search_arr["user_mobels"] = isset($_GET['user_mobel']) ? $_GET['user_mobel'] : '';
+        if (!empty($search_arr["user_id"])) {
+            $str_where .= " and `id`= '" . $search_arr["user_id"] . "' ";
+        }
+        if (!empty($search_arr["username"])) {
+            $str_where .= " and `username`='" . $search_arr["username"] . "' OR `nickname` ='" . $search_arr["username"] . "'";
+        }
+        if (!empty($search_arr["user_mobels"])) {
+            $str_where .= " and  `mobile`='" . $search_arr["user_mobels"] . "'";
+        }
+        $user_count = $this->db->query("SELECT COUNT(1) AS c FROM md_users WHERE  {$str_where}")->row_array();
+        $per_page = 19;
+        $total_rows = $user_count['c'];
+        $config = array(
+            'uri_segment' => 4,
+            'base_url' => site_url('main/user/' . $order),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+        $limit = $start . ',' . $per_page;
+        if (!empty($search_arr["user_mobels"]) || !empty($search_arr["username"]) || !empty($search_arr["user_id"])) {
+            $sql = "SELECT * FROM md_users WHERE  {$str_where} ORDER BY `ctime` DESC LIMIT 20";
+        } else {
+            $sql = "SELECT * FROM md_users WHERE  {$str_where} ORDER BY `ctime` DESC LIMIT {$limit}";
+        }
+        $data["users"] = $this->db->query($sql)->result_array();
+        for ($i = 0; $i < count($data["users"]); $i++) {
+
+            $data["users"][$i]['icon_arr'] = explode("http://", $data["users"][$i]["icon"]);
+            $weixin_info = $this->User_m->get_weixin_info($data["users"][$i]["id"]);
+            $data["users"][$i]["userinfo"] = $weixin_info[0]['nickname'];
+            $data["users"][$i]["b_openid"] = $weixin_info[0]['openid'];
+            $back_sql = "SELECT COUNT(DISTINCT(`pro_id`)) AS num , SUM(`amount`) AS back_amount FROM `md_product_back` WHERE `user_id`='" . $data["users"][$i]['id'] . "' AND `if_pay`=1";
+            $back_mess = $this->db->query($back_sql)->result_array();
+            $data["users"][$i]["back_mess"] = $back_mess[0];
+
+            $all_back_mess = $this->User_m->get_user_back_project_distinct($data["users"][$i]['id'], 1, 1);
+            if (!empty($all_back_mess)) {
+                $data["users"][$i]["all_back_mess"] = count($all_back_mess);
+            } else {
+                $data["users"][$i]["all_back_mess"] = 0;
+            }
+            $last_back_sql = "SELECT `address_province`,`address_city`, `address_county`,`address_town`, `address_detail`,`address_mobile` FROM `md_product_back` WHERE `user_id`='" . $data["users"][$i]['id'] . "' AND `if_pay`=1 ORDER BY `ctime` DESC LIMIT 1";
+            $last_back_mess = $this->db->query($last_back_sql)->result_array();
+            $data["users"][$i]["last_back_mess"] = $last_back_mess[0];
+
+            $all_score = $data["users"][$i]['all_score'];
+            $score = isset($all_score) ? $all_score : '';
+            $data["users"][$i]["score"] = $score;
+        }
+
+        $this->load->view('ckad/user', $data);
+    }
+
+    /**
+     * 编辑用户标签
+     * Enter description here ...
+     * @param unknown_type $user_id
+     */
+    function edit_user_tag() {
+        $user_id = $this->input->get('user_id', true);
+        $data = array();
+        $user_tag = $this->User_m->get_user_tags($user_id);
+        if (!empty($user_tag[0]['tags'])) {
+            $tags = explode(",", $user_tag[0]['tags']);
+        }
+        $data['tags'] = isset($tags) ? $tags : '';
+        if (!empty($user_tag[0]['sys_tags'])) {
+            $sys_tags = explode(",", $user_tag[0]['sys_tags']);
+        }
+        $data['sys_tags'] = isset($sys_tags) ? $sys_tags : '';
+        $data['user_id'] = $user_id;
+        echo json_encode(array('status' => '0', 'tags' => $data['tags'], 'sys_tags' => $data['sys_tags']));
+        //$this->load->view('ckad/edit_user_tag', $data);
+    }
+
+    /**
+     * 更新用户标签
+     * Enter description here ...
+     * @param unknown_type $user_id
+     */
+    function updata_user_tag($user_id) {
+
+        $user_tags_arr = isset($_POST["tags"]) ? $_POST["tags"] : ""; //自定义标签
+        $user_sys_tags_arr = isset($_POST["sys_tags"]) ? $_POST["sys_tags"] : ""; //系统隐藏标签
+        // print_r($user_sys_tags_arr);exit;
+        $user_tags = implode(",", array_filter($user_tags_arr));
+        $user_sys_tags = implode(",", array_filter($user_sys_tags_arr));
+        $updata['user_id'] = $user_id;
+        $updata['tags'] = trim($user_tags, ",");
+        $updata['sys_tags'] = trim($user_sys_tags, ",");
+        //print_r($updata);exit;
+        $updata = $this->User_m->updata_user_tags($updata);
+        echo "<script>alert('更新成功')</script>";
+        redirect("main/user");
+    }
+
+    #预售失败项目管理
+
+    function failed($start = 0) {
+        # 1. 查询所有已通过审核的项目信息
+        $products = $this->Product_m->get_product_list('id', 1);
+
+        $data = array();
+        foreach ($products as $pro) {
+            $has_started = (int) ((time() - strtotime($pro['ctime'])) / 3600 / 24);
+            #判断是否超过筹资期限
+            if ($has_started > $pro['duration']) {
+                # 2. 查询超过投资期限项目已筹到的金额
+                $has_backed = $this->Product_m->get_product_back_amount($pro['id']);
+                $money = '';
+                if ($pro['if_installments'] == 0) {
+                    $moneys = explode('|', $pro['install_money']);
+                    foreach ($moneys as $m) {
+                        $money += $m;
+                    }
+                } else
+                    $money = $pro['install_money'];
+                # 3. 筹资失败的项目赋给data
+                if ($has_backed < $money) {
+                    $this->db->where('md_product.id', $pro['id']);
+                    $this->db->where('md_product.if_show', 1);
+                    $this->db->order_by("md_product.ctime", "desc");
+                    $this->db->select("md_product.*,md_users.username");
+                    $this->db->join("md_users", "md_product.user_id=md_users.id", "left");
+                    $query = $this->db->get("md_product");
+                    $product = $query->row_array();
+                    $product['has_backed'] = $has_backed;
+                    $product['goal'] = $money;
+                    $product['has_started'] = $has_started;
+                    $data['products'][] = $product;
+                }
+            }
+        }
+        if (count($data['products']) > 15) {
+            $per_page = 15;
+            $total_rows = count($data['products']);
+            $config = array(
+                'uri_segment' => 3,
+                'base_url' => site_url('main/failed'),
+                'per_page' => $per_page,
+                'total_rows' => $total_rows,
+            );
+            $config['num_links'] = 20;
+            $this->pagination->initialize($config);
+            $pagination = $this->pagination->create_links();
+            $data['pagination'] = $pagination;
+            if ($start == 0) {
+                for ($i = 0; $i < $per_page; $i++) {
+                    if (!empty($data['products'][$i]))
+                        $products[$i] = $data['products'][$i];
+                }
+            }
+            else {
+                $key = 0;
+
+                for ($i = $start; $i < ($start + $per_page); $i++) {   #print_r($i);exit;
+                    if (!empty($data['products'][$i]))
+                        $products[$key] = $data['products'][$i];
+                    $key++;
+                }
+            }
+            $data['products'] = $products;
+        }
+        # 加载页面
+        $this->load->view('ckad/failed', $data);
+    }
+
+    function send_email($product_id, $user_id) {
+        $product = $this->Product_m->get_product_info($product_id);
+        if ($product['if_installments'] == 0) {
+            if ($product['first_phase_date'] != '0000-00-00 00:00:00')
+                $rew_phase = 1;
+            if ($product['second_phase_date'] != '0000-00-00 00:00:00')
+                $rew_phase = 2;
+            if ($product['third_phase_date'] != '0000-00-00 00:00:00')
+                $rew_phase = 3;
+        } else
+            $rew_phase = 0;
+
+        if ($product['failed_email'] == 0) {
+            #融资失败，发送通知邮件、站内信、短信给支持者和创建者
+            #发送邮件、短信、站内信给项目的支持者，通知项目融资失败
+            $this->send_message_to_backer($product_id, $rew_phase, 'failed');
+            #发送邮件、短信、站内信给项目的创建者，通知项目融资失败
+            $this->send_message_to_creator($user_id, $product_id, $rew_phase, 'failed');
+
+            #更新product的email status为0
+            $res = $this->Common->update('md_product', array('id' => $product['id']), array('failed_email' => 1));
+        }
+
+        redirect('main/failed');
+    }
+
+    function send_message_to_backer($pro_id, $rew_phase = 1, $status = 'failed') {
+        $product = $this->Product_m->get_product_info($pro_id);
+        $content = '';
+        if ($rew_phase > 0) {
+            $where = array(
+                'pro_id' => $pro_id,
+                'rew_phase' => $rew_phase,
+            );
+
+            $title = '您支持的' . $product['name'] . '项目在第' . $rew_phase . '期不幸失败！';
+        } else {
+            $where = array(
+                'pro_id' => $pro_id,
+            );
+            $title = '您支持的' . $product['name'] . '项目在融资中不幸失败！';
+        }
+        #发送通知邮件给项目创办人及支持用户，通知x期融资成功
+        $rewards = $this->Common->get_select_records('md_product_rewards', $where, '', '', 'id');
+        # 2. 根据reward id,pro_id查询出当前product的支持者信息
+        foreach ($rewards as $rew) {
+            $where = array(
+                'pro_id' => $pro_id,
+                'rew_id' => $rew['id'],
+            );
+            $backers = $this->Common->get_select_records('md_product_back', $where);
+            # 3. 根据每个backer的user_id查询用户信息，发送邮件、站内信和短信通知
+            foreach ($backers as $key => $back) {
+                $user_detail = $this->User_m->get_user_info($back['user_id']);
+
+                if ($rew_phase > 0) {
+                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '<br/>';
+                    $content .= '很抱歉的通知您，您支持的' . $product['name'] . '项目没有完成第' . $rew_phase . '期的融资目标。我们会在5个工作日内将款项退到您的支付账户中，请耐心等候。';
+                    $content .= '如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！<br/><br/>祝好<br/>摩点团队';
+                } else {
+                    $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '<br/>';
+                    $content .= '很抱歉的通知您，您支持的' . $product['name'] . '项目没有完成融资目标。我们会在5个工作日内将款项退到您的支付账户中，请耐心等候。';
+                    $content .= '如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！<br/><br/>祝好<br/>摩点团队';
+                }
+
+
+                #发送邮件通知
+                $this->Common->send_email($user_detail['email'], $title, $content);
+
+                #站内信通知
+                $insert = array();
+                $insert['to_uid'] = $back['user_id'];
+                $insert['title'] = $title;
+                $insert['content'] = $content;
+                $insert['system'] = 1;
+                $result = $this->Common->add('md_message', $insert);
+            }
+        }
+    }
+
+    function send_message_to_creator($user_id, $product_id = '', $rew_phase = 1, $status = 'failed') {
+        $product = $this->Product_m->get_product_info($product_id);
+        $user_detail = $this->User_m->get_user_info($user_id);
+        #发送通知邮件给项目创办人及支持用户，通知x期融资失败
+
+        if ($rew_phase > 0) {
+            $title = '您发起的' . $product['name'] . '项目在第' . $rew_phase . '期不幸失败！';
+            $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '<br/>';
+            $content .= '您发起的' . $product['name'] . '项目在预期时间内未达成' . $rew_phase . '期融资目标，我们会安排工作人员在3个工作日内和您沟通后续相关事宜，请耐心等候！';
+            $content .= '如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！<br/><br/>祝好<br/>摩点团队';
+        } else {
+            $title = '您发起的' . $product['name'] . '项目不幸失败！';
+            $content = '亲爱的' . ($user_detail['nickname'] ? $user_detail['nickname'] : $user_detail['username']) . '<br/>';
+            $content .= '抱歉通知您，您发起的' . $product['name'] . '项目预计时间内，未达成融资目标，我们会安排工作人员在3个工作日内和您沟通后续相关事宜，请耐心等候！<br/>';
+            $content .= '如有问题，请发邮件到contact@modian.com 或者致电010-58497046联系我们！<br/><br/>祝好<br/>摩点团队';
+        }
+
+
+
+        #发送邮件通知
+        $this->Common->send_email($user_detail['email'], $title, $content);
+
+        #站内信通知
+        $insert = array();
+        $insert['to_uid'] = $user_id;
+        $insert['title'] = $title;
+        $insert['content'] = $content;
+        $insert['system'] = 1;
+        $result = $this->Common->add('md_message', $insert);
+    }
+
+    #网站概况
+
+    function site() {
+        # 当前数据统计
+        # 1.注册用户数总和
+        $users_count = $this->Admin_m->get_multiple_count('md_users');
+        # 2. 在线人数(15分钟以内登录的)
+        $date = date('Y-m-d H:i:s', strtotime('-15 mins'));
+        $online_count = $this->Admin_m->get_multiple_count('md_users', array('last_login >=' => $date));
+        # 3. 众筹中的项目数
+        $online_product = $this->Admin_m->get_multiple_count('md_product', array('if_show' => 1));
+        # 4. 总筹资金额
+        $total = $this->Common->get_select_records('md_product_back', array('if_pay' => 1), '', '', 'sum(amount) as total');
+        $back_total = isset($total[0]['total']) ? number_format($total[0]['total'], 2) : '';
+        # 5. 筹资速度
+        /*
+         * * 当前系统时间 - 第一笔订单的成交时间 做为分母
+         * * 订单支付成功的金额 做为分子  --总筹资金额
+         * * 取百分比 表示筹资速度
+         */
+        #5.1 取第一笔成效的订单信息
+        $first_order = $this->Common->get_select_records('md_pay', array('status' => 1), 'return_time ASC', 1, 'return_time');
+        $first_order_time = isset($first_order[0]['return_time']) ? $first_order[0]['return_time'] : '';
+        $date = date('Y-m-d H:i:s');
+        if (!empty($first_order_time)) {
+            $time_result = (int) ((time() - strtotime($first_order_time)) / 3600); //单位-小时
+            $back_speed = number_format($back_total / $time_result, 2) . '%';
+        } else
+            $back_speed = '0.00%';
+
+        # 6. 支持者数量
+        $backer_count = $this->Admin_m->get_multiple_count('md_product_back', array('if_pay' => 1));
+
+        # 7. 当前获得最多支持的项目-前三个，包括支付金额，浏览数
+        #7.1 查询获得最多支持的项目 前三个
+        $products = $this->Common->get_select_records('md_product_back', array('if_pay' => 1), 'total DESC', 3, 'sum(amount) as total,pro_id', 'pro_id');
+        # 7.2 查询每个产品的浏览数
+        foreach ($products as $key => $p) {
+            //$product_logs = $this->Admin_m->get_multiple_count('md_logs', array('pro_id' => $p['pro_id']));
+            $product_name = $this->Common->get_select_records('md_product', array('id' => $p['pro_id']), '', '', 'name');
+
+            //$products[$key]['logs'] = $product_logs;
+            $products[$key]['name'] = $product_name[0]['name'];
+        }
+
+        # 8 加载数据至页面
+        $data['users_count'] = $users_count;
+        $data['online_count'] = $online_count;
+        $data['online_product'] = $online_product;
+        $data['back_total'] = $back_total;
+        $data['back_speed'] = $back_speed;
+        $data['backer_count'] = $backer_count;
+        $data['products'] = $products;
+
+        $this->load->view('ckad/site', $data);
+    }
+
+    public function top_comments() {
+        $id = $this->input->get("id");
+        $op = $this->input->get("op");
+        $pro_id = $this->input->get("pro_id");
+        if ($op) {
+            $nowtime = date("Y-m-d H:i:s", time());
+        } else {
+            $nowtime = "0000-00-00 00:00:00";
+        }
+        // $where = array('id' => $id, "pro_id" => $pro_id);
+        $where = array('id' => $id);
+        $result = $this->Common->update('md_product_comments', $where, array('top_time' => $nowtime));
+        $result = 1;
+        $data = array('res' => 'error', 'error' => '');
+        if ($result) {
+            $data['res'] = 'ok';
+        } else {
+            $data['error'] = '操作失败！';
+        }
+        $cache_key = sprintf(md_common::GET_COMMENTS_FOR_MANAGEMENT, $pro_id);
+        md_memcache::delete($cache_key);
+        $cache_key = sprintf(md_common::PRODUCT_COMMENTS_PAGE, $pro_id);
+        md_memcache::delete($cache_key);
+        $params = "";
+        if (!empty($pro_id)) {
+            $params .="&pro_id=" . $pro_id;
+        }
+        if (!empty($ctype)) {
+            $params .= "&ctype=" . $ctype;
+        }
+        if (!empty($ctime)) {
+            $params .= "&ctime=" . $ctime;
+        }
+        if (!empty($module)) {
+            $params .= "&module=" . $module;
+        }
+        redirect("main/comments?" . $params);
+    }
+
+    /**
+     * 获取通过审核的项目
+     * */
+    public function prod_list($start) {
+        //$this->load->library('pagination');
+        $list = $this->Product_m->get_product_list('ctime', 1, $start, 9);
+
+        $total = $this->Product_m->get_product_list('ctime', 1);
+        $rec_list = $this->Product_m->get_interrelated(0);
+        $per_page = 9;
+        $total_rows = count($total);
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url("main/prod_list/"),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        //$config['num_links'] = 2;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        $data['list'] = $list;
+        $data['loc_succ'] = $rec_list['loc_succ'];
+        $data['loc_detail'] = $rec_list['loc_detail'];
+        $this->load->view('ckad/pro_list', $data);
+    }
+
+    /**
+     * 交差推荐
+     * */
+    public function recommend($pro_id) {
+        $pro_id = isset($pro_id) ? (int) $pro_id : '';
+        if (empty($pro_id))
+            md_common::display_javascript("未查找到该项目信息");
+
+        if ($_POST) {
+            $detail = $this->input->post('detail', true);
+            $succ = $this->input->post('succ', true);
+            foreach ($detail as $k => $v) {
+                if (empty($v))
+                    unset($detail[$k]);
+            }
+            foreach ($succ as $k => $v) {
+                if (empty($v))
+                    unset($succ[$k]);
+            }
+            $loc_detail = implode(',', $detail);
+            $loc_succ = implode(',', $succ);
+            $this->Product_m->update_interrelated($pro_id, $loc_detail, $loc_succ);
+        }
+        $res = $this->Product_m->get_product_info($pro_id);
+        $data['res'] = $res;
+        $pro_list = $this->Product_m->get_interrelated($pro_id);
+        $data['loc_succ'] = $pro_list['loc_succ'];
+        $data['loc_detail'] = $pro_list['loc_detail'];
+        $this->load->view('ckad/recommend', $data);
+    }
+
+    /**
+     * 根据项目名称获取项目信息
+     * */
+    public function ajax_pro_list($return = 'html') {
+        $pro_name = isset($_GET['pro_name']) ? trim($_GET['pro_name']) : '';
+        if (empty($pro_name)) {
+            echo '0';
+            exit;
+        }
+        $res = $this->Product_m->get_prodlist_byname($pro_name);
+        $data['res'] = $res;
+
+        if ($return == 'json') {
+            echo json_encode($res);
+            exit;
+        }
+        $pro_list = $this->load->view('ckad/ajax_list', $data, true);
+        echo $pro_list;
+    }
+
+    public function ajax_pro_name() {
+        $id = isset($_GET['id']) ? trim($_GET['id']) : '';
+        if (empty($id)) {
+            echo '0';
+            exit;
+        }
+        $res = $this->Product_m->get_product_info($id);
+        $data = array('name' => $res['name']);
+        echo json_encode($data);
+        exit;
+    }
+
+    public function ajax_recommend_default() {
+        $pro_id = 0;
+
+        $detail = $this->input->post('detail', true);
+        $succ = $this->input->post('succ', true);
+        foreach ($detail as $k => $v) {
+            if (empty($v))
+                unset($detail[$k]);
+        }
+        foreach ($succ as $k => $v) {
+            if (empty($v))
+                unset($succ[$k]);
+        }
+        $loc_detail = implode(',', $detail);
+        $loc_succ = implode(',', $succ);
+        $this->Product_m->update_interrelated($pro_id, $loc_detail, $loc_succ);
+        echo json_encode(array('status' => '0', 'msg' => 'ok'));
+    }
+
+    /**
+     * online_pro_search: 上线项目查询
+     */
+    function online_pro_search() {
+        // ...
+        $this->load->view('ckad/online_pro_search');
+    }
+
+    function online_ajax_pro() {
+        $today = date('Y-m-d H:i:s');
+
+        // 获取查询条件，及相关数据
+        $rows = $_POST['rows'];
+        $cur_page = $_POST['page'];
+        $sort = $_POST['sort'];
+        $order = $_POST['order'];
+        $order_by = " ORDER BY {$sort} {$order}";
+        $where = $this->_get_online_pro_where($_POST);
+
+        // 获取过滤条件
+        $finance_status = isset($_POST['finance_status']) ? $_POST['finance_status'] : '';
+        $time_status = isset($_POST['time_status']) ? $_POST['time_status'] : '';
+
+        // 获取全部数据、过滤
+        $res = $this->Search_m->get_online_pro_data($where, $order_by);
+        $result = $res['result'];
+        if (empty($finance_status))
+            $finance_status = "筹资额状态全部";
+        $result = $this->_filter_product_data($result, $finance_status);
+        if (empty($time_status))
+            $time_status = "时间状态全部";
+        $result = $this->_filter_product_data($result, $time_status);
+
+        // 数据显示处理、组装结果集没有字段
+        $total_array['total_pro'] = 0;
+        $total_array['total_backed'] = 0;
+        $total_array['total_orders'] = 0;
+        $total_array['total_follows'] = 0;
+        $total_array['total_supports'] = 0;
+        $total_array['total_comments'] = 0;
+        $total_array['total_pro_owner_comm'] = 0;
+        $total_array['total_avg_order_money'] = 0;
+        $base_url = _gc('main_site_url', 'config');
+        $url = "$base_url/project/";
+        $tmp_result = array();
+        foreach ($result as $i => $v) {
+            $v['operation'] = '<a href="/main/online_pro_sub_info/' . $v['pro_id'] . '" target="_blank">项目子项</a>';
+            if (stripos($_SESSION['power_ids'], ",33,") !== false) {
+                $v['operation'] .= " | <a href='/project/set_place/{$v['pro_id']}' target='_blank'>推荐位设置</a>";
+            }
+            if (stripos($_SESSION['power_ids'], ",35,") !== false) {
+                $v['operation'] .= " | <a href='/project/edit/{$v['pro_id']}' target='_blank'>编辑</a>";
+            }
+            if (stripos($_SESSION['power_ids'], ",36,") !== false) {
+                $v['operation'] .= " | <a href='/project/check/{$v['pro_id']}' target='_blank'>审核</a>";
+            }
+            if (in_array('project:edit_reward', $_SESSION['power_uri'])) {
+                $v['operation'] .= " | <a href='/project/edit_reward/{$v['pro_id']}' target='_blank'>修改回报</a>";
+            }
+
+            $v['pro_name'] = '<a href="' . $url . $v["pro_id"] . '.html" target="_blank">' . $v["pro_name"] . '</a>';
+            $v['follows'] = count($this->Product_m->get_product_favor_list($v['pro_id']));
+
+            $num = $this->Product_m->get_comment_count($v['pro_id']);
+            $v['comments'] = isset($num) ? $num : 0;
+            // $v['comments'] = $this->Product_m->get_comment_count($v['pro_id'])['comment_num'];
+
+            $v['pro_owner_comm'] = count($this->Search_m->get_pro_owner_comments_list($v['pro_id'], $v['pro_owner_id']));
+            $v['orders'] = count($this->Search_m->get_pro_order_list($v['pro_id']));
+
+            if ($v['orders'] == 0)
+                $v['avg_order_money'] = $v['finance_curr'];
+            else
+                $v['avg_order_money'] = round($v['finance_curr'] / $v['orders'], 2);
+
+            $v['supports'] = count($this->Search_m->get_pro_support_list($v['pro_id']));
+
+            $v['time_per'] = round((strtotime($today) - strtotime($v['pro_start_date'])) / (strtotime($v['pro_end_date']) - strtotime($v['pro_start_date'])) * 100, 2) . "%";
+
+            $total_array['total_backed'] += $v['finance_curr'];
+            $total_array['total_orders'] += $v['orders'];
+            $total_array['total_follows'] += $v['follows'];
+            $total_array['total_supports'] += $v['supports'];
+            $total_array['total_comments'] += $v['comments'];
+            $total_array['total_pro_owner_comm'] += $v['pro_owner_comm'];
+            $total_array['total_pro'] ++;
+
+            $tmp_result += array("$i" => $v);
+        }
+        $result = $tmp_result;
+
+        if ($total_array['total_orders'] == 0)
+            $total_array['total_avg_order_money'] = $total_array['total_backed'];
+        else
+            $total_array['total_avg_order_money'] = round($total_array['total_backed'] / $total_array['total_orders'], 2);
+
+        // 模拟数据库分页机制，获取分页数据
+        $offset = ($cur_page - 1) * $rows;
+        $result = $this->_page_data($result, $rows, $offset);
+
+        $footer = array(array('pro_name' => "汇总信息",
+                'pro_owner_id' => "总项目数",
+                'finance_goal' => "总订单数",
+                'finance_curr' => "总筹资额",
+                'progress' => "平均客单价",
+                'finance_status' => "总关注数",
+                'time_status' => "总支持人数",
+                'follows' => "总评论数",
+                'pro_start_date' => "总发起人回复数",
+            ),
+            array('pro_name' => "总计",
+                'pro_owner_id' => $total_array['total_pro'],
+                'finance_goal' => $total_array['total_orders'],
+                'finance_curr' => $total_array['total_backed'],
+                'progress' => $total_array['total_avg_order_money'],
+                'finance_status' => $total_array['total_follows'],
+                'time_status' => $total_array['total_supports'],
+                'follows' => $total_array['total_comments'],
+                'pro_start_date' => $total_array['total_pro_owner_comm'],
+            ),
+        );
+
+        $result = array('total' => $total_array['total_pro'],
+            'rows' => $result,
+            'footer' => $footer);
+        echo json_encode($result);
+    }
+
+    function _get_online_pro_where($arr_where) {
+        $datetime = date("Y-m-d H:i:s", time());
+        $pro_where = "if_show = 1";
+
+        if (isset($arr_where['online_time']) && $arr_where['online_time']) {
+            $range = explode(' ~ ', $_POST['online_time']);
+            $date_start = $range[0];
+            $date_end = $range[1];
+            if (!empty($date_start))
+                $pro_where .= " AND start_time>='{$date_start}'";
+            if (!empty($date_end))
+                $pro_where .= " AND start_time<='{$date_end}'";
+        }
+        if (isset($arr_where['offline_time']) && $arr_where['offline_time']) {
+            $range = explode(' ~ ', $_POST['offline_time']);
+            $date_start = $range[0];
+            $date_end = $range[1];
+            if (!empty($date_start))
+                $pro_where .= " AND end_time>='{$date_start}'";
+            if (!empty($date_end))
+                $pro_where .= " AND end_time<='{$date_end}'";
+        }
+
+        if (isset($arr_where['pro_id']) && $arr_where['pro_id']) {
+            $pro_where .= " AND id='{$arr_where['pro_id']}'";
+        }
+        if (isset($arr_where['pro_name']) && $arr_where['pro_name']) {
+            $pro_where .= " AND name LIKE '%{$arr_where['pro_name']}%'";
+        }
+        if (isset($arr_where['pro_owner_id']) && $arr_where['pro_owner_id']) {
+            $pro_where .= " AND user_id='{$arr_where['pro_owner_id']}'";
+        }
+
+        return $pro_where;
+    }
+
+    function export_pro_search() {
+        $arr_title = array(
+            "category" => "分类",
+            "pro_id" => "项目ID",
+            "pro_name" => "项目名称",
+            "pro_owner_id" => "发起人ID",
+            "finance_goal" => "目标筹资金额",
+            "finance_curr" => "已筹资金额",
+            "progress" => "完成百分比",
+            "time_per" => "时间百分比",
+            "finance_status" => "筹资额状态",
+            "time_status" => "时间状态",
+            "follows" => "关注数",
+            "pro_start_date" => "开始时间",
+            "pro_end_date" => "结束时间",
+            "comments" => "评论数",
+            "pro_owner_comm" => "发起人回复数",
+            "orders" => "订单数",
+            "avg_order_money" => "客单均价",
+            "supports" => "支持人数"
+        );
+
+        $today = date('Y-m-d H:i:s');
+
+        // 获取查询条件，及相关数据
+        $where = $this->_get_online_pro_where($_POST);
+        $finance_status = isset($_POST['finance_status']) ? $_POST['finance_status'] : '';
+        $time_status = isset($_POST['time_status']) ? $_POST['time_status'] : '';
+
+        // 获取全部数据、过滤
+        $res = $this->Search_m->get_online_pro_data($where, $order_by);
+        $result = $res['result'];
+        if (empty($finance_status))
+            $finance_status = "筹资额状态全部";
+        $result = $this->_filter_product_data($result, $finance_status);
+        if (empty($time_status))
+            $time_status = "时间状态全部";
+        $result = $this->_filter_product_data($result, $time_status);
+        $count = $res['cnt'];
+
+        // 数据显示处理、组装结果集没有字段
+        $tmp_rows = array();
+        foreach ($result as $i => $v) {
+            $v['follows'] = count($this->Product_m->get_product_favor_list($v['pro_id']));
+
+            $num = $this->Product_m->get_comment_count($v['pro_id']);
+            $v['comments'] = isset($num['comment_num']) ? $num['comment_num'] : 0;
+            // $v['comments'] = $this->Product_m->get_comment_count($v['pro_id'])['comment_num'];
+
+            $v['pro_owner_comm'] = count($this->Search_m->get_pro_owner_comments_list($v['pro_id'], $v['pro_owner_id']));
+            $v['orders'] = count($this->Search_m->get_pro_order_list($v['pro_id']));
+
+            if ($v['orders'] == 0)
+                $v['avg_order_money'] = $v['finance_curr'];
+            else
+                $v['avg_order_money'] = round($v['finance_curr'] / $v['orders'], 2);
+
+            $v['supports'] = count($this->Search_m->get_pro_support_list($v['pro_id']));
+
+            $v['time_per'] = round((strtotime($today) - strtotime($v['pro_start_date'])) / (strtotime($v['pro_end_date']) - strtotime($v['pro_start_date'])) * 100, 2) . "%";
+
+            $tmp_rows += array("$i" => $v);
+        }
+        $rows = $tmp_rows;
+
+        $this->_export2excel($arr_title, $rows, "上线项目查询");
+    }
+
+    function _export2excel($arr_title, $rows, $filename) {
+        $this->load->library('PHPExcel');
+        $objPHPExcel = new PHPExcel();
+        $objPHPExcel->getProperties()->setTitle('export')->setDescription('none');
+
+        $objPHPExcel->setActiveSheetIndex(0);
+
+        $row_no = 1;
+        $col = 0;
+        foreach ($arr_title as $k => $title) {
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row_no, $title);
+            $col++;
+        }
+        $row_no++;
+        foreach ($rows as $row) {
+            $col = 0;
+            foreach ($arr_title as $k => $title) {
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow($col, $row_no, $row[$k]);
+                $col++;
+            }
+            $row_no++;
+        }
+
+        $objPHPExcel->setActiveSheetIndex(0);
+        $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel5');
+        ob_end_clean();
+        // Sending headers to force the user to download the file
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="' . $filename . '_' . date('Ymd') . '.xls"');
+        header('Cache-Control: max-age=0');
+
+        $objWriter->save('php://output');
+    }
+
+    /**
+     * online_pro_sub_info
+     */
+    function online_pro_sub_info($pro_id, $offset = 0) {
+        $rewards = $this->Search_m->get_product_reward($pro_id);
+
+        $per_page = 11;
+        $total_rows = count($rewards);
+        $config = array(
+            'uri_segment' => 4,
+            'base_url' => site_url("/main/online_pro_sub_info/" . $pro_id . "/"),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 7;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $data['pagination'] = $pagination;
+
+        // 获取分页数据
+        if (empty($offset))
+            $offset = 0;
+        else
+            $offset = intval($offset);
+        $rewards = $this->_page_data($rewards, $per_page, $offset);
+
+        $tmp_rewards = array();
+        foreach ($rewards as $i => $v) {
+            $v['orders'] = count($this->Search_m->get_pro_order_list($pro_id, $v['id']));
+            $v['supports'] = count($this->Search_m->get_pro_support_list($pro_id, $v['id']));
+            $v['has_backed'] = $this->Search_m->get_product_back_money($pro_id, $v['id']);
+            if (empty($v['has_backed']))
+                $v['has_backed'] = 0;
+
+            if ($v['if_address'] == 1)
+                $v['rew_way'] = "邮寄";
+            elseif ($v['if_address'] == 2)
+                $v['rew_way'] = "发码";
+            elseif ($v['if_address'] == 3)
+                $v['rew_way'] = "邮寄+发码";
+            else
+                $v['rew_way'] = "空";
+
+            $tmp_rewards += array("$i" => $v);
+        }
+        $rewards = $tmp_rewards;
+
+        $data['res'] = $rewards;
+        $data['pro_id'] = $pro_id;
+        $data['pro_name'] = $this->Search_m->get_product_name_byid($pro_id);
+        $this->load->view('ckad/online_pro_sub_info', $data);
+    }
+
+    function export_pro_subinfo($pro_id) {
+        $arr_title = array("id" => "回报ID",
+            "money" => "金额",
+            "rew_way" => "回报方式",
+            "content" => "回报内容",
+            "orders" => "订单数",
+            "supports" => "支持人数",
+            "has_backed" => "已筹金额",
+            "num" => "限购份数",
+            "day" => "成功后回报天数",
+        );
+
+        $rewards = $this->Search_m->get_product_reward($pro_id);
+
+        $tmp_rewards = array();
+        foreach ($rewards as $i => $v) {
+            $v['orders'] = count($this->Search_m->get_pro_order_list($pro_id, $v['id']));
+            $v['supports'] = count($this->Search_m->get_pro_support_list($pro_id, $v['id']));
+            $v['has_backed'] = $this->Search_m->get_product_back_money($pro_id, $v['id']);
+            if (empty($v['has_backed']))
+                $v['has_backed'] = 0;
+
+            if ($v['if_address'] == 1)
+                $v['rew_way'] = "邮寄";
+            elseif ($v['if_address'] == 2)
+                $v['rew_way'] = "发码";
+            elseif ($v['if_address'] == 3)
+                $v['rew_way'] = "邮寄+发码";
+            else
+                $v['rew_way'] = "空";
+
+            $tmp_rewards += array("$i" => $v);
+        }
+        $rewards = $tmp_rewards;
+
+        $filename = $this->Search_m->get_product_name_byid($pro_id);
+        $this->_export2excel($arr_title, $rewards, $filename);
+    }
+
+    /**
+     * 自定义微信菜单
+     * */
+    public function wx_menu() {
+        $this->load->library('md_weixin_api');
+
+        if ($_POST) {
+            $btn1_k = isset($_POST['login_k']) && !empty($_POST['login_k']) ? $_POST['login_k'] : '';
+            $btn2_k = isset($_POST['project_k']) && !empty($_POST['project_k']) ? $_POST['project_k'] : '';
+            $btn3_k = isset($_POST['about_k']) && !empty($_POST['about_k']) ? $_POST['about_k'] : '';
+            $btn1_v = isset($_POST['login_v']) && !empty($_POST['login_v']) ? $_POST['login_v'] : '';
+            $btn2_v = isset($_POST['project_v']) && !empty($_POST['project_v']) ? $_POST['project_v'] : '';
+            $btn3_v = isset($_POST['about_v']) && !empty($_POST['about_v']) ? $_POST['about_v'] : '';
+            $btn1 = array_combine($btn1_k, $btn1_v);
+            $btn2 = array_combine($btn2_k, $btn2_v);
+            $btn3 = array_combine($btn3_k, $btn3_v);
+
+            $sub1 = array();
+            foreach ($btn1 as $k => $v) {
+                // $auth_url = $this->md_weixin_api->get_webauth_url($v, 'snsapi_base');
+                if (!empty($k) && !empty($v))
+                    $sub1[] = array("type" => "view", "name" => $k, "url" => $v);
+            }
+            $sub2 = array();
+            foreach ($btn2 as $k => $v) {
+                if (!empty($k) && !empty($v))
+                    $sub2[] = array("type" => "view", "name" => $k, "url" => $v);
+            }
+            $sub3 = array();
+            foreach ($btn3 as $k => $v) {
+                // $auth_url = $this->md_weixin_api->get_webauth_url($v, 'snsapi_base');
+                if (!empty($k) && !empty($v))
+                    $sub3[] = array("type" => "view", "name" => $k, "url" => $v);
+            }
+//            $sub3[] = array("name" => "签到", "type" => "click", "key" => "K1007_MODIAN");
+//            $sub3[] = array("name" => "大额支付教程", "type" => "click", "key" => "K1006_MODIAN");
+//            $sub3[] = array("name" => "客服mm", "type" => "click", "key" => "K1004_MODIAN");
+
+
+            $menu = array(
+                "button" => array(
+                    // array(
+                    //     "name" => "注册登录",
+                    //     "sub_button" => $sub1
+                    //     ),
+                    $sub1[0],
+                    // array(
+                    //     "name" => "最新项目",
+                    //     "sub_button" => $sub2
+                    // ),
+                    $sub2[0],
+                    array(
+                        "name" => "我的摩点",
+                        "sub_button" => $sub3
+                    )
+                )
+            );
+            $menu = $this->walker($menu);
+            $json = urldecode(json_encode($menu));
+            if ($this->md_weixin_api->menu_create($json)) {
+                $menu = array(
+                    "button" => array(
+                        array(
+                            "name" => "左",
+                            "sub_button" => $sub1
+                        ),
+                        array(
+                            "name" => "中",
+                            "sub_button" => $sub2
+                        ),
+                        array(
+                            "name" => "右",
+                            "sub_button" => $sub3
+                        )
+                    )
+                );
+                $this->Common->update('md_about', array('title' => '微信自定义菜单'), array('content' => serialize($menu)));
+                md_common::display_javascript('更新成功');
+            } else {
+                md_common::display_javascript('更新失败');
+            }
+        }
+        $menu = array(
+            "button" => array(
+                array(
+                    "name" => "注册登录",
+                    "sub_button" => array(array("type" => "view", "name" => "", "url" => ""), array("type" => "view", "name" => "", "url" => ""), array("type" => "view", "name" => "", "url" => ""))
+                ),
+                array(
+                    "name" => "最新项目",
+                    "sub_button" => array(array("type" => "view", "name" => "", "url" => ""), array("type" => "view", "name" => "", "url" => ""), array("type" => "view", "name" => "", "url" => ""), array("type" => "view", "name" => "", "url" => ""), array("type" => "view", "name" => "", "url" => ""))
+                ),
+                array(
+                    "name" => "关于摩点",
+                    "sub_button" => array(array("type" => "click", "name" => "", "url" => ""), array("type" => "click", "name" => "", "url" => ""), array("type" => "click", "name" => "", "url" => ""))
+                )
+            )
+        );
+        $sql = "SELECT * FROM md_about WHERE type='800'";
+        $r = $this->db->query($sql)->row_array();
+        if ($r['content']) {
+            $menu = unserialize($r['content']);
+        } else {
+            $this->Common->add('md_about', array('title' => '微信自定义菜单', 'content' => serialize($menu), 'list_num' => 0, 'type' => '800'));
+        }
+
+        //var_dump(unserialize($r['content']));exit;
+        $content = $menu;
+        $data['menu'] = $content['button'];
+        $this->load->view('ckad/wx_menu', $data);
+    }
+
+    public function succ() {
+        echo "ok";
+        exit;
+    }
+
+    public function fail() {
+        echo "failed";
+        exit;
+    }
+
+    /**
+     * 数组遍历 对其中的值urlencode
+     * */
+    private function walker(&$arr) {
+        foreach ($arr as $k => $v) {
+            if (is_array($v))
+                $arr[$k] = $this->walker($v);
+            else
+                $arr[$k] = urlencode($v);
+        }
+        return $arr;
+    }
+
+    //+++++++++++++++++++++++++++微信关键字管理 jaafar+++++++++++++++++++++++++++++
+    public function get_wx_keyword_list($curpage,$perpage=20,$query=array()){
+        $curpage = intval($curpage);
+        $perpage = intval($perpage);
+        $offset = ($curpage-1)*$perpage;
+        $this->db->from("md_wx_keyword");
+        if(!empty($query)){
+            foreach($query as $k=>$v){
+                   $this->db->like($k,$v);
+                }
+        }
+        $this->db->limit($perpage,$offset);
+        $this->db->order_by("id","DESC");
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+
+    public function get_total_keyword($query=array()){
+        $this->db->from("md_wx_keyword");
+        if(!empty($query)){
+            foreach($query as $k=>$v){
+                $this->db->like($k,$v);
+            }
+        }
+        $result = $this->db->get()->num_rows();
+        return $result;
+    }
+
+    public function keyword_array(){
+        $this->db->select("id,keyword");
+        $this->db->from("md_wx_keyword");
+        $this->db->where('status',1);
+        $result = $this->db->get()->result_array();
+        $keyword_array=array();
+        foreach($result as $keyword){
+            if(strpos($keyword['keyword'],"|")!==FALSE){
+                $new_arr = explode("|",$keyword["keyword"]);
+                foreach($new_arr as $new_keyword){
+                    if($new_keyword){
+                        $keyword_array[]=array('id'=>$keyword['id'],'keyword'=>$new_keyword);
+                    }
+                }
+            }else{
+                if($keyword['keyword']){
+                    $keyword_array[] = $keyword;
+                }
+            }
+        }
+        return $keyword_array;
+    }
+    public function wx_keyword($curpage){
+
+        $curpage      = $curpage ? intval($curpage):1;
+        $query['keyword']        = isset($_GET["keyword"])?$this->input->get("keyword",true):"";
+//        $query['scene_id']     = isset($_GET["scene_id"])?(int)$this->input->get("scene_id",true):"";
+        $query = array_filter($query);  //过滤空条件
+        $keyword_list  = $this->get_wx_keyword_list($curpage,20,$query);
+        $keyword_num = $this->get_total_keyword($query);
+        // 当前页的链接，但是缺失 '分页页数'
+        $cur_url = "/main/wx_keyword/";
+        $config = array(
+            'uri_segment' => 3, // 在url的第二段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $keyword_num,
+            'per_page' => 10,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+            'full_tag_open' => '<ul class="pagination">',
+            'full_tag_close' => '</ul>',
+            'first_tag_open' => '<li>',
+            'first_tag_close' => '</li> &nbsp;&nbsp;',
+            'last_tag_open' => '<li>',
+            'last_tag_close' => '</li> &nbsp;&nbsp;',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li> &nbsp;&nbsp;',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li> &nbsp;&nbsp;',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li> &nbsp;&nbsp;',
+            'cur_tag_open' => '<strong>',
+            'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+        );
+
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $this->load->vars("query",$query);
+        $this->load->vars('curpage', $curpage);
+        $this->load->vars('keyword_list', $keyword_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("ckad/wx_keywords");
+    }
+    public function add_keyword(){
+        $is_new = isset($_POST["is_new"]) ? $this->input->post("is_new"):"";
+
+        //emoji
+        if(!$is_new){  //加载新增页面
+            $emojis = array(
+                '\xf0\x9f\x98\x84' => '1f604',
+                '\xf0\x9f\x98\x83' => '1f603',
+                '\xf0\x9f\x98\x86' => '1f606',
+                '\xf0\x9f\x98\x8a' => '1f60a',
+                '\xf0\x9f\x98\x8d' => '1f60d',
+                '\xf0\x9f\x98\x8f' => '1f60f',
+                '\xf0\x9f\x98\xb3' => '1f633',
+                '\xf0\x9f\x98\x81' => '1f601',
+                '\xf0\x9f\x98\x89' => '1f609',
+                '\xf0\x9f\x98\x9a' => '1f61a',
+
+                '\xf0\x9f\x98\x9c' => '1f61c',
+                '\xf0\x9f\x98\x9d' => '1f61d',
+                '\xf0\x9f\x98\xb5' => '1f635',
+                '\xf0\x9f\x98\xa3' => '1f623',
+                '\xf0\x9f\x98\xa9' => '1f629',
+                '\xf0\x9f\x98\x85' => '1f605',
+                '\xf0\x9f\x98\xb0' => '1f630',
+                '\xf0\x9f\x98\x82' => '1f602',
+                '\xf0\x9f\x98\xad' => '1f62d',
+                '\xf0\x9f\x98\xa0' => '1f620',
+
+                '\xf0\x9f\x98\xb7' => '1f637',
+                '\xf0\x9f\x98\xb1' => '1f631',
+                '\xf0\x9f\x92\x95' => '1f495',
+                '\xe2\x9d\xa4' => '2764',
+                '\xf0\x9f\x92\x94' => '1f494',
+                '\xe2\xad\x90' => '2b50',
+                '\xf0\x9f\x92\xa8' => '1f4a8',
+                '\xe2\x9d\x97' => '2757',
+                '\xe2\x9d\x93' => '2753',
+                '\xe2\x9c\x8b' => '270b',
+
+                '\xf0\x9f\x91\x8d' => '1f44d',
+                '\xf0\x9f\x91\x8e' => '1f44e',
+                '\xf0\x9f\x91\x8c' => '1f44c',
+                '\xf0\x9f\x91\x8a' => '1f44a',
+                '\xe2\x9c\x8c'     => '270c',
+                '\xf0\x9f\x91\x8f' => '1f44f',
+                '\xf0\x9f\x92\xaa' => '1f4aa',
+                '\xf0\x9f\x8c\x9f' => '1f31f',
+                '\xf0\x9f\x91\x8b' => '1f44b',
+                '\xe2\x9c\x8a'     => '270a',
+
+                '\xe2\98\x9d'      => '261d',
+                '\xf0\x9f\x91\x86' => '1f446',
+                '\xf0\x9f\x91\x87' => '1f447',
+                '\xf0\x9f\x91\x88' => '1f448',
+                '\xf0\x9f\x91\x89' => '1f449',
+                '\xf0\x9f\x94\xa5' => '1f525',
+                '\xf0\x9f\x92\xb0' =>'1f4b0',
+//                '\xf0\x9f\x8c\xa0' => '1f320',
+                '\xf0\x9f\x93\xa2' => '1f4e2',
+                '\xe2\x9c\x94'     => '2714',
+            );
+//            $this->load->helper('emoji');
+//            $emojis = $GLOBALS['emoji_maps']['unified_to_html'];
+            $keyword['type']=1;
+            $this->load->vars("keyword_info",$keyword);
+            $this->load->vars('emojis', $emojis);
+            $this->load->view("ckad/add_keyword");
+        }else{
+            $postdata = $this->input->post(null,true);
+            $insert_data['type'] = $postdata['type'];
+            switch($insert_data['type']){  //通过type区分消息种类
+                case 1:
+                    $content = $postdata['reply_content']?strip_tags($postdata['reply_content'],'<a><br>'):'';
+                    $content = preg_replace('/\[e:(.*)\]/U', '<span class="emoji emoji$1"></span>', $content); 	// 针对我们定义的[e:xxxx]emoji
+                    $insert_data['reply_content'] = $content;
+                    break;
+                case 2:
+                    $postdata['pic']              = array_filter($postdata["pic"]);
+                    $postdata['pic_link']         = array_filter($postdata['pic_link']);
+                    $postdata['title']            = array_filter($postdata['title']);
+                    $postdata['description']      = array_filter($postdata['description']);
+
+                    $insert_data['pic']           = (count($postdata['pic'])>=2)?implode("|",$postdata['pic']):$postdata['pic'][0];
+
+                    $insert_data['pic_link']      = (count($postdata['pic_link'])>=2)?implode("|",$postdata['pic_link']):$postdata['pic_link'][0];
+                    $insert_data['title']         = (count($postdata['title'])>=2)?implode("|",$postdata['title']):$postdata['title'][0];
+                    $insert_data['reply_content'] = (count($postdata['description'])>=2)?implode("|",$postdata['description']):($postdata['description'][0]==NULL?"":$postdata['description'][0]);
+                    break;
+                case 3:
+                    $insert_data['pic']           = $postdata['cover'];
+                    $insert_data['reply_content'] = "";
+                    break;
+            }
+
+            $insert_data['rule_name']     = $postdata["rule_name"];
+            $insert_data['keyword']       = $postdata['keyword'];
+
+
+            if(!$postdata['id']){  //添加
+                $this->db->insert("md_wx_keyword",$insert_data);
+                $result = $this->db->insert_id();
+                if($result){
+                    md_common::display_javascript("添加成功",site_url("main/wx_keyword"));
+                }else{
+                    md_common::display_javascript("添加失败");
+                }
+            }else{ //修改
+                $id = intval($postdata['id']);
+                $this->db->where("id",$id);
+                $this->db->update("md_wx_keyword",$insert_data);
+                $result = $this->db->affected_rows();
+                if($result){
+                    md_common::display_javascript("修改成功",site_url("main/wx_keyword"));
+                }else{
+                    md_common::display_javascript("没有修改内容");
+                }
+            }
+        }
+    }
+    public function edit_keyword($id){
+        $id = intval($id);
+        $this->db->from("md_wx_keyword");
+        $this->db->where('id',$id);
+        $result = $this->db->get()->row_array();
+
+
+        $emojis = array(
+            '\xf0\x9f\x98\x84' => '1f604',
+            '\xf0\x9f\x98\x83' => '1f603',
+            '\xf0\x9f\x98\x86' => '1f606',
+            '\xf0\x9f\x98\x8a' => '1f60a',
+            '\xf0\x9f\x98\x8d' => '1f60d',
+            '\xf0\x9f\x98\x8f' => '1f60f',
+            '\xf0\x9f\x98\xb3' => '1f633',
+            '\xf0\x9f\x98\x81' => '1f601',
+            '\xf0\x9f\x98\x89' => '1f609',
+            '\xf0\x9f\x98\x9a' => '1f61a',
+
+            '\xf0\x9f\x98\x9c' => '1f61c',
+            '\xf0\x9f\x98\x9d' => '1f61d',
+            '\xf0\x9f\x98\xb5' => '1f635',
+            '\xf0\x9f\x98\xa3' => '1f623',
+            '\xf0\x9f\x98\xa9' => '1f629',
+            '\xf0\x9f\x98\x85' => '1f605',
+            '\xf0\x9f\x98\xb0' => '1f630',
+            '\xf0\x9f\x98\x82' => '1f602',
+            '\xf0\x9f\x98\xad' => '1f62d',
+            '\xf0\x9f\x98\xa0' => '1f620',
+
+            '\xf0\x9f\x98\xb7' => '1f637',
+            '\xf0\x9f\x98\xb1' => '1f631',
+            '\xf0\x9f\x92\x95' => '1f495',
+            '\xe2\x9d\xa4' => '2764',
+            '\xf0\x9f\x92\x94' => '1f494',
+            '\xe2\xad\x90' => '2b50',
+            '\xf0\x9f\x92\xa8' => '1f4a8',
+            '\xe2\x9d\x97' => '2757',
+            '\xe2\x9d\x93' => '2753',
+            '\xe2\x9c\x8b' => '270b',
+
+            '\xf0\x9f\x91\x8d' => '1f44d',
+            '\xf0\x9f\x91\x8e' => '1f44e',
+            '\xf0\x9f\x91\x8c' => '1f44c',
+            '\xf0\x9f\x91\x8a' => '1f44a',
+            '\xe2\x9c\x8c'     => '270c',
+            '\xf0\x9f\x91\x8f' => '1f44f',
+            '\xf0\x9f\x92\xaa' => '1f4aa',
+            '\xf0\x9f\x8c\x9f' => '1f31f',
+            '\xf0\x9f\x91\x8b' => '1f44b',
+            '\xe2\x9c\x8a'     => '270a',
+
+            '\xe2\98\x9d'      => '261d',
+            '\xf0\x9f\x91\x86' => '1f446',
+            '\xf0\x9f\x91\x87' => '1f447',
+            '\xf0\x9f\x91\x88' => '1f448',
+            '\xf0\x9f\x91\x89' => '1f449',
+            '\xf0\x9f\x94\xa5' => '1f525',
+            '\xf0\x9f\x92\xb0' =>'1f4b0',
+//            '\xf0\x9f\x8c\xa0' => '1f320',
+            '\xf0\x9f\x93\xa2' => '1f4e2',
+            '\xe2\x9c\x94'     => '2714',
+        );
+        $this->load->vars('emojis', $emojis);
+        $this->load->helper("emoji");
+        if($result['type']==2){
+            $keyword_array = array();    //重新准备个数组赋值,不然不好循环
+            foreach($result as $k=>&$item){
+                if($k=='title'||$k=='pic'||$k=='pic_link'||$k=='reply_content'){
+                    $item_tmp = explode("|",$item);
+                    foreach($item_tmp as $key=>$v){  //重新组装一下
+                        $keyword_array[$key][$k] = $v;
+                    }
+                    unset($result[$k]);  //去除原有的
+                }
+                unset($item_tmp);  //去除临时的
+            }
+            $this->load->vars("keyword_array",$keyword_array);
+        }elseif($result['type']==3){//单图替换一下路径
+            $result['pic'] = preg_replace("/\/ROOT(.*?)uploads\//",'',$result['pic']);  //变成数据库路径
+        }else{
+
+        }
+        $keyword_list = explode("|",$result["keyword"]);
+        $this->load->vars("keyword_list",$keyword_list);
+        $result["reply_content"] = preg_replace('/<span class="emoji emoji(\w+)"><\/span>/', '[e:$1]',$result['reply_content']);	// 将<span>转换为 '[e:xx]'
+        $this->load->vars('keyword_info',$result);
+        $this->load->view("ckad/add_keyword");
+    }
+    public function update_keyword_status($id){
+        $id = intval($id);
+        $update_data = array(
+            'status' => 0
+        );
+        $this->db->where('id',$id);
+        $this->db->update("md_wx_keyword",$update_data);
+        $result = $this->db->affected_rows();
+        if($result){
+            md_common::display_javascript("修改成功");
+        }else{
+            md_common::display_javascript("修改失败");
+        }
+    }
+    public function update_keyword(){
+        $id = (int)$this->input->post("id",true);
+        $kw = $this->input->post("kw",true);
+        $this->db->select("keyword");
+        $this->db->from("md_wx_keyword");
+        $this->db->where("id",$id);
+        $result = $this->db->get()->row_array();
+        $update_data['keyword'] = str_replace($kw,"",$result['keyword']);
+//        print_r($update_data);exit("OK");
+        $this->db->where("id",$id);
+        $this->db->update("md_wx_keyword",$update_data);
+//        echo $this->db->last_query();
+//        exit("OK");
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_data = array(
+                'status'  => 1,
+                'msg'     => "删除成功",
+                'new_key' => $update_data["keyword"]
+            );
+        }
+        echo json_encode($return_data);
+    }
+    public function check_keyword(){
+        $id      = (int) $this->input->post("id",true);
+        $keyword = $this->input->post("kw",true);
+//        $this->db->select("keyword");
+//        $this->db->from("md_wx_keyword");
+//        $this->db->where("id !=",$id);
+        $keyword_list = $this->keyword_array();
+        $key_array=explode("|",$keyword);
+//        var_dump($key_array);exit("Ok");
+        foreach($key_array as $list){
+            foreach($keyword_list as $keyword_info){
+                if($keyword_info['id']!=$id&&$keyword_info['keyword']==$list){
+                    $return_data = array(
+                        'status'  => 1,
+                        'msg'     => "关键字[".$list."]已经存在"
+                    );
+                    echo json_encode($return_data);
+                    exit();
+                }else{
+                    $return_data = array(
+                        'status' => 0,
+                    );
+                }
+            }
+        }
+        echo json_encode($return_data);
+    }
+    public function upload_kw_attachment(){
+        $this->load->library('md_imagick');
+        // 图片上传input框name名
+        $input_file_name = 'imgFile';
+        $attachment_path_prefix = 'md_wx/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+        $db_path_prefix = 'uploads/' . $attachment_path_prefix;
+        $full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+
+        if(!file_exists($full_upload_path)){
+            mkdir($full_upload_path, 0777, TRUE);
+        }
+        $config = array(
+            'upload_path' => $full_upload_path,
+            'allowed_types' => 'gif|jpg|png|jpeg',
+            'encrypt_name' => TRUE,
+            'max_size' => '10000',
+            'max_width' => '102400',
+            'max_height' => '76800'
+        );
+        $this->load->library('upload', $config);
+        if( ! $this->upload->do_upload($input_file_name)){
+            $errmsg = $this->upload->display_errors();
+            echo "<script>alert('{$errmsg}')</script>";
+        }else{
+            $attachment_data = $this->upload->data();
+            // 得到原图的系统路径
+            $attachment_system_path = $attachment_data['full_path'];
+            $detail_size = '320x200';
+            $this->load->helper("bbs_common");
+            thumbnail_image($attachment_system_path,$detail_size,"_thumb",array(),'md_wx');
+//            @unlink($attachment_system_path);
+            // 存储数据表的路径
+            $db_path = $db_path_prefix . $attachment_data['raw_name']."_thumb".$attachment_data['file_ext']; 		//这里我们直接存压缩的名字 数据库存储的路径是以 'upload' 开头
+            // 原图的URL访问地址
+            $attachment_url =cdn_url($db_path);
+
+            $return_data = array(
+                'pic'       => $attachment_url,
+                'db_path'   => $db_path,
+                'root_path' =>$attachment_system_path
+            );
+            echo json_encode($return_data);
+        }
+    }
+
+
+    //++++++++++++++++++编辑器白名单管理 jaafar ++++++++
+
+    public function get_editor_white_list($curpage,$perpage=20,$query=array()){
+        $curpage = intval($curpage);
+        $perpage = intval($perpage);
+        $offset = ($curpage-1)*$perpage;
+        $this->db->from("md_editor_white");
+        if(!empty($query)){
+            foreach($query as $k=>$v){
+                $this->db->like($k,$v);
+            }
+        }
+        $this->db->where('status',1);
+        $this->db->limit($perpage,$offset);
+        $this->db->order_by("id","DESC");
+        $result = $this->db->get()->result_array();
+        return $result;
+    }
+
+    public function get_total_editor_white($query=array()){
+        $this->db->from("md_editor_white");
+        $this->db->where('status',1);
+        if(!empty($query)){
+            foreach($query as $k=>$v){
+                $this->db->like($k,$v);
+            }
+        }
+        $result = $this->db->get()->num_rows();
+        return $result;
+    }
+    public function editor_manager($curpage){
+        $curpage      = $curpage ? intval($curpage):1;
+        $query['domain']        = isset($_GET["domain"])?$this->input->get("domain",true):"";
+        $query = array_filter($query);  //过滤空条件
+        $editor_list  = $this->get_editor_white_list($curpage,20,$query);
+        $editor_num = $this->get_total_editor_white($query);
+        // 当前页的链接，但是缺失 '分页页数'
+        $cur_url = "/main/editor_manager/";
+        $config = array(
+            'uri_segment' => 3, // 在url的第二段上选取分页页数
+            'base_url' => $cur_url,
+            'total_rows' => $editor_num,
+            'per_page' => 20,
+            'use_page_numbers' => TRUE,
+            'num_links' => 3,
+            'first_link' => '&laquo;',
+            'prev_link' => '&lt;',
+            'next_link' => '&gt;',
+            'last_link' => '&raquo;',
+            'full_tag_open' => '<ul class="pagination">',
+            'full_tag_close' => '</ul>',
+            'first_tag_open' => '<li>',
+            'first_tag_close' => '</li> &nbsp;&nbsp;',
+            'last_tag_open' => '<li>',
+            'last_tag_close' => '</li> &nbsp;&nbsp;',
+            'prev_tag_open' => '<li>',
+            'prev_tag_close' => '</li> &nbsp;&nbsp;',
+            'next_tag_open' => '<li>',
+            'next_tag_close' => '</li> &nbsp;&nbsp;',
+            'num_tag_open' => '<li>',
+            'num_tag_close' => '</li> &nbsp;&nbsp;',
+            'cur_tag_open' => '<strong>',
+            'cur_tag_close' => '</strong> &nbsp;&nbsp;',
+        );
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $this->load->vars("query",$query);
+        $this->load->vars('curpage', $curpage);
+        $this->load->vars('editor_list', $editor_list);
+        $this->load->vars('pagination', $pagination);
+        $this->load->view("ckad/editor_white");
+    }
+    public function add_editor_white(){
+        $is_new = isset($_POST["is_new"]) ? $this->input->post("is_new"):"";
+        if(!$is_new){  //加载新增页面
+            $this->load->view("ckad/add_editor_white");
+        }else{
+            $postdata = $this->input->post();
+            if(!$postdata['id']){  //添加
+                foreach($postdata as $key=>$item){
+                    $item = array_filter($item);  //去空
+                    foreach($item as $k=>$editor_white){
+                        $data[$k][$key] =$editor_white;
+                        $data[$k]['manager_name'] = $_SESSION['admin_name'];  //操作人
+                    }
+                }
+                $this->db->insert_batch("md_editor_white",$data);
+                $result = $this->db->insert_id();
+                if($result){
+                    md_common::display_javascript("添加成功",site_url("main/editor_manager"));
+                }else{
+                    md_common::display_javascript("添加失败");
+                }
+            }else{ //修改
+                $insert_data['ch_name'] = $postdata["ch_name"][0];
+                $insert_data['domain']  = $postdata['domain'][0];
+                $insert_data['cate']    = $postdata['cate'][0];
+                $id = intval($postdata['id']);
+                $this->db->where("id",$id);
+                $this->db->update("md_editor_white",$insert_data);
+                $result = $this->db->affected_rows();
+                if($result){
+                    md_common::display_javascript("修改成功",site_url("main/editor_manager"));
+                }else{
+                    md_common::display_javascript("没有修改内容");
+                }
+            }
+        }
+    }
+    public function edit_editor_white($id){
+        $id = intval($id);
+        $this->db->from("md_editor_white");
+        $this->db->where('id',$id);
+        $result = $this->db->get()->row_array();
+        $this->load->vars('editor_info',$result);
+        $this->load->view("ckad/add_editor_white");
+    }
+    public function del_editor_white(){
+        $id = (int)$this->input->post("id",true);
+        $data = array(
+            'status'  => 0
+        );
+        $this->db->where('id',$id);
+        $this->db->update("md_editor_white",$data);
+        $res = $this->db->affected_rows();
+        if($res){
+            $return_array = array(
+                "status" => 1,
+                "msg"    => "删除成功"
+            );
+        }else{
+            $return_array = array(
+                "status" => 0,
+                "msg"    => "删除异常"
+            );
+        }
+        echo json_encode($return_array);
+    }
+
+    public function check_domain(){
+        $domain = $this->input->post("domain",true);
+        $id = (int)$this->input->post('id',true);
+        $cate = $this->input->post("cate",true);
+        $this->db->from("md_editor_white");
+        $this->db->where('domain',$domain);
+        $this->db->where('id != ',$id);
+        $this->db->where('status',1);
+        $this->db->where("cate",$cate);
+        $result = $this->db->get()->num_rows();
+        if($result){
+            $return_data = array(
+                'status' => 1,
+                'msg'    => '域名已经存在'
+            );
+        }else{
+            $return_data = array(
+                'status' => 0,
+            );
+        }
+        echo json_encode($return_data);
+    }
+}
+
+/* End of file welcome.php */
+/* Location: ./application/controllers/welcome.php */

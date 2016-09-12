@@ -1,0 +1,273 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="<?= base_url(); ?>static/js/ajaxfileupload.js"></script>
+<?php $this->load->view('weidashang/recom_tabs') ?>
+<style type="text/css">
+.black_overlay{  
+    display: block;  
+    position: absolute;  
+    top: 0%;  
+    left: 0%;  
+    width: 100%;  
+    height: 2000px;  
+    background-color: black;  
+    z-index:1001;  
+    -moz-opacity: 0.8;  
+    opacity:.80;  
+    filter: alpha(opacity=80);  
+}  
+.white_content {  
+	display: block;  
+	position: absolute;  
+	top: 25%;  
+	left: 25%;  
+	width: 50%;  
+	height: auto;  
+	padding: 16px;  
+	border: 2px solid rgba(68, 218, 224, 0.5);  
+	background-color: white;  
+	z-index:1002;  
+}
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="/weidashang/choudiandian_pro">筹点点活动管理</a>
+        </li>
+    </ul>
+</div>
+<div>
+    <h2>首页轮播图区</h2>
+</div>
+<div>
+    <div>
+            <span>
+                <button id="edit_sortid_t"  class="btn btn-info btn-sm">批量修改权重</button>
+            </span>
+        <form action="" class="form-inline" method="post">
+            <span>
+                输入轮播图ID：<input type="text" value="" placeholder="请输入轮播图ID" class="form-control" id="carouse_id" name="carouse_id"/>
+                <input type="submit" class="btn btn-info btn-sm" value="添加" />
+            </span>
+            <span>
+                <a href="/weidashang/wds_carouse_pic?edit_id=-1">新增</a>
+            </span>
+            <span  style="margin-left:50px;"><a href="/weidashang/wds_carouse_pic?del_mem=1">立即生效</a></span>
+            <span  style="margin-left:20px;"><a href="<?php echo _gc('domain_weidashang', 'domain')?>" target="_blank">预览</a></span>
+        </form>
+    </div>
+    <?php if ($carouse): ?>
+    <form action="" method="post">
+        <div>
+            <style>
+                td, th{
+                    vertical-align:middle !important;
+                    text-align:center !important;
+                }
+            </style>
+            <table id="wds_recom" class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th width="5%">权重</th>
+                        <th width="5%">推荐轮播图ID</th>
+                        <th width="20%">推荐图</th>
+                        <th width="20%">轮播图标题</th>
+                        <th width="20%">轮播图链接</th>
+                        <th width="10%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <?php if (count($carouse) > 10) { ?>
+                <div class="m-pager">
+                    <div id="pagination" class="page_list"></div>
+                </div>
+            <?php } ?>
+        </div>
+    <?php endif; ?>
+    </form>
+</div>
+<!-- 某一个轮播图的修改弹窗 -->
+<?php if(!empty($pic_mes)) {?>
+<div id="light" class="white_content">
+    <form class="forms addform" name="addform" id="addform"  action="" method="post"> 
+        <h3>修改轮播图<a href="javascript:;" id="close" class="close">Close</a></h3>
+        <div style="width:100%;height:1px; background:#E0E0E0;"></div>
+        <div id="pro_mess" class="pro_mess">
+            <p style="margin-top:20px;"><input type="hidden" id="edit_carouse_id" name="edit_carouse_id" value="<?php echo $pic_mes['id'] ;?>"/></p>
+            <?php if(!empty($pic_mes['carouse_pic'])){ ?>
+            <p style="margin-top:20px;"><img width='200px' height='200px' src="<?php echo $pic_mes['carouse_pic'] ;?>"/></p>
+            <?php } ?>          
+            <p style="margin-top:20px;">推荐图:<input style="margin-left:20px;" type="text" name="carouse_pic_hidden" id="carouse_pic_hidden" value="<?php echo $pic_mes['recom_pic'] ;?>" placeholder="图片尺寸请控制为306 * 306"><input type="file" id="carouse_picture" name="carouse_picture" value="" ><input type="button" value="上传图片" id="carouse_up"></p>
+            <p style="margin-top:20px;">标题:<input style="margin-left:20px;" type="text" id='new_carouse_name' name='new_carouse_name' value="<?php echo $pic_mes['pic_name'] ;?>" /></p>
+            <p style="margin-top:20px;">推荐链接:<input style="margin-left:20px;" type="text" id='carouse_link' name='carouse_link' value="<?php echo $pic_mes['pic_intro'] ;?>" /></p>
+        </div>
+        <div>
+            <a style="margin-left:40%" class="btn btn-primary" id="btn_add_pro" name="btn_add_pro">保存</a>              
+        </div>
+    </form>
+</div> 
+<div id="fade" class="black_overlay"> 
+</div> 
+<?php }?>
+<?php $this->load->view('ckad/footer'); ?>
+<script type="text/javascript" src="<?= static_url(); ?>new/js/jquery.paginate.js"></script>
+<script  type="text/javascript">
+    var datas = eval(<?php echo "(" . json_encode($carouse) . ")" ?>);
+    $(function() {
+        createTableReport();
+    });
+///////////////创建表格/////////////////////////////
+    function createTableReport() {
+
+        $('#wds_recom tbody').html("");
+        pageselectCallback(0, null);
+        if (datas.length > 10) {
+            initPagination();
+        }
+    }
+    function pageselectCallback(page_index, jq) {
+
+        page_index = arguments[0] ? arguments[0] : "0";
+        var num = datas.length / 10;
+        if (page_index == Math.ceil(num))
+            page_index--;
+        if (page_index == -1)
+            page_index = 0;
+        page = page_index;
+        jq = arguments[1] ? arguments[1] : "0";
+        var index = page_index * 10;
+        var pagenum = 10;
+        var msg = "";
+        for (i = 0; i < pagenum && (index + i) < datas.length; i++)
+        {
+            var record = datas[i + index];
+            msg = msg + "<tr>";
+            msg = msg + "<td><input max='3' maxlength='3' style='width:20px;' type='text' value='" + record['sort'] + "' name='top_sort[" + record['id'] + "]' carouse_id='"+record['id']+"' class='carouse_sort' /></td>";
+            msg = msg + "<td>" + record['id'] + "</td>";
+            msg = msg + "<td><img src='" + record['carouse_pic'] + "' width='170px' height='80px'/></td>";
+            msg = msg + "<td>" + record['pic_name'] + "</td>";
+            msg = msg + "<td><a href='"+ record['pic_intro'] +"'>" + record['pic_intro'] + "</a></td>";
+            msg = msg + "<td><a href='/weidashang/wds_carouse_pic?del_id=" + record['id'] + "&type=homepage_preheat'>取消</a>| <a href='/weidashang/wds_carouse_pic?edit_id=" + record['id'] +"' class='edit_topic_recom'>修改</a></td>";
+            msg = msg + "</tr>";      
+        }
+        //document.getElementById('projects-list').innerHTML = msg;
+        $('#wds_recom tbody').html(msg);
+        
+    }
+    /**
+     * Callback function for the AJAX content loader.
+     */
+    function initPagination() {
+
+        var num_entries = datas.length;
+        //alert(num_entries);
+        // Create pagination element
+        $("#pagination").pagination(num_entries, {
+            num_edge_entries: 2,
+            prev_text: '前一页 ',
+            next_text: '后一页 ',
+            num_display_entries: 10,
+            callback: pageselectCallback,
+            items_per_page: 10
+        });
+    }
+/////////////////////////TABLE END//////////////////////////////////
+$("#btn_add_pro").click(function(){
+    var edit_carouse_id = $("#edit_carouse_id").val();
+    var new_carouse_name = $("#new_carouse_name").val();
+    var carouse_pic_hidden = $("#carouse_pic_hidden").val();
+    var carouse_link = $("#carouse_link").val();
+    $.ajax({
+        type:"POST",
+        url:"/weidashang/deal_carouset_pic",
+        data: {
+            edit_carouse_id:edit_carouse_id,
+            new_carouse_name:new_carouse_name,
+            carouse_pic_hidden:carouse_pic_hidden,
+            carouse_link:carouse_link,
+        },
+        dataType:'json',
+        success:function(data){
+            if(data.status == 1){
+                location.replace("weidashang/wds_carouse_pic");
+            }
+        }
+    });
+})
+$('#close').click(function(e) {
+            $('#light').css('display', 'none');
+            $('#fade').css('display', 'none');
+        });
+$('#carouse_up').click(function() {
+            var url = "<?php $upload_url = _gc('cdn_url', 'config');echo $upload_url ?>";
+            $.ajaxFileUpload({
+                url: '/weidashang/upload_carouse_pic', //你处理上传文件的服务端
+                secureuri: false,
+                fileElementId: 'carouse_picture',
+                dataType: 'json',
+                success: function(data) {
+                    url = url + data.pic;
+                    if (data.num == 1) {
+                        $('#carouse_pic_hidden').val(data.pic);
+                    } else {
+                        alert("文件上传失败");
+                        return false;
+                    }
+                },
+            })
+        });
+$("#edit_sortid_t").click(function(){
+    var sort_input = $('#wds_recom .carouse_sort');
+    var length = sort_input.length;
+    var carouse_id_arr = [];
+    var carouse_sort_arr = [];
+    for(var i = 0;i <length ; i++){
+        var sort = $.trim(sort_input[i].value);
+        var carouse_id = parseInt(sort_input[i].getAttribute('carouse_id'));
+        var num = i+1;
+        if(sort == ''){
+            alert('第' +num+'行排序为空！' );
+            return false;
+        }
+        if(isNaN(sort)){
+            alert('第' +num+'行排序非数字！' );
+            return false;
+        }
+        carouse_id_arr[i] = carouse_id;
+        carouse_sort_arr[i] = sort;      
+    }
+    var carouse_id = JSON.stringify(carouse_id_arr);
+    var carouse_sort = JSON.stringify(carouse_sort_arr);
+    $.ajax({
+                    type:"POST",
+                    traditional :true,
+                    url:"/weidashang/ajax_carouse_sort",
+                    dataType: "json",
+                    data: {
+                        carouse_sort_arr:carouse_sort,
+                        carouse_id_arr:carouse_id,
+                    },
+                    dataType:'json',
+                    success:function(data){
+                        if(data.status == -1){
+                            alert("更新异常");
+                            return false;
+                        }
+                        if(data.status == 1){
+                            //alert('1234');exit;
+                            location.replace("weidashang/wds_carouse_pic");
+                        }
+                    }
+                });
+});        
+</script>

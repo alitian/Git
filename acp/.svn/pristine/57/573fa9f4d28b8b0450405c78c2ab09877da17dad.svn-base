@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>B站在线分析图</title>
+    </head>
+    <body>
+        <?php
+        $cate = array();
+        $online = array();
+        $play = array();
+        foreach ($list as $item) {
+            $cate[] = date("m/d H时", strtotime($item['c']));
+            $online[] = $item['online_num'];
+            $play[] = $item['play_num'];
+        }
+        ?>
+        <!-- 为ECharts准备一个具备大小（宽高）的Dom -->
+        <div id="main" style="height:400px"></div>
+        <!-- ECharts单文件引入 -->
+        <script src="http://echarts.baidu.com/build/dist/echarts.js"></script>
+        <script type="text/javascript">
+            // 路径配置
+            require.config({
+                paths: {
+                    echarts: 'http://echarts.baidu.com/build/dist'
+                }
+            });
+
+            // 使用
+            require(
+                    [
+                        'echarts',
+                        'echarts/chart/line',
+                        'echarts/chart/bar' // 使用柱状图就加载bar模块，按需加载
+                    ],
+                    function (ec) {
+                        // 基于准备好的dom，初始化echarts图表
+                        var myChart = ec.init(document.getElementById('main'));
+
+                        var option = {
+                            tooltip: {
+                                trigger: 'axis'
+                            },
+                            legend: {
+                                data: ['在线', '正在观看']
+                            },
+                            dataZoom: {
+                                show: true,
+                                start: 0
+                            },
+                            toolbox: {
+                                show: true,
+                                feature: {
+                                    mark: {show: true},
+                                    dataView: {show: true, readOnly: false},
+                                    magicType: {show: true, type: ['line', 'bar', 'stack', 'tiled']},
+                                    restore: {show: true},
+                                    saveAsImage: {show: true}
+                                }
+                            },
+                            calculable: true,
+                            xAxis: [
+                                {
+                                    type: 'category',
+                                    boundaryGap: false,
+                                    data: ['<?php echo implode("','", $cate) ?>']
+                                }
+                            ],
+                            yAxis: [
+                                {
+                                    type: 'value'
+                                }
+                            ],
+                            series: [
+                                {
+                                    name: '在线',
+                                    type: 'line',
+                                    stack: '总量',
+                                    data: ['<?php echo implode("','", $online) ?>']
+                                },
+                                {
+                                    name: '正在观看',
+                                    type: 'line',
+                                    stack: '总量',
+                                    data: ['<?php echo implode("','", $play) ?>']
+                                }
+                            ]
+                        };
+
+
+
+
+
+                        // 为echarts对象加载数据 
+                        myChart.setOption(option);
+                    }
+            );
+        </script>
+    </body>
+</html>

@@ -1,0 +1,7 @@
+<?php
+interface MD_Image {
+	public function crop($opt,$img_from,$img_to,$pos_x,$pos_y,$width,$height,$fix_value = 0);
+	public function resize($opt,$img_from,$img_to,$width,$height);
+	public function upload($opt,$img_from,$img_to);
+	public function geturl($img_name);
+}

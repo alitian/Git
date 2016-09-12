@@ -1,0 +1,53 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Homepage_wap extends Acp_Controller {
+
+    public function recommend() {
+        $this->load->library('md_model_cache');
+        $this->load->model('product');
+        if ($_POST) {
+            if (isset($_POST['top_sort']) && count($_POST['top_sort']) > 0) {
+                foreach ($_POST['top_sort'] as $id => $item) {
+                    $id = intval($id);
+                    $item = intval($item);
+                    $sql = "update md_product SET top_sort='{$item}'  WHERE id ='{$id}';";
+                    $this->db->query($sql);
+                }
+            }
+            if (isset($_POST['wap_homepage'])) {
+                $sql = "update md_product SET flag=REPLACE(flag,',wap_homepage','')  WHERE id ='" . $_POST['wap_homepage'] . "';";
+                $this->db->query($sql);
+                $sql = "update md_product SET flag=CONCAT(flag,',wap_homepage')  WHERE id ='" . $_POST['wap_homepage'] . "';";
+                $this->db->query($sql);
+            }
+        }
+        if (isset($_GET['id'])) {
+            $sql = "update md_product SET flag=REPLACE(flag,',wap_homepage','')  WHERE id ='" . $_GET['id'] . "';";
+            $this->db->query($sql);
+            redirect('homepage_wap/recommend');
+        }
+        $sql = "SELECT id,name,start_time,end_time,short_title,if_show,flag,category,install_money,list_num,top_sort FROM md_product WHERE if_show='1' ORDER BY top_sort DESC,id DESC";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        foreach ($data['projects'] as $key => $value) {
+            $pro_id = $value['id'];
+            $archive = $this->md_model_cache->set_model('product')->cache(1)->get_archive($pro_id);
+            //归档数据
+            if ($archive) {
+                $data['projects'][$key]['end_time'] = $archive['end_time'];
+                $data['projects'][$key]['backer_money'] = $archive['amount_total'];
+            } else {
+                $data['projects'][$key]['backer_money'] = $this->md_model_cache->set_model('product')->cache(1)->get_backer_money($pro_id);
+            }
+            if (isset($data['projects'][$key]['install_money'])) {
+                $data['projects'][$key]['install_money'] = explode('|', $data['projects'][$key]['install_money']);
+                $data['projects'][$key]['install_money'] = $data['projects'][$key]['install_money'][0];
+            }
+            $data['projects'][$key]['status'] = $this->md_model_cache->set_model('product')->cache(1)->get_product_status($data['projects'][$key], $data['projects'][$key]['backer_money']);
+        }
+        $this->load->view('homepage_wap/recommend', $data);
+    }
+
+}

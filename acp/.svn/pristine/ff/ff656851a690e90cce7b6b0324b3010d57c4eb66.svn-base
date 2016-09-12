@@ -1,0 +1,13 @@
+#!/bin/bash
+for fun in web_time1 path_data visit_domain register_data_day login_data_day page_statistics
+do
+   /ROOT/bin/php /home/luxueyong/www/acp.modianinc.com/acp/index.php crons/web_data ${fun}
+done
+rm -rf /ROOT/tmp/user/*.txt
+/ROOT/bin/php /home/luxueyong/www/acp.modianinc.com/acp/index.php crons/web_data make_user
+cd /ROOT/tmp/user/
+dir=`ls`
+for file in ${dir}
+do
+    /ROOT/bin/php /home/luxueyong/www/acp.modianinc.com/acp/index.php crons/web_data user_path ${file}
+done

@@ -1,0 +1,328 @@
+<?php
+/*
+ * 产品信息查询
+* */
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Edm_product_m extends CI_Model {
+	
+	public function __construct(){
+		parent::__construct();
+		$this->load->database();
+	}
+	
+	/*
+	 * 根据项目编号获取项目信息
+	* return 成功返回项目信息，失败返回false
+	*/
+	public function get_info_by_product($product){
+		$result = FALSE;
+		if(is_int($product)){
+			$sql = "SELECT * FROM md_product where id =".$product." ";
+			$res = $this->db->query($sql)->row_array();
+			if(empty($res)){
+				return $result;
+			}else{
+				return  $res;
+			}
+		}
+	}
+	
+	/*
+	 * 根据项目编号获取项目信息及回报信息
+	* return 成功返回项目信息，失败返回false
+	*/
+	public function get_product_rewards_by_product($product,$rewardId,$rewards_asc){
+		$result = FALSE;
+		$reward_id_arr =(!empty($rewardId))?explode(",",$rewardId):"";
+		$reward_asc_arr = (!empty($rewards_asc))?explode(",",$rewards_asc):"";
+		if(is_int($product)){
+			$sql = "SELECT t1.id as pro_id,t1.name as pro_name,t1.logo,t1.content as pro_content,t2.id as reward_id,t2.money,t2.content as rew_content FROM md_product t1 left join md_product_rewards t2 on t1.id = t2.pro_id where t1.id =".$product." ";
+			$res_temp = $this->db->query($sql)->result_array();
+			$this->db->close();
+			if(empty($res_temp)){
+				return $result;
+			}else{
+				if(!empty($reward_id_arr)){
+					foreach($res_temp as $key=>$val){
+						if(in_array($val["reward_id"],$reward_id_arr)){
+							$new_key = array_keys($reward_id_arr,$val["reward_id"]);
+							$keys = $new_key[0];
+							$res["pro_id"] = $val["pro_id"];
+							$res["pro_name"] = $val["pro_name"];
+							$res["logo"] = str_replace("uploads/","",$val["logo"]);
+							$res["pro_content"] = $val["pro_content"];
+							$res["rewards_content"][] =array("reward_id"=>$val["reward_id"],"money"=>$val["money"],"rew_content"=>$val["rew_content"],"reward_asc"=>$reward_asc_arr[$keys]);
+						}
+					}
+					$res["rewards_content"] = $this->array_sort($res["rewards_content"],"reward_asc","asc");
+					return $res;
+				}else{
+					$res["pro_id"] = $res_temp[0]["pro_id"];
+					$res["pro_name"] = $res_temp[0]["pro_name"];
+					$res["logo"] = str_replace("uploads/","",$res_temp[0]["logo"]);
+					$res["pro_content"] = $res_temp[0]["pro_content"];
+					$res["rewards_content"] =array();
+					return $res;
+				}
+			}
+		}else{
+			return $result;
+		}
+	}
+	
+
+	/*
+	* 根据项目编号获取项目名称
+	* return 成功返回项目名称，失败返回false
+	*/
+	public function get_name_by_product($product){
+		$result = FALSE;
+		$pro_id_arr = array();
+		if(!empty($product)){
+			$product_arr = explode(",",trim($product,","));
+			foreach ($product_arr as $x=>$y){
+				$pro_id_arr[] = intval($y);
+			}			
+			if(!empty($pro_id_arr)){
+				$sql = "SELECT name FROM md_product where ";
+				foreach ($pro_id_arr as $key=>$val){
+					if($key == 0){
+						$sql .= " id ='".$val."' ";
+					}else{
+						$sql .= " or id ='".$val."' ";
+					}
+				}
+				$res = $this->db->query($sql)->result_array();
+				if(empty($res)){
+					return $result;
+				}else{
+					foreach($res as $m=>$n){
+						$name_arr[] = $n["name"];
+					}
+					$name_str = implode(",",$name_arr);
+					return  $name_str;
+				}
+			}else{
+				return $result;
+			}
+		}
+	}
+	
+	public function get_pic_by_product($product){
+		$result = FALSE;
+		$pro_id_arr = array();
+		if(!empty($product)){
+			$product_arr = explode(",",trim($product,","));
+			foreach ($product_arr as $x=>$y){
+				$pro_id_arr[] = intval($y);
+			}			
+			if(!empty($pro_id_arr)){
+				$sql = "SELECT logo FROM md_product where ";
+				foreach ($pro_id_arr as $key=>$val){
+					if($key == 0){
+						$sql .= " id ='".$val."' ";
+					}else{
+						$sql .= " or id ='".$val."' ";
+					}
+				}
+				$res = $this->db->query($sql)->result_array();
+				if(empty($res)){
+					return $result;
+				}else{
+					foreach($res as $m=>$n){
+						$logo_arr[] = $n["logo"];
+					}
+					$logo_str = implode(",",$logo_arr);
+					return  $logo_str;
+				}
+			}else{
+				return $result;
+			}
+		}		
+	}
+	
+	public function get_content_by_product($product){
+		$result = FALSE;
+		$pro_id_arr = array();
+		if(!empty($product)){
+			$product_arr = explode(",",trim($product,","));
+			foreach ($product_arr as $x=>$y){
+				$pro_id_arr[] = intval($y);
+			}			
+			if(!empty($pro_id_arr)){
+				$sql = "SELECT des FROM md_product where ";
+				foreach ($pro_id_arr as $key=>$val){
+					if($key == 0){
+						$sql .= " id ='".$val."' ";
+					}else{
+						$sql .= " or id ='".$val."' ";
+					}
+				}
+				$res = $this->db->query($sql)->result_array();
+				if(empty($res)){
+					return $result;
+				}else{
+					foreach($res as $m=>$n){
+						$des_arr[] = $n["des"];
+					}
+					$des_str = implode("||",$des_arr);
+					return  $des_str;
+				}
+			}else{
+				return $result;
+			}
+		}		
+	}
+	
+	/*
+	 * 根据项目编号获取回报信息
+	* return 成功返回数组，失败返回false 
+	*/
+	public function get_rewards_by_product($product){
+		$result = FALSE;
+		if(is_int($product)){
+			$sql = "SELECT id,content FROM md_product_rewards where pro_id =".$product." order by id";
+			$res = $this->db->query($sql)->result_array();
+			if(empty($res)){
+				return $result;
+			}else{
+				return  $res;
+			}
+		}
+	}
+
+	/*
+	* 根据项目回报编号获取回报内容
+	* return 成功返回回报内容，失败返回false 
+	*/
+	public function get_rewards_content_by_id($rewards){
+		$result = FALSE;
+		if(is_int($rewards)){
+			$sql = "SELECT content FROM md_product_rewards where id=".$rewards." ";
+			//echo $sql."<br>";
+			$res = $this->db->query($sql)->row_array();
+			if(empty($res)){
+				return $result;
+			}else{
+				return  $res["content"];
+			}
+		}
+	}
+	
+	/*
+	 * 根据项目编号获取回报信息
+	* return 成功返回数组，失败返回false
+	*/
+	public function get_rewardsinfo_by_id($rewards){
+		$result = FALSE;
+		if(is_int($rewards)){
+			$sql = "SELECT id,content,money FROM md_product_rewards where id =".$rewards." ";
+			$res = $this->db->query($sql)->row_array();
+			if(empty($res)){
+				return $result;
+			}else{
+				return  $res;
+			}
+		}
+	}
+	
+	/*
+	 * 根据项目编号获取回报信息
+	* return 成功返回数组，失败返回false
+	*/
+	public function get_product_arr($products,$proId_asc,$proId_ui,$prId_des,$proId_name){
+		$result = FALSE;
+		$res =array();
+		$sql = "SELECT * FROM md_product where 1=1 ";
+		$productId =(!empty($products))?explode(",", $products):"";
+		$proId_asc_str = (!empty($proId_asc))?explode(",", $proId_asc):"";
+		$proId_ui_str = (!empty($proId_ui))?explode(";", $proId_ui):"";
+		$proId_des_str = (!empty($prId_des))?explode("||", $prId_des):"";
+		$proId_name_str = (!empty($proId_name))?explode(",", $proId_name):"";
+		if(!empty($productId)){
+			foreach($productId as $key=>$val){
+				if($key == 0){
+					$sql.=" and id= ".$val." ";
+				}else{
+					$sql.=" or id= ".$val." ";
+				}
+			}
+		}else{
+			return $res;
+		}
+		$res = $this->db->query($sql)->result_array();
+		$this->db->close();
+		if(empty($res)){
+			return $res;
+		}else{
+			foreach($res as $m=>$n){
+//				$info = $n;
+				$new_key = array_keys($productId,$n["id"]);
+				$keys = $new_key[0];
+				$info["pro_id"] = $n['id'];
+				$pro_content =$proId_des_str[$keys];
+				$info["product_des"] = mb_strimwidth($pro_content,0,230,'...');	
+				$info["product_logo"] = str_replace("uploads/","",$n['logo']);
+				$info["product_name"] = $proId_name_str[$keys];
+				$info["product_asc"] = $proId_asc_str[$keys];
+				$info["product_ui"] = $proId_ui_str[$keys];
+				$info["product_support_money"] = $this->get_product_back_amount_by_phasenum($n["id"]);
+				$percent = ($info["product_support_money"] / $n["install_money"]) *100;
+				$info["product_percent"] = round($percent,2)."%";
+				//融资开始多少天
+				if (!empty($n['start_time']) && $n['start_time'] != '0000-00-00 00:00:00')
+					$has_started = (int) ((time() - strtotime($n['start_time'])) / 3600 / 24);
+				
+				$remaining_hours= $n['duration'] * 24 - ceil((time() - strtotime($n['start_time'])) / 3600);
+				
+				if (($n['duration'] - $has_started) == 1) {
+					$left_time = ($remaining_hours == 0) ? "不足1小时" : $remaining_hours . '小时';
+				} else {
+					$left_time = ($n['duration'] - $has_started) > 0 ? ($n['duration'] - $has_started) . "天" : '0天';
+				}
+				
+				$info["product_left_time"] = $left_time;
+				
+				$temp[] = $info;
+			}
+			
+			$temp = $this->array_sort($temp,"product_asc","asc");
+			return $temp;
+		}
+	}
+
+	//查询这个项目每期融资金额
+	function get_product_back_amount_by_phasenum($pro_id) {
+		$amount = 0;
+		//$sql = "SELECT SUM(md_product_back.amount) as amount FROM md_product_back INNER JOIN md_product_rewards ON md_product_back.rew_id=md_product_rewards.id WHERE md_product_back.pro_id='{$pro_id}' AND if_pay=1 GROUP BY rew_phase";
+
+		$sql = "SELECT SUM(amount) as amount FROM md_product_back WHERE pro_id='{$pro_id}' AND if_pay=1 ";
+		
+		$res = $this->db->query($sql)->result_array();
+		foreach ($res as $key=>$item) {
+		      $amount = $item['amount'];
+		}
+		return $amount;
+	}
+	
+	//对二维数组进行排序
+	function array_sort($arr,$keys,$type = 'asc'){
+		$keysvalue = $new_array = array();
+		foreach ($arr as $k => $v){
+			$keysvalue[$k] = $v[$keys];
+		}
+		if($type == 'asc'){
+			asort($keysvalue);
+		}else{
+			arsort($keysvalue);
+		}
+		reset($keysvalue);
+		foreach($keysvalue as $k => $v){
+			$new_array[] = $arr[$k];
+		}
+		return $new_array;
+	}
+
+}
+

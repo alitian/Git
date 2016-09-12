@@ -1,0 +1,68 @@
+<?php	
+	class Bbs_md_user_model extends CI_Model{
+
+		const MD_USER_TABLE = 'md_users';
+		const MD_ADMIN_TABLE = 'md_admin';
+
+		public function __construct(){
+			parent::__construct();
+		}
+
+		/**
+		 *	获取用户信息
+		 *
+		 * @param 	int 		$uid
+		 * @return 	array 		$user_info
+		 *
+		 */
+		public function get_user_by_uid($uid)
+		{
+			$this->db->from(self::MD_USER_TABLE);
+			$this->db->where('id', $uid);
+			$user_query = $this->db->get();
+			$user_info = $user_query->row_array();
+			if(!user_info){
+				$user_info = array();
+			}
+			$user_info['nickname'] = ($user_info['nickname'] ? $user_info['nickname'] : $user_info['username']);
+			return $user_info;
+		}
+
+		/**
+		 *	获取普通用户列表
+		 *
+		 * 	@param 		array 		$uid_array
+		 * 	@return 	array 		$user_list
+		 *
+		 */
+		public function get_user_list_by_uid_array($uid_array)
+		{
+			$this->db->from(self::MD_USER_TABLE);
+			$this->db->where_in('id', $uid_array);
+			$user_query = $this->db->get();
+			$user_list = $user_query->result_array();
+			foreach($user_list as &$user_info){
+				$user_info['nickname'] = ($user_info['nickname'] ? $user_info['nickname'] : $user_info['username']);
+			}
+			return $user_list;
+		}
+
+		/**
+		 *	获取管理员用户列表
+		 *
+		 * 	@param 		array 		$uid_array
+		 * 	@return 	array 		$user_list
+		 *
+		 */
+		public function get_admin_list_by_uid_array($uid_array)
+		{
+			$this->db->from(self::MD_ADMIN_TABLE);
+			$this->db->where_in('id', $uid_array);
+			$user_query = $this->db->get();
+			$user_list = $user_query->result_array();
+			foreach($user_list as &$user_info){
+				$user_info['nickname'] = ($user_info['nickname'] ? $user_info['nickname'] : $user_info['username']);
+			}
+			return $user_list;
+		}
+	}

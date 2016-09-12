@@ -1,0 +1,71 @@
+           <div class="control-group">	
+				焦点图:<font color="red">(提示：文件格式支持jpg、jpeg、png、gif，像素大小520 * 293)</font>
+				<form id='formFile' name='formFile' method="post" action="/user_ajax/upload_pic/" target='frameFile' enctype="multipart/form-data">
+				<table >
+				<thead>
+					
+				    <tr>
+				        <th  width="150" align="center">链接地址</th> 
+					    <th  width="300" align="center">标签名称</th>
+				        <th  width="150" align="center">图片上传</th>
+						<th  width="150" align="center"></th>
+				        <th  width="300" align="center">预览</th>
+					<!-- <th  width="30" align="center">操作</th> -->
+		
+			            </tr>
+			         
+			            <tr>
+			                <th align="center"><input id="top_link" name="top_link" value=""></th> 
+			                <th align="center"><input id="topic_tag_name" name="topic_tag_name" value="" placeholder="多个标签以英文逗号分隔"></th> 
+							<th align="center"><input type="file" id="topic_picture" name="topic_picture" value=""><input type="hidden" name="topic_pic_hidden" id="topic_pic_hidden" value=""></th>
+							<th align="center"><input type="button" value="上传图片" id="topic_up"></th>
+							<th align="center"><img id="review_pic" name="review_pic" alt="" src=""></th>
+
+			            </tr>
+					</thead>
+				</table>
+				</form>   
+			</div>
+
+			<div class="control-group">	
+				页面底部图片:<font color="red">(提示：文件格式支持jpg、jpeg、png、gif，像素大小520 * 293)</font>
+				<table id="topic_tab">
+					<thead>
+						<tr>
+							<th  width="30" align="center">排序</th>
+							<th  width="150" align="center">链接地址</th>
+							<th  width="300" align="center">上传图片</th>
+							<th  width="300" align="center">预览</th>
+							<th  width="30" align="center">操作</th>
+			            </tr>
+			            
+			            <tr>
+							<th align="center"><input style="width:30px" type="text" name="topic_pic_asc[]" id="topic_pic_asc_1"></th>
+							<th align="center"><input type="text" name="topic_pic_url[]" id="topic_pic_url_1"></th>
+							<th align="center" style="width: 500px;"><input type="file" name="topic_pic[]" id="topic_pic_1" value="上传图片"><input type="button" value="上传图片" onClick="get_line(1);"></th>
+							<th align="center"><img src="" id="view_pic_1"><input type="hidden" name="hidden_topic_pic[]" id="hidden_topic_pic_1" value=""></th>
+							<th align="center"><input type="button" value="删除" onclick="deltr(this)"></th>
+			            </tr>
+					</thead>
+				</table>
+				<div class="control-group">
+					<input class="btn btn-primary" type="button" id="topic_addpic_btn" name="topic_addpic_btn" value="添加"/>
+					<input class="btn btn-primary" type="button" id="topic_confirm_btn" name="topic_confirm_btn" value="确认"/>
+				</div>
+			</div>
+			
+			<div class="control-group">	
+				邮件标题:<input type="text" name="topic_email_title" id="topic_email_title" value="">
+			</div>
+			<div class="control-group">
+				活动规则:<textarea  name="topic_rule" id="topic_rule" rows="3" cols="120"></textarea>
+			</div>
+			
+			<div class="control-group">
+				<input class="btn btn-primary" type="button" id="topic_save_btn" name="topic_save_btn" value="保存"/>
+				<input class="btn btn-primary" type="button" id="topic_review_btn" name="topic_review_btn" value="预览"/>
+				<input class="btn btn-primary" type="button" id="topic_send_btn" name="topic_send_btn" value="确认发送"/>
+				<input class="btn btn-primary" type="button" id="topic_cancel_btn" name="topic_cancel_btn" value="取消"/>
+				<input class="btn btn-primary" type="button" id="topic_return_btn" name="topic_return_btn" value="返回"/>
+			</div>
+			

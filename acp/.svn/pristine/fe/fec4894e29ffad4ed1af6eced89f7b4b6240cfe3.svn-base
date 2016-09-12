@@ -1,0 +1,209 @@
+<?php $this->load->view('ckad/header') ?>
+<?php $this->load->view('project/sub_menu', array('pro_id' => $product_info['id'])) ?>
+<script type="text/javascript">
+    $(function () {
+        $('#datetimepicker').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+        $('#datetimepicker02').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+        $('#datetimepicker03').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false
+        }).attr('readonly', 'readonly');
+    });
+</script>
+<link href='/static/uploadify/uploadify.css' rel='stylesheet'>
+<script src="/static/uploadify/jquery.uploadify.min.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>new/js/ajaxfileupload.js"></script>
+<script type="text/javascript" src="/mt/ueditor_cus/ueditor.config.js?t=20150421"></script>
+<script type="text/javascript" src="/mt/ueditor_cus/ueditor.all.min.js?t=20150421"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/easyui/datagrid-detailview.js"></script>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<style type="text/css">
+    #div_preview{
+        position: fixed;
+        bottom: 20px;
+        left: 15px;
+        z-index: 888;
+        width: 200px;
+        display: none;
+    }
+</style>
+<script type="text/javascript">
+    $(function () {
+        $("#preview").click(function () {
+            $("#div_preview").toggle();
+            if ($('#vedio').val())
+            {
+                $("#html_flash").attr("src", $('#vedio').val());
+            }
+            else
+            {
+                $("#html_flash").attr("src", '');
+                $("#div_preview").hide();
+            }
+
+            if ($(this).text() == '预览')
+            {
+                $(this).text('关闭');
+            }
+            else
+            {
+                $(this).text('预览');
+            }
+        })
+        $("#des").show();
+        var ue = UE.getEditor('des');
+        $.fileupload1 = $('#fileupload1').uploadify({
+            'auto': true,
+            'formData': {
+                'fcharset': 'utf-8',
+                'writetoken': '0CpBhPaOr0RTqXs-fwgdqqdqrw2d6Pt9',
+                'JSONRPC': '{"title": "<?= $product_info['short_title']; ?>子项目视频", "tag": "标签", "desc": "子项目描述"}'
+            },
+            'buttonText': '选择上传文件',
+            'fileSizeLimit': '1000MB', //上传文件大小限制
+            'fileTypeDesc': '视频文件',
+            'fileTypeExts': '*.avi; *.mp4; *.mov; *.flv', //文件类型过滤
+            'swf': '/static/uploadify/uploadify.swf',
+            'uploader': 'http://v.polyv.net/uc/services/rest?method=uploadfile',
+            //onUploadSuccess为上传完视频之后回调的方法，视频json数据data返回
+            //下面的例子演示如何获取到vid
+            'onUploadSuccess': function (file, data, response) {
+                var jsonobj = eval('(' + data + ')');
+                $("#vedio").val(jsonobj.data[0].swf_link);
+            }
+        });
+
+        $('#project').on("change", upload = function () {
+            $('#project').off("change", upload);
+            $.ajaxFileUpload({
+                url: '/project/upload_pic/project/1024', //你处理上传文件的服务端
+                secureuri: false,
+                fileElementId: 'project',
+                dataType: 'json',
+                success: function (data, status) {
+                    $('#project').on("change", upload);
+                    if (data.num == 1) {
+                        $("#logo_img").attr('src', data.cdn_url + data.pic).show();
+                        $("#logo").val(data.pic);
+                    } else {
+                        return false;
+                    }
+                },
+                error: function (data, status, e) {
+                    $('#project').on("change", upload);
+                    return false;
+                }
+
+            });
+        });
+    });
+</script>
+<div class="row">
+    <div class="span4">
+        <table class="table">
+            <tr><td>子项目列表</td><td>操作</td></tr>
+            <?php foreach ($list as $item): ?>
+                <?php
+                if (isset($edit) && $item['id'] == $edit) {
+                    $edit_data = $item;
+                }
+                ?>
+                <tr><td><?= $item['title']; ?></td><td><a href='/project/sub_product/<?= $product_info['id']; ?>?del=<?= $item['id']; ?>'>删除</a> <a href='/project/sub_product/<?= $product_info['id']; ?>?edit=<?= $item['id']; ?>'>编辑</a></td></tr>
+            <?php endforeach; ?>
+        </table>
+    </div>
+    <div class="span8">
+        <form id='form1' method="post">
+            <table class='table'>
+                <tr>
+                    <td>标题</td>
+                    <td><input type='text' name='title' value="<?= str_replace('"', '\"', $edit_data['title']); ?>" /></td>
+                </tr>
+                <tr>
+                    <td>开发商</td>
+                    <td><input type="text" id='developers' name='developers' value="<?= $edit_data['developers']; ?>" /></td>
+                </tr>
+                <tr>
+                    <td>开发商介绍</td>
+                    <td><textarea id='developers_des' name='developers_des'><?= $edit_data['developers_des']; ?></textarea></td>
+                </tr>
+                <tr>
+                    <td>图片</td>
+                    <td><img id='logo_img' src='<?php
+                        if (isset($edit_data['logo'])) {
+                            echo _gc('cdn_url') . $edit_data['logo'];
+                        }
+                        ?>' style="<?php if (!isset($edit_data['logo'])): ?>display:none;<?php endif; ?>max-width: 200;max-height:200px;" /><br /><input class="upload-file" id="project" name='project' type="file" name="上传logo" /><input type='hidden' value='<?= $edit_data['logo']; ?>' id='logo' name='logo' /></td>
+                </tr>
+                <tr>
+                    <td>视频</td>
+                    <td><input type='text' name='vedio' id='vedio' value='<?= $edit_data['vedio']; ?>' /><a href="javascript:;" id="preview">预览</a><input type="button" value="up" id="fileupload1" /></td>
+                </tr>
+                <tr>
+                    <td>介绍</td>
+                    <td><textarea id='des' name='des'><?= $edit_data['des']; ?></textarea></td>
+                </tr>
+                <tr>
+                    <td>人数上限（人）</td>
+                    <td><input id='max_people' name='max_people' value='<?= $edit_data['max_people']; ?>' /></td>
+                </tr>
+                <tr>
+                    <td>抢票开始时间
+                        <div id="datetimepicker02" class="input-append">
+                            <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="抢票开始时间" name='grabvoyes_time' id='grabvoyes_time' value='<?= $edit_data['grabvoyes_time']; ?>' />
+                            <span class="add-on">
+                                <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                </i>
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td>抢票结束时间
+                        <div id="datetimepicker03" class="input-append">
+                            <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="抢票结束时间" name='grabvoyes_end_time' id='grabvoyes_end_time' value='<?= $edit_data['grabvoyes_end_time']; ?>' />
+                            <span class="add-on">
+                                <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                </i>
+                            </span>
+                        </div>
+                    </td>
+                </tr>		        
+                <tr>
+                    <td>比赛开始时间
+                        <div id="datetimepicker" class="input-append">
+                            <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" name='start_time' id='start_time' value='<?= $edit_data['start_time']; ?>' />
+                            <span class="add-on">
+                                <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                </i>
+                            </span>
+                        </div>
+                    </td>
+                </tr>		        
+                <tr>
+                    <td>预计时长</td>
+                    <td><input id='expected' name='expected' value='<?= $edit_data['expected']; ?>' /></td>
+                </tr>
+
+                <tr>
+                    <td>参加地点</td>
+                    <td><input id='location' name='location' value='<?= $edit_data['location']; ?>' /></td>
+                </tr>
+
+                <tr><td colspan="2"><input type="submit" /></td></tr>
+            </table>
+        </form>
+    </div>
+</div>
+<div id="div_preview"><embed id="html_flash" src="<?= $edit_data['vedio']; ?>" allowFullScreen="true" quality="high" width="480" height="400" align="middle" allowScriptAccess="always" type="application/x-shockwave-flash"></embed></div>
+<?php
+$this->load->view('ckad/footer')?>

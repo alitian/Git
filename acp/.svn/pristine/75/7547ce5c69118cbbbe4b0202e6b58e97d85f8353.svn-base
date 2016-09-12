@@ -1,0 +1,214 @@
+<?php
+
+class Admin_user extends Acp_Controller {
+
+    public function index() {
+        if ($_POST && isset($_POST['name']) && $_POST['name']) {
+            $insert_data = array('pid' => $_POST['pid'], 'name' => $_POST['name'], 'controller' => $_POST['controller'], 'action' => $_POST['action'], 'plus_uri' => $_POST['plus_uri']);
+            if(isset($_POST['if_show']))
+            {
+                $insert_data['if_show'] = 1;
+            }
+            else
+            {
+                $insert_data['if_show'] = 0;
+            }
+            if ($_GET['edit']) {
+                $this->Common->update("md_admin_power_item", array('id' => $_GET['edit']), $insert_data);
+            } else {
+                $insert_id = $this->Common->add("md_admin_power_item", $insert_data);
+            }
+            redirect('admin_user');
+        }
+        if ($_GET['del']) {
+            $this->db->delete('md_admin_power_item', array('id' => $_GET['del']));
+            redirect('/admin_user/index');
+        }
+        
+        $sql = "SELECT * FROM md_admin_power_item WHERE pid=0";
+        $data['list'] = $this->db->query($sql)->result_array();
+
+        if (isset($_GET['edit'])) {
+            $_GET['edit'] = intval($_GET['edit']);
+            $sql = "SELECT * FROM md_admin_power_item WHERE id={$_GET['edit']}";
+            $data['edit_data'] = $this->db->query($sql)->row_array();
+        }
+        $this->load->view('admin_user/index', $data);
+    }
+
+    public function set_pwd() {
+        $data['error'] = $data['ok'] = '';
+        if ($_POST) {
+            if ($_POST['new_pwd'] == $_POST['cnew_pwd']) {
+                $sql = "SELECT * FROM md_admin WHERE id='{$_SESSION['admin_id']}'";
+                $user = $this->db->query($sql)->row_array();
+                if (md5($_POST['old_pwd']) == $user['password']) {
+                    $this->Common->update("md_admin", array('id' => $_SESSION['admin_id']), array('password' => md5($_POST['new_pwd'])));
+                    $data['ok'] = '修改成功';
+                } else {
+                    $data['error'] = '老密碼對不上呀(⊙o⊙)…';
+                }
+            } else {
+                $data['error'] = '新密码两次输入不一致(⊙o⊙)…';
+            }
+        }
+        $this->load->view('admin_user/set_pwd', $data);
+    }
+
+    public function group() {
+        if ($_POST && isset($_POST['name']) && $_POST['name']) {
+            $insert_data = array('group_name' => $_POST['name'], 'group_item_ids' => $_POST['item_ids']);
+            if ($_GET['edit']) {
+                $this->Common->update("md_admin_group", array('id' => $_GET['edit']), $insert_data);
+            } else {
+                $insert_id = $this->Common->add("md_admin_group", $insert_data);
+            }
+            redirect('admin_user/group');
+        }
+        if (isset($_GET['edit'])) {
+            $_GET['edit'] = intval($_GET['edit']);
+            $sql = "SELECT * FROM md_admin_group WHERE id={$_GET['edit']}";
+            $data['edit_data'] = $this->db->query($sql)->row_array();
+        }
+        $sql = "SELECT *,(SELECT count(1) FROM md_admin ad_usr WHERE ad_usr.admin_group=ad_grp.id AND if_show=1) as usr_count FROM md_admin_group ad_grp";
+        $data['list'] = $this->db->query($sql)->result_array();
+        $this->load->view('admin_user/group', $data);
+    }
+
+    public function ajax_pw_tree() {
+        $ids = array();
+        if ($_GET['edit']) {
+            $sql = "SELECT * FROM md_admin_group WHERE id={$_GET['edit']}";
+            $edit_data = $this->db->query($sql)->row_array();
+            $ids = explode(',', $edit_data['group_item_ids']);
+        }
+        echo json_encode(md_admin_menu(0, $ids));
+    }
+
+    function users($start = 0) {
+        # 1 查询所有管理员信息
+        $where['if_show'] = 1;
+        $sql = "select adm.*, group_name,group_item_ids from md_admin adm
+INNER JOIN md_admin_group grp ON adm.admin_group= grp.id
+WHERE adm.if_show=1
+ORDER BY grp.id";
+        $total_rows = count($this->db->query($sql)->result_array());
+        $per_page = 15;
+        $config = array(
+            'uri_segment' => 3,
+            'base_url' => site_url('admin_user/users'),
+            'per_page' => $per_page,
+            'total_rows' => $total_rows,
+        );
+        $config['num_links'] = 20;
+        $this->pagination->initialize($config);
+        $pagination = $this->pagination->create_links();
+        $orderby = 'ctime DESC';
+        $data = $this->Admin_m->get_multiple('md_admin', $where, $start, $per_page, $orderby);
+        $data = $this->db->query($sql . " LIMIT {$start}, {$per_page}")->result_array();
+        $viewdata['pagination'] = $pagination;
+        $viewdata['data'] = $data;
+
+        # 2.加载页面		
+        $this->load->view('admin_user/listing', $viewdata);
+    }
+
+    function save_action($action = 'create', $id = '') {
+        switch ($action) {
+            case 'create':
+                $this->create();
+                break;
+            case 'update':
+                $this->update($id);
+                break;
+            default:
+                redirect('admin_user/users');
+        }
+    }
+
+    function create() {
+        $viewdata['action'] = 'create';
+        $viewdata['group_list'] = $this->_get_admin_group();
+        if ($_POST) {
+            # 验证必填项
+            $error = array();
+            $data['name'] = $this->input->post('name', true);
+            $data['password'] = $this->input->post('password', true);
+            $data['email'] = $this->input->post('email', true);
+            $data['admin_group'] = $this->input->post('admin_group', true);
+            $error = $this->_validate_admin($data);
+
+            if (empty($error)) {
+                #保存
+                $data['password'] = md5($data['password']);
+                $result = $this->Admin_m->save('md_admin', $data);
+                $_SESSION['save_message'] = '添加成功';
+                redirect('admin_user/users');
+            } else {
+                $viewdata['error'] = $error;
+                $viewdata['data'] = $data;
+
+                $this->load->view('admin_user/edit', $viewdata);
+            }
+        } else
+            $this->load->view('admin_user/edit', $viewdata);
+    }
+
+    function update($id) {
+        # 1 查询detail
+        $data = $this->Admin_m->get_single_record('md_admin', array('id' => $id, 'if_show' => 1));
+        $viewdata['id'] = $id;
+        $viewdata['data'] = $data;
+        $viewdata['action'] = 'update';
+        $viewdata['group_list'] = $this->_get_admin_group();
+        if ($_POST) {
+            # 验证必填项
+            $error = array();
+            $data['name'] = $this->input->post('name', true);
+            $password = $this->input->post('password', true);
+            $data['email'] = $this->input->post('email', true);
+            $data['admin_group'] = $this->input->post('admin_group', true);
+
+            $error = $this->_validate_admin($data);
+            if (empty($error)) {
+                #保存
+                if ($password)
+                    $data['password'] = md5($password);
+
+                $result = $this->Admin_m->update('md_admin', $id, $data);
+                $_SESSION['save_message'] = '修改成功';
+                redirect('admin_user/users');
+            } else {
+                $viewdata['error'] = $error;
+                $viewdata['data'] = $data;
+                $this->load->view('admin_user/edit', $viewdata);
+            }
+        } else
+            $this->load->view('admin_user/edit', $viewdata);
+    }
+
+    function _get_admin_group() {
+        $sql = "SELECT * FROM md_admin_group ORDER BY id ASC";
+        return $this->db->query($sql)->result_array();
+    }
+
+    function delete($id) {
+        $res = $this->Admin_m->delete('md_admin', $id);
+        $_SESSION['save_message'] = '删除成功';
+        redirect('admin_user/users');
+    }
+
+    function _validate_admin($data = array()) {
+        $error = array();
+        if (empty($data['name']))
+            $error['name'] = '*请输入用户名';
+        elseif (mb_strlen($data['name']) > 30)
+            $error['name'] = '*用户名超过30个字符';
+        if (empty($data['email']))
+            $error['email'] = '*请输入邮箱';
+        elseif (!preg_match('/^[A-Za-z0-9-_.+%]+@[A-Za-z0-9-.]+\.[A-Za-z]{2,4}$/', $data['email']))
+            $error['email'] = '*邮箱格式有误';
+        return $error;
+    }
+
+}

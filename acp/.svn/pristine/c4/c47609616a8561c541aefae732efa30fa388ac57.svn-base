@@ -1,0 +1,54 @@
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<table class="table table-bordered">
+    <tbody>
+        <tr>
+            <td colspan="3">
+                <form method="POST" action="">
+                    <div class="row-fluid">
+                        <div class="span3">
+                            <div id="datetimepicker3" class="input-append">
+                                <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" id='start_time' name='start_time' value="<?= $start_time ?>" style="width:165px;"></input>
+                                <span class="add-on">
+                                    <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                    </i>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="span3">
+                            <div id="datetimepicker4" class="input-append">
+                                <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="截止时间" id='end_time' name='end_time' value="<?= $end_time ?>" style="width:165px;"></input>
+                                <span class="add-on">
+                                    <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                                    </i>
+                                </span>
+                            </div>
+                        </div>
+                        <button class="btn btn-small btn-primary" type="submit" id="search" data-options="iconCls:'icon-search'">查询</button><br /><br />
+                    </div>
+                    <?php
+                    if (isset($search_result)) {
+                        echo "查询结果：" . $search_result;
+                    }
+                    ?>
+                </form>
+            </td>
+        </tr>
+        <tr class="success"><th>上周</th><th>上月</th><th>上个季度</th></tr>
+        <tr><th><?= $last_week ?></th><th><?= $last_month; ?></th><th><?= $last_quarter; ?></th></tr>
+        <tr class='info'><th>本周</th><th>本月</th><th>本季度</th></tr>
+        <tr><td><?= $the_week ?></td><td><?= $the_month; ?></td><td><?= $the_quarter; ?></td></tr>
+        <tr><th>下单用户总数</th><th>下单交叉用户数</th><th>支付成功交叉用户数</th></tr>
+        <tr><td><?= $all_order_user ?></td><td><?= $all_cross ?></td><td><?= $all_cross_pay; ?></td></tr>
+    </tbody>
+</table>
+<script language='javascript'>
+    $(function () {
+        $('#datetimepicker3,#datetimepicker4').datetimepicker({
+            language: 'zh-CN',
+            pickTime: true
+        });
+    });</script>
+<?php $this->load->view('ckad/footer'); ?>

@@ -1,0 +1,27 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('special_subj/tabs'); ?>
+
+
+<div class="row-fluid">
+    <form action="/special_subj/edit_ssubj" method="POST">
+        <div class="row-fluid">
+            <div class="input-prepend input-append">
+                <span class="add-on" style="margin-right:-4px;">新专题名称</span>
+                <input class="span3" name="new_ssubj_name" type="text" placeholder="输入新专题名称">
+                <button class="btn btn-success" type="submit"><i class="icon-arrow-right"></i></button>
+            </div>
+            <div class="well">
+                <h3>选择专题所需模块</h3>
+                <?php foreach ($ssubj_module as $module): ?>
+                <div class="module-item">
+                    <label class="checkbox">
+                        <input type="checkbox" name="module[<?=$module['id']?>]"> <?=$module['name']?>
+                    </label>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </form>
+</div>
+
+<?php $this->load->view('ckad/footer'); ?>

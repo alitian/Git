@@ -1,0 +1,142 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<script type="text/javascript">
+    $(function() {
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN',
+            pickTime: false,
+        });
+    });
+</script>
+
+<script type="text/javascript">
+$(document).ready(function(){   
+	 $('#btn_search').click(function(e){
+		 e.preventDefault();
+		 form1.action = "/user/ajax_user_score";
+		 $('#tt').datagrid('load', {
+			 user_id:$("#user_id").val(),
+             content_template: $("#content_template").val(),
+             start_time: $("#start_time").val(),
+             end_time: $("#end_time").val(),
+         });
+	 });
+});
+</script>
+<style type="text/css">
+    td,tr{
+        white-space: nowrap;
+    }
+</style>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="#">积分查询</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div id="p" class="easyui-panel" title="积分查询" style="height:260px;padding:10px;margin: 0;" data-options="collapsible:true">
+         <!--  <form method="POST" name='form1' id="form1" action="#" onkeydown="if(event.keyCode==13){return false;}">-->
+            <form method="POST" name='form1' id="form1" action="/user/export_user_score" target="_blank">
+                <div class="span10">
+                    <div class="row-fluid">
+                        <div class="span3">用户ID:<br /><input type="text" id='user_id' name='user_id' value="" placeholder="用户ID（多填以,分开）" /></div>
+                        <div class="span4">开始时间：<br>
+	                        <div id="datetimepicker1" class="input-append">
+		                        <input data-format="yyyy-MM-dd 00:00:00" type="text" placeholder="开始时间" name='start_time' id='start_time' value="<?= $startTime ?>"></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div>   
+                        </div>                    
+                    </div>
+					<div class="row-fluid">
+                        <div class="span3">行为选择:<br />
+	                        <select id="content_template" name="content_template">
+		                        <option value="">全部</option>
+			                    <option value="1001">注册</option>
+			                    <option value="1002">登录</option>
+			                    <option value="1003">绑定微信</option>
+			                    <option value="1004">绑定微博</option>
+			                    <option value="1005">邮箱验证</option>
+			                    <option value="1006">上传头像</option>
+			                    <option value="1007>">昵称</option>
+			                    <option value="1008">其他资料100%</option>
+			                    <option value="1009">分享项目</option>
+			                    <option value="1010">推荐好友注册</option>
+			                    <option value="1011">被点赞</option>
+			                    <option value="1012">评论</option>
+			                    <option value="1013">回评</option>
+			                    <option value="1014">参与投票</option>
+			                    <option value="1015">购买/支持项目</option>
+			                    <option value="1016">社区发帖</option>
+			                    <option value="1017">社区回帖</option>
+			                    <option value="1018">社区获赞</option>
+			                    <option value="1019">社区精华</option>
+			                    <option value="1020">获得荣誉</option>
+			                    <option value="2001">删帖</option>
+			                    <option value="2002">删回帖</option>
+			                    <option value="2003">短期禁言</option>
+			                    <option value="1021">用户绑定QQ</option>
+			                    <option value="1022">用户签到</option>
+			                    <option value="1023">清零操作</option>
+								<option value="1024">历史项目</option>
+								<option value="1025">大转盘</option>
+								<option value="1026">积分大转盘中奖</option>
+								<option value="1027">社区获赞取消</option>
+		                    </select>
+	                    </div>
+                        <div class="span4">至：<br>
+	                        <div id="datetimepicker2" class="input-append">
+		                        <input data-format="yyyy-MM-dd 23:59:59" type="text" placeholder="截至时间" id='end_time' name='end_time' value="<?= $endTime ?>"></input>
+		                        <span class="add-on">
+		                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+		                            </i>
+		                        </span>
+		                    </div>   
+                        </div>   	                    					
+					</div>
+					
+                </div>
+                <div class="span1" style="height:200px;text-align: center;vertical-align:middle;overflow:hidden;padding-top:32px;">                 
+                    <button class="btn btn-primary" id="btn_search" name="btn_search">查询</button>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br><br>
+                    <button class="btn btn-large" type="submit" id="export2excel" data-options="iconCls:'icon-search'">导出Excel</button>
+                </div>
+            </form>
+        </div>              	
+        
+        <div class="box-content" style="overflow:scroll;height:300px;">
+            <table id="tt" class="easyui-datagrid" style="margin: 0;" title="查询结果" 
+                   url="/user/ajax_user_score"
+                   title="Load Data" iconCls="icon-save"
+                   sortName="user_score_date" sortOrder="DESC" pageSize=20 pagePosition="both" 
+                   rownumbers="true" pagination="true" showFooter="true">
+                <thead>
+                    <tr>                       
+                        <th field="send_user_id" align="center">用户ID</th>
+                        <th field="user_name" align="center">用户名称</th>
+                        <th field="time" align="center">时间</th>
+                        <th field="oper_behavior" align="center">操作行为</th>
+                        <th field="user_score" align="center">积分增减</th>
+                        <th field="op_user" align="center">操作人员</th>
+                    </tr>
+                </thead>
+            </table>
+            
+        </div>
+    </div><!--/span-->
+  </div>
+
+<?php
+$this->load->view('ckad/footer')?>

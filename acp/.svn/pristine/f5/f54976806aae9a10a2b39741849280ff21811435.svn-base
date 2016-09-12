@@ -1,0 +1,47 @@
+<?php $this->load->view('ckad/header') ?>
+<script language="javascript">
+    $(function () {
+        $("#type").change(function () {
+            window.location.href = "/black_white/white?type=" + $("#type").val();
+        });
+    })
+</script>
+<div class="row-fluid">
+    <div class="span6">
+        <table class="table">
+            <tr><th>当前列表</th></tr>
+            <?php foreach ($list as $item): ?>
+                <tr>
+                    <td class="span10"><?= $item['content'] ?></td>
+                    <td class="span2"><a href="/black_white/white?del=<?= $item['id'] ?>&type=<?= $item['type'] ?>">删除</a></td>
+                </tr>
+            <?php endforeach; ?>
+        </table>
+    </div>
+    <div class="span6">
+        <form action="" method="POST">
+            <table class="table">
+                <tr>
+                    <td>类型</td>
+                    <td>
+                        <select name="type" id="type">
+                            <option value="">选择分类</option>
+                            <optgroup label="白名单">
+                                <option value="video_white"<?php if ($type == "video_white"): ?> selected<?php endif; ?>>视频域名白名单</option>
+                            </optgroup>
+                            <optgroup label="黑名单">
+
+                            </optgroup>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td>每行一条记录</td>
+                    <td><textarea name="content" rows="10" id="content"></textarea></td>
+                </tr>
+                <tr><td></td><td><input type="submit" value="保存" /></td></tr>
+            </table>
+        </form>
+    </div>
+</div>
+<?php $this->load->view('ckad/footer') ?>

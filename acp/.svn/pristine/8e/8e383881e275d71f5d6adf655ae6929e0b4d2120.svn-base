@@ -1,0 +1,69 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('weidashang/rectabs'); ?>
+
+<?php
+
+// var_dump($product_list);
+
+?>
+
+
+<form name="search_form" action="/wds_reconcil/check_account" method="post">
+    <div class="input-prepend input-append">
+        <span class="add-on" style="margin-right:-5px;">项目</span>
+        <input type="text" name="pro_id" class="span2" placeholder="输入项目ID">
+        <input type="submit" class="btn btn-default" value="查找">
+    </div>
+</form>
+
+<table class="table table-hover">
+    <thead>
+        <tr>
+            <th width="30">项目ID</th>
+            <th width="50">项目名称</th>
+            <th width="30">发起人ID</th>
+            <th width="50">目标金额</th>
+            <th width="50">已筹金额</th>
+            <th width="30">筹资百分比</th>
+            <th width="50">项目状态</th>
+            <th width="50">开始时间</th>
+            <th width="50">结束时间</th>
+            <th width="20">已支付订单</th>
+            <th width="20">退款申请订单</th>
+            <th width="20">退款成功订单</th>
+            <th width="20">退款中订单</th>
+            <th width="20">异常订单</th>
+            <th width="30">操作</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($product_list as $row):?>
+            <tr>
+                <td><?=$row['pro_id']?></td>
+                <td><?=$row['pro_name']?></td>
+                <td><?=$row['user_id']?></td>
+                <td><?=$row['goal']?></td>
+                <td><?=$row['has_back']?></td>
+                <td><?=$row['progress']?></td>
+                <td><?=$row['pro_status']?></td>
+                <td><?=$row['start_time']?></td>
+                <td><?=$row['end_time']?></td>
+                <td><?=$row['paid_count']?></td>
+                <td><?=$row['refund_req_count']?></td>
+                <td><?=$row['refund_succ_count']?></td>
+                <td><?=$row['refund_ing_count']?></td>
+                <td><?=$row['except_order_count']?></td>
+                <td><?=$row['operation']?></td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+
+<div style="clear:both"><br/>
+    <?php if(isset($pagination)) echo $pagination;?>
+</div>
+
+<script>
+</script>
+
+<?php $this->load->view('ckad/footer'); ?>

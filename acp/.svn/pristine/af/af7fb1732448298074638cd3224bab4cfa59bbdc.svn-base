@@ -1,0 +1,132 @@
+<?php $this->load->view('ckad/header'); ?>
+
+
+<?php if(isset($errmsg)): ?>
+<div class="alert alert-error">
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+    <p><?=$errmsg?></p>
+</div>
+<?php endif; ?>
+
+<table class="table table-hover table-condensed">
+    <thead>
+        <tr>
+            <th><a href="#add-wx-media" role="button" data-toggle="modal">新增</a></th>
+            <th>场景ID</th>
+            <th>Media描述</th>
+            <th>Media ID</th>
+            <th>Media Type</th>
+            <th>总数量</th>
+            <th>创建时间</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($res as $mm): ?>
+        <tr>
+            <th><a href="#" class="edit-wx-media" data-media-info='<?= json_encode($mm) ?>'>编辑</a></th>
+            <td><?=$mm['scene_id']?></td>
+            <td><?=$mm['media_name']?></td>
+            <td><?=$mm['media_id']?></td>
+            <td><?=$mm['type']?></td>
+            <td><?=$mm['number']?></td>
+            <td><?=$mm['ctime']?></td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+
+
+<div id="add-wx-media" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-header">
+        <h3 id="myModalLabel">增加素材</h3>
+    </div>
+    <div class="modal-body">
+        <form class="form-horizontal" method="POST" enctype="multipart/form-data">
+            <div class="control-group">
+                <label class="control-label">场景ID</label>
+                <div class="controls">
+                    <input type="text" name="scene_id" placeholder="场景ID">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Media描述</label>
+                <div class="controls">
+                    <input type="text" name="media_name" placeholder="Media描述">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">图片</label>
+                <div class="controls">
+                    <input type="file" name="img">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">总数量</label>
+                <div class="controls">
+                    <input type="text" name="number" placeholder="总数量">
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-primary form-submit">填好了</button>
+    </div>
+</div>
+
+
+<div id="edit-wx-media" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-header">
+        <h3 id="myModalLabel">修改信息</h3>
+    </div>
+    <div class="modal-body">
+        <form class="form-horizontal" method="POST" action="/main/edit_wx_media" enctype="multipart/form-data">
+            <div class="control-group hide">
+                <label class="control-label">ID</label>
+                <div class="controls">
+                    <input type="text" name="id" placeholder="ID" readonly>
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">Media描述</label>
+                <div class="controls">
+                    <input type="text" name="media_name" placeholder="Media描述">
+                </div>
+            </div>
+            <div class="control-group">
+                <label class="control-label">总数量</label>
+                <div class="controls">
+                    <input type="text" name="number" placeholder="总数量">
+                </div>
+            </div>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-primary form-submit">好了</button>
+    </div>
+</div>
+
+<script>
+    $(function() {
+        $('#add-wx-media .modal-footer .form-submit').on('click', function(e) {
+            e.preventDefault();
+            $('#add-wx-media .modal-body form').submit();
+        });
+        $('table tbody a.edit-wx-media').on('click', function(e) {
+            e.preventDefault();
+            var media_info = $(this).data('media-info');
+            console.log(media_info);
+
+            $('#edit-wx-media .modal-body form input[name="id"]').val(media_info.id);
+            $('#edit-wx-media .modal-body form input[name="media_name"]').val(media_info.media_name);
+            $('#edit-wx-media .modal-body form input[name="number"]').val(media_info.number);
+
+            $('#edit-wx-media').modal('toggle');
+        });
+        $('#edit-wx-media .modal-footer button.form-submit').on('click', function(e) {
+            e.preventDefault();
+            $('#edit-wx-media .modal-body form').submit();
+        });
+    });
+</script>
+
+<?php $this->load->view('ckad/footer'); ?>

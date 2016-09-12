@@ -1,0 +1,64 @@
+<?php $this->load->view('ckad/header'); ?>
+<div class="container">
+    <div>
+        <ul class="nav nav-tabs">
+            <li role="presentation" ><a href="<?php echo $site_url . 'bbs_report/post'; ?>">帖子</a></li>
+            <li role="presentation"><a href="<?php echo $site_url . 'bbs_report/reply'; ?>">回复</a></li>
+            <li role="presentation" class="active"><a href="<?php echo $site_url . 'bbs_report/export_comment'; ?>">评论导出</a></li>
+        </ul>
+        <h2>评论导出</h2>
+    </div>
+    <hr>
+    <div>
+        <div>
+            <form action="/bbs_report/export_comment" class="form-inline" method="post">
+                <span>
+                    <input type="text" name="post_id" placeholder="输入帖子ID">
+                    <button type="submit" class="btn btn-info">导出Excel</button>
+                </span>
+            </form>
+<!--            <form action="/bbs_main/change_weight/--><?//=$type?><!--" method="post" style="margin-top: -46px;margin-left: 100px;">-->
+<!--                <input type="hidden" name="post_id_array">-->
+<!--                <input type="hidden" name="post_sortid_array">-->
+<!--                <button id="edit_sortid" type="submit" class="btn btn-info btn-sm">批量修改权重</button>-->
+<!--            </form>-->
+        </div>
+        <p></p>
+        <?php if($recommend_post_list): ?>
+            <div>
+                <style>
+                    td, th{
+                        vertical-align:middle !important;
+                        text-align:center !important;
+                    }
+                </style>
+                <table class="table table-bordered">
+                    <tr>
+                        <th width="5%">帖子ID</th>
+                        <th width="10%">发布人昵称</th>
+                        <th width="15%">评论内容</th>
+                        <th>发布时间</th>
+                    </tr>
+                    <?php foreach($comment_list as $comment_info): ?>
+                        <tr>
+                            <td><?= $comment_info['post_id']?></td>
+                            <td><?= $comment_info['nickname']?></td>
+                            <td><?= $comment_info['comment']?></td>
+                            <td><?= $comment_info['ctime']?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </table>
+            </div>
+
+        <?php else: ?>
+            <div>暂无内容</div>
+        <?php endif; ?>
+    </div>
+    <?php if($pagination): ?>
+        <hr>
+        <div class="text-center">
+            <?php echo $pagination; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<?php $this->load->view('ckad/footer'); ?>

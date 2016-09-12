@@ -1,0 +1,61 @@
+<?php $this->load->view('ckad/header'); ?>
+<?php $this->load->view('activity/tabs') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<form class="form-horizontal" action="" method="POST">
+    <div class="control-group">
+        <label class="control-label">活动ID</label>
+        <div class="controls">
+            <input type="text" name="act_id">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">用户ID</label>
+        <div class="controls">
+            <input type="text" name="user_id">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">奖品ID</label>
+        <div class="controls">
+            <input type="text" name="prize_id">
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">中奖时间</label>
+        <div class="controls">
+            <div class="input-append date form_datetime">
+                <input type="text" name='ctime'>
+                <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+            </div>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">IP地址</label>
+        <div class="controls">
+            <input type="text" name="ip">
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="controls">
+            <input type="submit" class="btn" value="好">
+        </div>
+    </div>
+</form>
+
+<script>
+    $(function() {
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd hh:mm:ss",
+            pickTime: true
+        });
+    });
+</script>
+
+<?php $this->load->view('ckad/footer'); ?>
+
+

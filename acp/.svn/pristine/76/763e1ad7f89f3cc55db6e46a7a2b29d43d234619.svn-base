@@ -1,0 +1,230 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class Test extends MD_Controller {
+    public function friday(){
+        $xinqi = date("w");
+        if($xinqi >= 5){
+            $start = date("Y-m-d", strtotime("-".($xinqi - 5 + 7)." day"));
+        }else{
+            $start = date("Y-m-d", strtotime("-".($xinqi + 2 + 7)." day"));
+        }
+        $start = $start." 00:00:00";
+        $start_u = strtotime($start);
+        $end_u = strtotime($start) + 7 * 86400;
+        $end = date("Y-m-d H:i:s", $end_u);
+        $data = array();
+        try{
+            $pdo = new PDO("mysql:host=master.db.modianinc.com:16888;dbname=app_modian", "devroot", "aR7VGnEME");
+            $sql = "SELECT pro.*,back.`md_plan`,COUNT(*) form,SUM(back.`amount`) money FROM (SELECT `id`,`short_title`,`category` FROM `md_product` WHERE `end_time` >= '{$end}' AND `if_show` = 1) pro LEFT JOIN `md_product_back` back ON pro.`id` = back.`pro_id` AND back.`if_pay` = 1 AND back.`ctime` >= '{$start}' AND back.`ctime` < '{$end}' GROUP BY pro.`id`,back.`md_plan`";
+            $reslut = $pdo->query($sql);
+            $pro_id = array();
+            foreach($reslut as $key => $val){
+                $pro_id[] = $val['id'];
+                $data[$val['id']]['id'] = $val['id'];
+                $data[$val['id']]['name'] = $val['short_title'];
+                $data[$val['id']]['type'] = $val['category'];
+                if($val['md_plan'] === "ios"){
+                    $data[$val['id']]['ios_form'] = $val['form'];
+                    $data[$val['id']]['ios_money'] = $val['money'];
+                }
+                if($val['md_plan'] === "android"){
+                    $data[$val['id']]['android_form'] = $val['form'];
+                    $data[$val['id']]['android_money'] = $val['money'];
+                }
+                if($val['money'] !== null){
+                    $data[$val['id']]['money'] = isset($data[$val['id']]['money']) ? $data[$val['id']]['money'] += $val['money'] : $data[$val['id']]['money'] = $val['money'];
+                    $data[$val['id']]['form'] = isset($data[$val['id']]['form']) ? $data[$val['id']]['form'] += $val['form'] : $data[$val['id']]['form'] = $val['form'];
+                }   
+            }
+            $sql = "SELECT `pro_id`,COUNT(*) all_form,COUNT(DISTINCT `user_id`) independent FROM `md_product_back` WHERE `ctime` >= '{$start}' AND `ctime` < '{$end}' AND `wds_id` = 0 GROUP BY `pro_id`";
+            $reslut = $pdo->query($sql);
+            foreach($reslut as $key => $val){
+                if(isset($data[$val['pro_id']])){
+                    $data[$val['pro_id']]['all_form'] = $val['all_form'];
+                }
+            }
+            $sql = "SELECT `pro_id`,COUNT(DISTINCT `user_id`) independent FROM `md_product_back` WHERE `ctime` >= '{$start}' AND `ctime` < '{$end}' AND `if_pay` = 1 AND `wds_id` = 0 GROUP BY `pro_id`";
+            $reslut = $pdo->query($sql);
+            foreach($reslut as $key => $val){
+                if(isset($data[$val['pro_id']])){
+                    $data[$val['pro_id']]['independent'] = $val['independent'];
+                }
+            }
+            $sql = "SELECT pro.id,SUM(back.`amount`) all_money FROM (SELECT `id` FROM `md_product` WHERE `end_time` >= '{$end}' AND `if_show` = 1) pro LEFT JOIN `md_product_back` back ON pro.`id` = back.`pro_id` AND back.`if_pay` = 1 GROUP BY pro.`id`";
+            $reslut = $pdo->query($sql);
+            foreach($reslut as $key => $val){
+                $data[$val['id']]['all_money'] = $val['all_money'];
+            }
+            $sql = "SELECT `id`,`goal`,DATEDIFF(`start_time`,'{$end}')/DATEDIFF(`start_time`,`end_time`) jindu FROM `md_product` WHERE `end_time` > '{$end}' AND `if_show` = 1";
+            $reslut = $pdo->query($sql);
+            foreach($reslut as $key => $val){
+                if($val['jindu'] === null){
+                    $data[$val['id']]['jindu'] = 0;
+                }else{
+                    $data[$val['id']]['jindu'] = round(($data[$val['id']]['all_money']/$val['goal'])/$val['jindu'], 2);
+                }
+            }
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+        try{
+            $pdo = new PDO("mysql:host=tjm1.db.modianinc.com:16900;dbname=app_modian", "devroot", "aR7VGnEME");
+            foreach($pro_id as $key => $val){
+                $sql = "SELECT SUM(`pv`) pv,SUM(`uv`) uv,SUM(`cnt_backer_new_new`) new_user FROM `md_statistics_pro_detail` WHERE `pid` = {$val} AND `dtime` >= '{$start}' AND `dtime` < '{$end}'";
+                $reslut = $pdo->query($sql);
+                foreach($reslut as $kk => $vv){
+                    $data[$val]['pv'] = $vv['pv'];
+                    $data[$val]['uv'] = $vv['uv'];
+                    $data[$val]['new_user'] = $vv['new_user'];
+                }
+            }
+        }catch(PDOException $e){
+            die ("Error!: " . $e->getMessage() . "<br/>");
+        }
+        $basic = array("name", "type", "android_form", "android_money", "money", "form", "ios_form", "ios_money", "all_form", "independent", "all_money", "new_user", "jindu", "pv", "uv");
+        foreach($data as $key => $val){
+            foreach($basic as $kk => $vv){
+                if(!isset($data[$key][$vv])){
+                    $data[$key][$vv] = 0;
+                }
+            }
+        }
+        foreach($data as $key => $val){
+            if($val['all_form'] === 0){
+                $data[$key]['per_app_form'] = 0;
+            }else{
+                $data[$key]['per_app_form'] = round(($val['ios_form'] + $val['android_form']) * 100 / $val['form'], 2)."%";
+            }
+            if($val['money'] === 0){
+                $data[$key]['per_app_money'] = 0;
+            }else{
+                $data[$key]['per_app_money'] = round(($val['ios_money'] + $val['android_money']) *100 / $val['money'], 2)."%";
+            }
+            if($val['independent'] === 0){
+                $data[$key]['per_old_user'] = 0;
+            }else{
+                $data[$key]['per_old_user'] = round(($val['independent'] - $val['new_user']) * 100/ $val['independent'], 2)."%";
+            }
+            if($val['all_form'] === 0){
+                $data[$key]['per_form'] = 0;
+            }else{
+                $data[$key]['per_form'] = round($val['form'] * 100 / $val['all_form'], 2)."%";
+            }
+            if($val['uv'] === 0){
+                $data[$key]['per_user'] = 0;
+            }else{
+                $data[$key]['per_user'] = round($val['form'] * 100 / $val['uv'], 2)."%";
+            }
+            if($val['form'] === 0){
+                $data[$key]['avg_form'] = 0;
+            }else{
+                $data[$key]['avg_form'] = round($val['money'] / $val['form'], 2);
+            }
+        }
+        $data_group = array();
+        foreach($data as $key => $val){
+            if(isset($data_group[$val['type']])){
+                $data_group[$val['type']]['uv'] += $val['uv'];
+                $data_group[$val['type']]['all_form'] += $val['all_form'];
+                $data_group[$val['type']]['form'] += $val['form'];
+                $data_group[$val['type']]['money'] += $val['money'];
+                $data_group[$val['type']]['all_money'] += $val['all_money'];
+                $data_group[$val['type']]['independent'] += $val['independent'];
+                $data_group[$val['type']]['new_user'] += $val['new_user'];
+            }else{
+                $data_group[$val['type']]['type'] = $val['type'];
+                $data_group[$val['type']]['uv'] = $val['uv'];
+                $data_group[$val['type']]['all_form'] = $val['all_form'];
+                $data_group[$val['type']]['form'] = $val['form'];
+                $data_group[$val['type']]['money'] = $val['money'];
+                $data_group[$val['type']]['all_money'] = $val['all_money'];
+                $data_group[$val['type']]['independent'] = $val['independent'];
+                $data_group[$val['type']]['new_user'] = $val['new_user'];
+            }
+        }
+        $num = array("uv" => 0, "all_form" => 0, "form" => 0, "money" => 0, "all_money" => 0, "independent" => 0, "new_user" => 0);
+        foreach($data_group as $key => $val){
+            $data_group[$key]['per_form'] = round($val['form'] * 100 / $val['all_form'], 2)."%";
+            $data_group[$key]['per_user'] = round($val['form'] * 100 / $val['uv'], 2)."%";
+            $data_group[$key]['avg_form'] = round($val['money'] / $val['form'], 2);
+            foreach($num as $kk => $vv){
+                $num[$kk] += $val[$kk];
+            }
+        }
+        $num['type'] = "总和";
+        $num['per_form'] = round($num['form'] * 100 / $num['all_form'], 2)."%";
+        $num['per_user'] = round($num['form'] * 100 / $num['uv'], 2)."%";
+        $num['avg_form'] = round($num['money'] / $num['form'], 2);
+        $data_group['总和'] = $num;
+        //$this->load->helper('excel');
+        $arr_title = array("id" => "ID", "name" => "名称", "type" => "类别", "pv" => "PV", "uv" => "UV", "all_form" => "下单", "form" => "支付", "ios_form" => "IOS支付", "android_form" => "安卓支付", 
+            "per_app_form" => "APP支付占比", "money" => "周流水", "ios_money" => "IOS金额", "android_money" => "安卓金额", "per_app_money" => "APP金额占比", "all_money" => "总流水", "independent" => "独立支持人数", 
+            "new_user" => "新用户", "per_old_user" => "老用户占比", "per_form" => "订单成功率", "per_user" => "转化率", "avg_form" => "平均客单价", "jindu" => "完成进度");
+        $path_file = "上周数据统计表";
+        //export_to_csv($arr_title, $data, $path_file);
+        $shuzu = array("data" => $data, "data_group" => $data_group);
+        $this->load->view('web_data/firday', $shuzu);
+    }
+
+    public function ipcnt($pro_id)
+    {
+        $pro_id = intval($pro_id);
+        if (empty($pro_id)) {
+            show_error('error pro_id.');
+        }
+
+        $this->config->load('database', NULL, TRUE);
+        $other_db = $this->config->item('other_db');
+        if (!empty($other_db) && !empty($other_db['tongji_db'])) {
+            $this->tongji_db = &DB($other_db['tongji_db']);
+        }
+
+        $sql = "SELECT page, ip, COUNT(*) AS cc
+                FROM (
+                    SELECT `md_statistics_stay_acc_log`.`page`, `md_statistics_stay_acc_log`.`ip`
+                    FROM `md_statistics_stay_acc_log`
+                        JOIN `md_product_back`
+                            ON `md_product_back`.`id`=`md_statistics_stay_acc_log`.`bid`
+                                AND `md_statistics_stay_acc_log`.`page`={$pro_id}
+                                AND `md_statistics_stay_acc_log`.`bid`!=0
+                                AND `md_product_back`.`pro_id`={$pro_id}
+                                AND `md_product_back`.`if_pay`=1
+                                AND `md_product_back`.`rew_id`!=-3
+                    GROUP BY uid) as tt
+                GROUP BY ip
+                ORDER BY cc DESC";
+
+        $res = $this->tongji_db->query($sql)->result_array();
+
+        $total_cnt = 0;
+        $qucong_cnt = 0;
+        foreach ($res as $row) {
+            $tmp_cnt = intval($row['cc']);
+
+            $total_cnt += $tmp_cnt;
+
+            if ($tmp_cnt > 2) {
+                $qucong_cnt += 2;
+            } else {
+                $qucong_cnt += $tmp_cnt;
+            }
+        }
+
+        $data['total_cnt'] = $total_cnt;
+        $data['qucong_cnt'] = $qucong_cnt;
+        $data['the_ref'] = $res;
+        $this->load->view('test/ipcnt', $data);
+    }
+
+
+    public function index() {
+        $this->load->model('order_biz');
+        $res = $this->order_biz->set_oid('5156')->update_status('400');
+        
+        var_dump($res);
+    }
+
+}

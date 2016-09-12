@@ -1,0 +1,1067 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Weidashang extends Acp_Controller {
+
+	public function __construct() {
+		parent::__construct();
+		$this->db->read_main = true;
+		$this->load->helper('url');
+		$this->load->helper('util');
+		$this->load->helper('excel');
+                $this->load->library('md_model_cache');
+                $this->load->library('md_payment_batch_draw');
+                $this->load->library('md_payment_weixin');
+                $this->load->library('md_weidashang');
+		$this->load->model('User_m');
+		$this->load->library('md_refund');
+		$this->load->model('Wds_acp_m');
+		$this->load->library('md_common');
+	}
+
+	/**
+	 * 摩点点项目活动后台
+	 * Enter description here ...
+	 */
+	public function choudiandian_pro(){
+		$data = array();
+		$pro_name_arr = $this->Wds_acp_m->get_diandian_pro_name();
+		$data['pro_name_arr'] = $pro_name_arr;
+		$this->load->view('weidashang/diandian_pro', $data);
+			
+	}
+
+	/**
+	 * 筹点点后台search查询的ajax最终组合方法
+	 * Enter description here ...
+	 */
+	public function ajax_diandian_pro(){
+		$res = array();
+		$result = array();
+		$res = $this->diandian_pro_search(1);
+			
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+			
+		echo json_encode($result);
+	}
+
+	/**
+	 * 筹点点后台查询详细方法
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function diandian_pro_search($mode=1){
+
+		$search_arr["pro_id"] = isset($_POST['pro_id']) ? $_POST['pro_id'] : '';
+		$search_arr["pro_name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+		$search_arr["sort"] = isset($_POST['bysort']) ? $_POST['bysort'] : 'id';
+		$search_arr["order"] = isset($_POST['byorder']) ? $_POST['byorder'] : 'asc';
+		$search_arr["type"] = isset($_POST['create_type']) ? $_POST['create_type'] : '';
+			
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+			
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Wds_acp_m->pro_mes_serach($search_arr);
+		//print_r($result);exit;
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["id"] = $val["id"];
+				if($val["type"] == '0'){
+					$res["pro_type"] = "微打赏-活动";
+				}
+				$res["pro_name"] = $val["topic"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$res["start_time"] =$val["effect_time"];
+				$res["end_time"] =$val["end_time"];
+				$res["op_user"] =$val["user_name"];
+				if($val["if_show"] == '1'){
+					$res["work"] = '<a href="/weidashang/edit_pro/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/weidashang/down_pro/'.$val["id"].'" id="down_pro" class="down_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>下线吗？\')) return true;else return false;">下线</a> | <a href="/weidashang/show_pro_sub/'.$val["id"].'" id="show_sub_pro" class="show_sub_pro">查看参与项目</a>';
+				}elseif($val["if_show"] == '0'){
+					$res["work"] = '<a href="/weidashang/edit_pro/'.$val["id"].'" id="edit" class="edit">编辑</a> | <a href="/weidashang/go_pro/'.$val["id"].'" id="go_pro" class="go_pro" onclick="if(confirm(\'确实要将活动<' .$val["topic"].'>上线吗？\')) return true;else return false;">上线</a> | <a href="/weidashang/show_pro_sub/'.$val["id"].'" id="show_sub_pro" class="show_sub_pro">查看参与项目</a>';
+				}
+				if($val["if_recommend"] == '1'){
+					$res["recommend"] = '<a href="/weidashang/abandon_recommend_pro/'.$val["id"].'" id="abandon_recommend_pro" class="abandon_recommend_pro" onclick="if(confirm(\'确实要放弃推荐<' .$val["topic"].'>吗？\')) return true;else return false;">放弃推荐</a>';
+				}elseif($val["if_recommend"] == '0'){
+					$res["recommend"] ='<a href="/weidashang/recommend_pro/'.$val["id"].'" id="recommend_pro" class="recommend_pro" onclick="if(confirm(\'确实要推荐<' .$val["topic"].'>吗？\')) return true;else return false;">推荐轮播</a>';
+				}
+				$logo = cdn_url($val["logo"]);
+				$res["logo"] = '<img src="'.$logo.'" style="width:80px;height:80px"/>';
+				$res["goal"] = $val["goal"];
+				$res["inner_user_num"] = $val["active_nums"];
+				$res["topic_all_money"] = $val["all_amount"];
+				$list_info[] = $res;
+			}
+		}
+		//根据支持人数/钱数重新排序
+		foreach($list_info as $key=>$value){
+			if($search_arr["sort"] == 'inner_user_num'){
+				$inner[$key] = $value['inner_user_num'];
+			}elseif($search_arr["sort"] == 'topic_all_money'){
+				$inner[$key] = $value['topic_all_money'];
+			}
+		}
+		if($search_arr["order"] == 'asc'){
+			array_multisort($inner, SORT_ASC,$list_info);
+		}elseif($search_arr["order"] == 'desc'){
+			array_multisort($inner, SORT_DESC,$list_info);
+		}
+			
+		$diadian_list_info = array();
+		$diadian_list_info["search"]= $list_info;
+		return $diadian_list_info;
+	}
+
+	/**
+	 * 筹点点后台创建活动
+	 * Enter description here ...
+	 */
+	public function create_diandian_pro(){
+		$pro_name = isset($_POST["new_pro_name"])?$_POST["new_pro_name"]:"";
+		$pro_money = isset($_POST["new_pro_money"])?$_POST["new_pro_money"]:"";
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";
+		$tag = isset($_POST["new_pro_tag"])?$_POST["new_pro_tag"]:"";
+		$start_time = isset($_POST["prostart_time"])?$_POST["prostart_time"]:"";
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";
+		$effect_day = isset($_POST["new_pro_time"])?$_POST["new_pro_time"]:"";
+		$pro_share_title = isset($_POST["pro_share_title"])?$_POST["pro_share_title"]:"";
+		$pro_share_des= isset($_POST["pro_share_des"])?$_POST["pro_share_des"]:"";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $pro_name . '_' . $tag . '_' . $intro );
+		$type = 0;
+		$if_show = 0;
+		$data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'topic' => $pro_name,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'if_show' => $if_show,
+ 			'unit_key' => $unit_key,
+ 			'type' => $type,		 			
+ 			'ctime' => $ctime,
+ 			'effect_time' =>$start_time,
+ 			'end_time' => $end_time,
+ 			'goal' => $pro_money,
+ 			'pro_share_title' => $pro_share_title,
+ 			'pro_share_des' => $pro_share_des	
+		);
+		 
+		$if_pro = $this->Wds_acp_m->if_pro($unit_key);
+		if(!empty($if_pro)){
+			echo "<script>alert('该活动已经创建过!')</script>";
+			return false;
+		}else{
+			$inner_new_pro = $this->Wds_acp_m->inner_new_pro($data);
+			echo "<script>alert('创建成功')</script>";
+			return true;
+		}
+	}
+
+	/**
+	 * 筹点点后台进入活动编辑更新页面
+	 * Enter description here ...
+	 * @param unknown_type $id
+	 */
+	public function edit_pro($id){
+		$data = array();
+		$pro_mess = $this->Wds_acp_m->get_edit_pro_mess($id);
+		$data['pro_mess'] = $pro_mess;
+		$this->load->view('weidashang/diandian_edit_pro', $data);
+
+	}
+
+	/**
+	 * 筹点点活动更新
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function update_diandian_pro($pro_id){
+		$pro_name = isset($_POST["new_pro_name"])?$_POST["new_pro_name"]:"";
+		$pro_money = isset($_POST["new_pro_money"])?$_POST["new_pro_money"]:"";
+		$logo = isset($_POST["topic_pic_hidden"])?$_POST["topic_pic_hidden"]:"";
+		$tag = isset($_POST["new_pro_tag"])?$_POST["new_pro_tag"]:"";
+		$intro = isset($_POST["new_pro_des"])?$_POST["new_pro_des"]:"";
+		$des = isset($_POST["pro_con"])?$_POST["pro_con"]:"";
+		$effect_day = isset($_POST["new_pro_time"])?$_POST["new_pro_time"]:"";
+		$start_time = isset($_POST["start_time"])?$_POST["start_time"]:"";
+		$pro_share_title = isset($_POST["pro_share_title"])?$_POST["pro_share_title"]:"";
+		$pro_share_des= isset($_POST["pro_share_des"])?$_POST["pro_share_des"]:"";
+		$user_id = $_SESSION['admin_id'];
+		//$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$end_time = date("Y-m-d H:i:s", $effect_day * 24 * 3600 + strtotime($start_time));
+		$unit_key = md5 ( $pro_name . '_' . $tag . '_' . $intro );
+		$type = 0;
+		$data = array(
+ 			'topic' => $pro_name,
+ 			'effect_day' => $effect_day,
+ 			'tag' => $tag,	
+ 			'logo' => $logo,
+ 			'intro' => $intro,
+ 			'des' => $des,
+ 			'unit_key' => $unit_key,
+ 			'type' => $type,		 			
+ 			'ctime' => $ctime,
+ 			'end_time' => $end_time,
+ 			'goal' => $pro_money,
+ 			'pro_share_title' => $pro_share_title,
+ 			'pro_share_des' => $pro_share_des	
+			
+		);
+		$update_new_pro = $this->Wds_acp_m->update_pro_mess($pro_id,$data);
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-下线活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function down_pro($pro_id){
+		$topic_mess =  $this->Wds_acp_m->get_topic_info($pro_id);
+		$down_diandian_pro = $this->Wds_acp_m->down_diandian_pro($pro_id);
+		redirect("/weidashang/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-上线活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function go_pro($pro_id){
+		$topic_mess =  $this->Wds_acp_m->get_topic_info($pro_id);
+		$go_diandian_pro = $this->Wds_acp_m->go_diandian_pro($pro_id);
+		redirect("/weidashang/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台查看活动中的项目列表
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function show_pro_sub($pro_id){
+		$data = array();
+		$sub_pro_arr = $this->Wds_acp_m->get_diandian_pro_sub($pro_id);
+		for($i=0;$i < count($sub_pro_arr);$i++){
+			$pro_cuser = $this->User_m->get_user_info ( $sub_pro_arr[$i]['user_id'] );
+			$sub_pro_arr[$i]['sub_pro_cuser'] = $pro_cuser['nickname'];
+			$sub_pro_arr[$i]['sub_back_nums'] = $sub_pro_arr[$i]['pay_count'];
+			$logo_arr = unserialize($sub_pro_arr[$i]['logo']);
+			$sub_pro_arr[$i]['logo'] = $logo_arr[0];
+			$sub_pro_arr[$i]['des'] = mb_strimwidth($sub_pro_arr[$i]['des'],0,130,'...');
+			$sub_pro_arr[$i]['sub_back_moneys'] = $sub_pro_arr[$i]['all_amount'];
+		}
+		$data['topic_id'] = $pro_id;
+		$data['sub_list'] = $sub_pro_arr;
+
+		$this->load->view('weidashang/diandian_sub_list', $data);
+	}
+
+	//	/**
+	//	 * 筹点点后台-设置活动中的部分属性
+	//	 * Enter description here ...
+	//	 */
+	//	public function edit_topic_configuration(){
+	//		$topic_id = isset($_POST["topic_id"])?$_POST["topic_id"]:"";
+	//		$sort = isset($_POST["bysort"])?$_POST["bysort"]:"asc";
+	//		$order = isset($_POST["byorder"])?$_POST["byorder"]:"id";
+	//		$money = isset($_POST["money_str"])?$_POST["money_str"]:"1,10,50,80,100,200";
+	//		$user_id = $_SESSION['admin_id'];
+	//		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+	//		$data = array(
+	//        	"topic_id" => $topic_id,
+	//        	"sort" => $sort,
+	//        	"order" => $order,
+	//        	"money" => $money,
+	//        	"cuser" => $op_man,
+	//		);
+	//		$if_topic = $this->Easyfund_m->if_topic($data);
+	//		if(!empty($if_topic)){
+	//			$updata_topic_config = $this->Easyfund_m->up_topic_config($data);
+	//			echo "<script>alert('该活动配置已经更新!')</script>";
+	//			redirect("easyfund/choudiandian_pro");
+	//		}else{
+	//			$add_topic_config = $this->Easyfund_m->add_topic_config($data);
+	//			echo "<script>alert('该活动配置设置成功!')</script>";
+	//			redirect("weidashang/choudiandian_pro");
+	//		}
+	//	}
+	/**
+	 * 筹点点后台-下线项目
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 * @param unknown_type $sub_id
+	 */
+	public function down_pro_sub($pro_id,$sub_id){
+
+		$down_diandian_pro = $this->Wds_acp_m->down_diandian_sub($sub_id);
+		redirect("/weidashang/show_pro_sub/{$pro_id}");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-上线项目
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 * @param unknown_type $sub_id
+	 */
+	public function updata_pro_sub($pro_id,$sub_id){
+
+		$up_diandian_pro = $this->Wds_acp_m->updata_diandian_sub($sub_id);
+		redirect("/weidashang/show_pro_sub/{$pro_id}");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-放弃选择推荐活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function abandon_recommend_pro($pro_id){
+		$abandon_pro = $this->Wds_acp_m->abandon_recommend_pro($pro_id);
+		redirect("/weidashang/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 筹点点后台-选择推荐活动
+	 * Enter description here ...
+	 * @param unknown_type $pro_id
+	 */
+	public function recommend_pro($pro_id){
+
+		$recommend_pro = $this->Wds_acp_m->recommend_pro($pro_id);
+		redirect("/weidashang/choudiandian_pro");
+		return true;
+	}
+
+	/**
+	 * 轮播图自定义
+	 * Enter description here ...
+	 */
+	public function recom_pic(){
+		$data = array();
+		$pic_name_arr = $this->Wds_acp_m->recoms_name_serach();
+		$data['pic_name_arr'] = $pic_name_arr;
+		$this->load->view('weidashang/diandian_recom', $data);
+	}
+	/**
+	 *
+	 * Enter description here ...
+	 */
+	public function ajax_recom_pic(){
+		$res = array();
+		$result = array();
+		$res = $this->recom_pic_search(1);
+			
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+			
+		echo json_encode($result);
+	}
+
+	/**
+	 *
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function recom_pic_search($mode=1){
+
+		$search_arr["pic_name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+			
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Wds_acp_m->recoms_pic_serach($search_arr);
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["pic_id"] = $val["id"];
+				$res["pic_name"] = $val["pic_name"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$pic = cdn_url($val["recom_pic"]);
+				$res["pic_show"] = '<img src="'.$pic.'" style="width:80px;height:80px"/>';
+				$res["op_user"] =$val["user_name"];
+				$res["pic_intro"] =isset($val["pic_intro"]) ? $val["pic_intro"] : '无';;
+				if($val["if_recommend"] == '1'){
+					$res["recommend"] = '<a href="/weidashang/abandon_recommend/'.$val["id"].'" id="abandon_recommend" class="abandon_recommend" onclick="if(confirm(\'确实要放弃推荐<' .$val["name"].'>吗？\')) return true;else return false;">放弃推荐</a>';
+				}elseif($val["if_recommend"] == '0'){
+					$res["recommend"] ='<a href="/weidashang/recommend/'.$val["id"].'" id="recommend" class="recommend" onclick="if(confirm(\'确实要推荐<' .$val["name"].'>吗？\')) return true;else return false;">推荐轮播</a>';
+				}
+				$list_info[] = $res;
+			}
+		}
+		$diadian_list_info = array();
+		$diadian_list_info["search"]= $list_info;
+		return $diadian_list_info;
+	}
+	public function add_recom_pic(){
+		$logo_name = isset($_POST["pic_name"])?$_POST["pic_name"]:"";
+		$logo = isset($_POST["topic_recom_hidden"])?$_POST["topic_recom_hidden"]:"";
+		$pic_intro = isset($_POST["pic_intro"])?$_POST["pic_intro"]:"";
+		$user_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		$ctime = date("Y-m-d H:i:s");
+		$data = array(
+ 			'user_id' => $user_id,
+ 			'user_name' => $op_man,
+ 			'pic_name' => $logo_name,
+ 			'recom_pic' => $logo,
+			'pic_intro' => $pic_intro,
+ 			'ctime' => $ctime,
+		);
+		$if_have = $this->Wds_acp_m->if_have_recom($unit_key);
+		if(!empty($if_have)){
+			echo "<script>alert('该图片已存在!')</script>";
+			return false;
+		}else{
+			$inner_new_recoms = $this->Wds_acp_m->inner_new_recoms($data);
+			echo "<script>alert('创建成功')</script>";
+			redirect("/weidashang/recom_pic/");
+			return true;
+		}
+	}
+
+	public function abandon_recommend($id){
+		$abandon = $this->Wds_acp_m->abandon_recommend($id);
+		redirect("/weidashang/recom_pic");
+		return true;
+	}
+
+	public function recommend($id){
+
+		$recommend = $this->Wds_acp_m->recommend($id);
+		redirect("/weidashang/recom_pic");
+		return true;
+	}
+
+	public function wds_pro_list(){
+		$data = array();
+		$pro_name_arr = $this->Wds_acp_m->get_indenpen_pro_name();
+		$data['pro_name_arr'] = $pro_name_arr;
+		 
+		$this->load->view('weidashang/diandian_independent_pro', $data);
+
+	}
+
+	public function ajax_indepen_pro(){
+		$res = array();
+		$result = array();
+		$res = $this->indepen_pro_search(1);
+			
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+			
+		echo json_encode($result);
+
+	}
+
+	public function indepen_pro_search($mode=1){
+
+		$search_arr["pro_id"] = isset($_POST['pro_id']) ? $_POST['pro_id'] : '';
+		$search_arr["pro_name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+		$search_arr["sort"] = isset($_POST['bysort']) ? $_POST['bysort'] : 'id';
+		$search_arr["order"] = isset($_POST['byorder']) ? $_POST['byorder'] : 'asc';
+			
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+			
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Wds_acp_m->indenpent_mes_serach($search_arr);
+		//print_r($result);exit;
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["id"] = $val["id"];
+				if($val["type_id"] == '-1'){
+					$res["pro_type"] = "微打赏-独立项目";
+				}
+				$pro_cuser = $this->User_m->get_user_info ( $val['user_id'] );
+				$res["pro_name"] = $val["name"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$res["start_time"] =$val["start_time"];
+				$res["end_time"] =$val["end_time"];
+				$res["op_user"] =$pro_cuser['nickname'];
+				if($val["if_show"] == '1'){
+					$res["work"] = '<a href="/weidashang/down_inden_pro/'.$val["id"].'" id="down_inden_pro" class="down_inden_pro" onclick="if(confirm(\'确实要将活动<' .$val["name"].'>下线吗？\')) return true;else return false;">下线</a>';
+				}elseif($val["if_show"] == '0'){
+					$res["work"] = '<a href="/weidashang/go_inden_pro/'.$val["id"].'" id="go_inden_pro" class="go_inden_pro" onclick="if(confirm(\'确实要将活动<' .$val["name"].'>上线吗？\')) return true;else return false;">上线</a>';
+				}
+				$logo_arr = unserialize($val["logo"]);
+				$logo = cdn_url($logo_arr[0]);
+				$res["logo"] = '<img src="'.$logo.'" style="width:80px;height:80px"/>';
+				$res["goal"] = $val["goal"];
+				$res["inner_user_num"] = $val["pay_count"];
+				$res["topic_all_money"] = $val["all_amount"];
+				$list_info[] = $res;
+			}
+		}
+		//根据支持人数/钱数重新排序
+		foreach($list_info as $key=>$value){
+			if($search_arr["sort"] == 'inner_user_num'){
+				$inner[$key] = $value['inner_user_num'];
+			}elseif($search_arr["sort"] == 'topic_all_money'){
+				$inner[$key] = $value['topic_all_money'];
+			}
+		}
+		if($search_arr["order"] == 'asc'){
+			array_multisort($inner, SORT_ASC,$list_info);
+		}elseif($search_arr["order"] == 'desc'){
+			array_multisort($inner, SORT_DESC,$list_info);
+		}
+			
+		$diadian_list_info = array();
+		$diadian_list_info["search"]= $list_info;
+		return $diadian_list_info;
+
+	}
+
+	/**
+	 * 独立项目下线
+	 * @param type $id
+	 */
+	public function down_inden_pro($id){
+
+		$down_inden_pro = $this->Wds_acp_m->down_diandian_sub($id);
+		redirect("/weidashang/wds_pro_list");
+		return true;
+
+	}
+
+	/**
+	 * 独立项目上线
+	 * @param type $id
+	 */
+	public function go_inden_pro($id){
+		$up_inden_pro = $this->Wds_acp_m->updata_diandian_sub($id);
+		redirect("/weidashang/wds_pro_list");
+		return true;
+		 
+	}
+        
+        /**
+         *微打赏-提现管理 
+         */
+       public function withdraw(){
+           $data = array();
+           $this->load->view('weidashang/withdraw', $data);
+       }
+       
+       public function ajax_withdraw_start(){
+            $res = array();
+            $result = array();
+            $res = $this->withdraw_start_search(1);
+
+            $result = array(
+                'total' =>'',
+                'rows' =>$res["search"],
+                'footer' => '',
+            );
+            echo json_encode($result);           
+       }
+
+	public function withdraw_start_search($mode=1){
+
+		$search_arr["wds_id"] = isset($_POST['oid']) ? $_POST['oid'] : '';
+		$search_arr["title"] = isset($_POST['topic']) ? intval($_POST['topic']): '';
+		$search_arr["user_id"] = isset($_POST['st_id']) ? $_POST['st_id'] : '';
+		$search_arr["st_mobile"] = isset($_POST['st_mobile']) ? $_POST['st_mobile'] : '';
+		$search_arr["start_time"] = isset($_POST['play_start_time']) ? $_POST['play_start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['play_end_time']) ? $_POST['play_end_time'] : '';
+		$search_arr["pro_status"] = isset($_POST['pro_status']) ? $_POST['pro_status'] : '';
+		
+		$op_id = $_SESSION['admin_id'];
+		$op_man = $this->md_refund->get_op_name($_SESSION['admin_id']);
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+			
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Wds_acp_m->withdraw_mes_serach($search_arr);
+		//print_r($result);exit;
+		$list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+                            $res['wds_id'] = $val['pro_id'];
+                            $res['wds_name'] = $val['wds_title'];
+                            $res['create_user_id'] = $val['user_id'];
+                            $res['create_user_name'] = isset($val['nickname'])?$val['nickname']:$val['username'];
+                            $res['create_user_mobile'] = $val['user_mobile'];
+                            $res['wds_start_time'] = $val['start_time'];
+                            $res['wds_end_time'] = $val['end_time'];
+                            $res['wds_withdraw_time'] = $val['apply_withdraw_time'];
+                            $res['goal'] = $val['goal'];
+                            $res['withdraw_amount'] = $val['funcder_goal'];
+                            $res['bank_name'] = $val['bank_type'];
+                            $res['bank_num'] = $val['funder_account_no'];
+                            $res['receiv_name'] = $val['funder_realname'];
+                            $res['play_status'] = $val['if_remit'];
+                            $res['refund_status'] = $val['if_refund'];
+                            $res['with_status'] = $val['if_withdraw'];
+                            $res['op_id'] = $op_id;
+                            $res['op_name'] = $op_man;
+                            $single = array(
+                                'id' => $val['pro_id'],
+                                'receiver' => $val['funcder_goal'],
+                                'subbank_name' => $val['funder_subbank_name'],
+                                'bank_type' => $val['funder_bank_type'],
+                                'bank_province' => $val['funder_bank_province'],
+                                'bank_city' => $val['funder_bank_city'],
+                                'account_no' => $val['funder_account_no'],
+                                'recv_mobile' => $val['user_mobile'],
+                                'acc_type' =>$val['funder_acc_type'],
+                                'total' => round(($val['funcder_goal'] - ( $val['funcder_goal'] * 0.02 + 1)), 2) //收取手续费用后的打款金额
+                            );
+                            //print_r($single);exit;
+                            if ($val['if_remit'] == '未打款') {                             
+                                $res['work'] = "<a href='#' class='pay-editor' data-pay='" . json_encode($single) . "'>打款</a>"; 
+                            }
+                            if ($val['if_remit'] == '打款失败') {
+                                $res['work'] = "<a href='#' class='pay-editor' data-pay='" . json_encode($single) . "'>打款</a>"; 
+                                $sql = "SELECT rlog.callback AS callback FROM md_weidashang_remit_info rlog 
+                    WHERE rlog.funder_serial={$val['pro_id']} AND rlog.package_id='{$val['package_id']}' ORDER BY rlog.ctime DESC";
+                                $ress = $this->db->query($sql)->row_array();
+                                $row['od_status'] = $ress['callback'];
+                            }
+
+                            $sql = "SELECT rchange.user_id AS ruser_id
+                                FROM md_weidashang_remit_changes rchange WHERE rchange.pro_id={$val['pro_id']}";
+                            $mess = $this->db->query($sql)->result_array();
+                            if (!empty($mess)) {
+                                $value = $val['pro_id'];
+                                $res['play_detail'] = "<a href='#' class='see-detail' data-see=" . json_encode($value) . ">查看明细</a>";
+                            }
+                           
+			$list_info[] = $res;
+			}
+		}
+		$withdraw_list_info = array();
+		$withdraw_list_info["search"]= $list_info;
+		return $withdraw_list_info;
+	}
+        
+        /**
+         * 获取城市列表
+         */
+        public function ajax_getCityList(){
+            $id = isset($_GET['id']) ? intval($this->input->get('id', true)) : '';
+            if (empty($id)) {
+                echo json_encode(array('status' => '-1', 'data' => ''));
+                exit;
+            }
+            $openning = get_opening_config();
+            $city_k = $openning[$id];
+            if (empty($city_k)) {
+                echo json_encode(array('status' => '-2', 'data' => ''));
+                exit;
+            }
+            $city = get_opening_city_list();
+            $str = '';
+            foreach ($city_k as $k => $v) {
+                $str .= '<option value="' . $v . '">' . $city[$v] . '</option>';
+            }
+            echo json_encode(array('status' => '0', 'data' => $str));
+            exit;            
+        }
+        
+        /**
+         * 打款操作
+         */
+        public function ajax_pay(){
+            $editor_type = $this->input->post('editor_type', true);
+            switch (intval($editor_type)) {
+                case 1:
+                    $serial = $this->input->post('serial', true);
+                    $rec_name = $this->input->post('receiver', true);
+                    $bank_type = $this->input->post('bank_type', true);
+                    $area = $this->input->post('area', true);
+                    $city = $this->input->post('city', true);
+                    $recv_mobile = $this->input->post('recv_mobile', true);
+                    $rec_bankacc = $this->input->post('account_no', true);
+                    $subbank_name = $this->input->post('subbank_name', true);
+                    $pay_amt = $this->input->post('pay_amt', true);
+                    $password = $this->input->post('password', true);
+                    $acc_type = $this->input->post("acc_type", true);
+                    $sql = " SELECT ef.funder_desc AS `desc`
+                        FROM md_weidashang_withdraw ef WHERE ef.pro_id='{$serial}'";
+                    $query = $this->db->query($sql);
+                    $res = $query->row_array();
+                    $singledata = array(
+                        'serial' => $serial,
+                        'rec_bankacc' => $rec_bankacc,
+                        'bank_type' => $bank_type,
+                        'rec_name' => $rec_name,
+                        'pay_amt' => $pay_amt,
+                        'acc_type' => $acc_type,
+                        'area' => $area,
+                        'city' => $city,
+                        'subbank_name' => $subbank_name,
+                        'desc' => $res['desc'],
+                        'recv_mobile' => $recv_mobile
+                    );
+                    //print_r($singledata);exit;
+                    $content = serialize($singledata);
+                    $num = array('pay_product_num' => 1,
+                        'pay_all_amount' => $singledata['pay_amt'],
+                    );
+                    $data = array(array($singledata), $num); //准备调用打款接口(单笔)
+                    $res = $this->check_submit_status(0);
+                    if ($res == false) {
+                        echo json_encode(array('msg' => '操作过于频繁请一分钟后再试！', 'pay_type' => 1));
+                        exit();
+                    }
+                    ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+                    ob_end_clean();
+                    //var_dump($package);exit;
+                    $msg = $this->md_weidashang->write_package_log($package, $data);
+                    if (!empty($msg)) {
+                        $data = array('msg' => $msg, 'pay_type' => 1);
+                    } else {
+                        if (intval($this->input->post('if_change', true)) == 1) {
+                            $ctime = date("Y-m-d H:i:s", time());
+                            $change = array('pro_id' => $serial,
+                                'content' => $content,
+                                'ctime' => $ctime,
+                                'user_id' => $_SESSION['admin_id']
+                            );
+                            $this->db->insert('md_weidashang_remit_changes', $change);
+                        }
+                        $data = array('msg' => '操作完成', 'pay_type' => 1);
+                    }
+                    break;
+                case 2:
+                    $password = $this->input->post('all_password', true);
+                    $where = $this->_get_batchpay_where();
+                    $data = $this->batch_get_pay($where);
+                    error_log(date("Y-m-d H:i:s") . "\t" . var_export($data, true) . "\r\n\r\n", 3, "/tmp/weidashang_var.log");
+                    $res = $this->check_submit_status(1);
+                    if ($res == false) {
+                        echo json_encode(array('msg' => '操作过于频繁请一分钟后再试！', 'pay_type' => 2));
+                        exit();
+                    }
+                    ob_start($package = $this->md_payment_batch_draw->set_pwd($password)->go($data[0]));
+                    ob_end_clean();
+                    $msg = $this->md_weidashang->write_package_log($package, $data);    
+                    if (!empty($msg)) {
+                        $data = array('msg' => $msg, 'pay_type' => 2);
+                    } else {
+                        $data = array('msg' => '操作完成', 'pay_type' => 2);
+                    }
+                    break;
+            }
+            echo json_encode($data);            
+        }
+    /**
+     * 单笔打款
+     * @param type $if_batch 0单笔 1批量
+     * @return boolean
+     */
+    function check_submit_status($if_batch) {
+        $time = time();
+        switch (intval($if_batch) == 0) {
+            case 0:
+                $check_submit_file = "check_singlesubmit.log";
+                break;
+            case 1:
+                $check_submit_file = "check_batchsubmit.log";
+                break;
+            default :
+        }
+        $limit_time = 30;  //限制时间
+        if (file_exists($check_submit_file)) {
+            $str = file_get_contents($check_submit_file);
+            if ($str > ($time - $limit_time)) {
+                return false;
+            } else {
+                file_put_contents($check_submit_file, $time);
+                return true;
+            }
+        } else {
+            file_put_contents($check_submit_file, $time);
+            return true;
+        }
+    }
+    
+    /**
+     * 获取批量打款的数据信息
+     */
+    public function ajax_get_pay() {
+        $where = $this->_get_batchpay_where();
+        $res = $this->batch_get_pay($where);
+        echo json_encode($res[1]);
+    } 
+    
+    /**
+     * 满足批量打款 搜索的子条件
+     * @return type
+     */
+    public function _get_batchpay_where() {
+        $time = time() - 600;
+        $time = date("Y-m-d H:i:s", $time);
+        return $where = " AND (ef.if_withdraw=1 AND ef.if_remit=0 AND ef.apply_withdraw_time<\"{$time}\" AND ef.funder_account_no!='' AND ef.funder_realname!='' AND ef.funder_bank_type!='' AND ef.funder_bank_city!='' AND ef.funder_bank_province!='' AND ef.funder_subbank_name!='' AND ef.funder_acc_type!='') ORDER BY ef.id LIMIT 10 "; //先测试仅打10个
+    }
+    
+    /**
+     * 批量打款搜索
+     * @param type $where
+     * @return type
+     */
+    public function batch_get_pay($where) {//$limit
+        $sql = "SELECT ef.pro_id AS serial,
+                ef.funder_account_no AS rec_bankacc,
+                ef.funder_bank_type AS bank_type,
+                ef.funder_realname AS rec_name,
+                ef.funder_acc_type AS acc_type,
+                ef.funder_bank_province AS area,
+                ef.funder_bank_city AS city,
+                ef.funder_subbank_name AS subbank_name,
+                ef.funder_desc AS `desc`,
+                ef.funder_recv_mobile AS recv_mobile
+    FROM md_weidashang_withdraw ef WHERE 1 {$where} "; //{$limit}
+        error_log(date("Y-m-d H:i:s") . "\t" . var_export($sql, true) . "\r\n\r\n", 3, "/tmp/weidashang_sql.log");
+        $query = $this->db->query($sql);
+        $rows = $query->result_array($query);
+        $pay_user_num = 0;
+        $pay_all_amount = 0.0;
+        foreach ($rows as $key => &$row) {
+            $sql = "SELECT p.all_amount AS total
+            FROM md_product p WHERE p.id='{$row['serial']}'";
+            $query = $this->db->query($sql);
+            $res = $query->row_array();
+            $row['pay_amt'] = round($res['total'] - ( $res['total'] * 0.02 + 1 ), 2); //收取手续费后的最终打款金额
+            if ($row['pay_amt'] <= 0 || $row['pay_amt'] == "") {
+                unset($rows[$key]);
+            }
+            $pay_all_amount += $row['pay_amt'];
+        }
+        $pay_product_num = count($rows);
+        $pay_user_num = $pay_product_num;
+        $data = array('pay_product_num' => $pay_product_num,
+            'pay_user_num' => $pay_user_num,
+            'pay_all_amount' => $pay_all_amount,
+        );
+        return array($rows, $data);
+    }
+    
+    /**
+     * 获取打款明细
+     */
+    public function ajax_get_change_detail() {
+        $id = isset($_GET['id']) ? intval($this->input->get('id', true)) : "";
+        $sql = "SELECT rchange.pro_id AS serial,
+                rchange.content AS content,
+                rchange.ctime AS ctime,
+                rchange.user_id AS user_id
+            FROM md_weidashang_remit_changes rchange WHERE rchange.pro_id={$id}";
+        $res = $this->db->query($sql)->result_array();
+        $str = '';
+        foreach ($res as &$row) {
+            $row['content'] = unserialize($row['content']);
+            $msg = '收款帐号:' . $row['content']['rec_bankacc'] . ',银行编码:' . $row['content']['bank_type'] . ',收款人姓名:' . $row['content']['rec_name'] . ',帐号类型:' . $row['content']['acc_type'] . ',省编码:' . $row['content']['area'] . ',城市编码:' . $row['content']['city'] . ',支行名称:' . $row['content']['subbank_name'] . ',收款手机号:' . $row['content']['recv_mobile'];
+            $str .= '<tr class="each-detail"><td>' . $row['serial'] . '</td>' . '<td>' . $row['ctime'] . '</td>' . '<td>' . $row['user_id'] . '</td>' . '<td>' . $msg . '</td></tr>';
+        }
+        echo $str;
+    }
+    
+    /**
+     * 提现 同步
+     */
+    public function syn_status() {
+        $syn_password = $this->input->post('syn_pwd', true); //准备调用查询接口
+        $package_ids = $this->md_weidashang->get_wait_remit_package();
+        $error = '';
+        foreach ($package_ids as $row) {
+            $res = $this->md_payment_batch_draw->set_pwd($syn_password)->query($row['package_id']);
+            if (isset($res['error']) && !empty($res['error'])) {
+                $data = array('status' => '-1', 'msg' => "包id:" . $row['package_id'] . ":" . $res['error']);
+                $error .= "包id:" . $row['package_id'] . ":" . $res['error'];
+//                echo json_encode($data);
+//                exit;
+            }
+            $this->md_weidashang->write_syn_info($res, $row['package_id']);
+        }
+        $data = array('status' => '0', 'msg' => '操作完成'.$error);
+        echo json_encode($data);
+    }
+    
+    /**
+     * 导出提现excel
+     */
+    public function export_withdraw(){
+        $arr_title = array(
+            "pro_id" => "项目ID",
+            "wds_title" => "项目名称",
+            "user_id" => "申请人ID",
+            "nickname" => "申请人名称",
+            "user_mobile" => "预留手机号",
+            "start_time" => "项目开始时间",
+            "end_time" => "项目结束时间",
+            "apply_withdraw_time" => "提现申请时间",
+            "goal" => "目标金额",
+            "funcder_goal" => "实际提现金额",
+            "bank_type" => "收款银行",
+            "funder_account_no" => "收款账号",
+            "funder_realname" => "收款人",
+            "if_remit" => "打款状态",
+            "if_refund" => "退款状态",
+            "if_withdraw" => "申请状态",
+        );
+
+		$search_arr["wds_id"] = isset($_POST['oid']) ? $_POST['oid'] : '';
+		$search_arr["title"] = isset($_POST['topic']) ? intval($_POST['topic']): '';
+		$search_arr["user_id"] = isset($_POST['st_id']) ? $_POST['st_id'] : '';
+		$search_arr["st_mobile"] = isset($_POST['st_mobile']) ? $_POST['st_mobile'] : '';
+		$search_arr["start_time"] = isset($_POST['play_start_time']) ? $_POST['play_start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['play_end_time']) ? $_POST['play_end_time'] : '';
+		$search_arr["pro_status"] = isset($_POST['pro_status']) ? $_POST['pro_status'] : '';
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Wds_acp_m->withdraw_mes_serach($search_arr);
+               // print_r($result);exit;
+        $path_file = date("Y-m-d H:i:s", time()) . '.xls';
+        export_to_excel($arr_title, $result, $path_file, 0);        
+    }
+    
+    /**
+     * 首页推荐的管理
+     */
+    public function huodong_manage(){
+        set_time_limit(0);
+        if ($_POST) {
+            if (isset($_POST['top_sort']) && count($_POST['top_sort']) > 0) {
+                foreach ($_POST['top_sort'] as $id => $item) {
+                    $id = intval($id);
+                    $item = intval($item);
+                    $sql = "update md_weidashang_topic SET sort='{$item}'  WHERE id ='{$id}';";
+                    $this->db->query($sql);
+                }
+            }
+        }
+        if (isset($_GET['id'])) {
+            $sql = "update md_weidashang_topic SET if_show=0  WHERE id ='" . $_GET['id'] . "';";
+            $this->db->query($sql);
+            redirect('weidashang/huodong_manage');
+        }
+        if (isset($_GET['hide_topic'])) {
+            if($_GET['hide_topic'] == 0){
+                $sql = "update md_weidashang_topic SET if_show=0  WHERE 1;";
+                $this->db->query($sql);
+
+            }elseif($_GET['hide_topic'] == 1){
+                $sql = "update md_weidashang_topic SET if_show=1  WHERE 1;";
+                $this->db->query($sql);
+                
+            }
+            redirect('weidashang/huodong_manage');
+        }        
+        $sql = "SELECT * FROM md_weidashang_topic WHERE if_show=1 ORDER BY sort DESC,id DESC";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        //print_r($data);exit('1');
+        $this->load->view('weidashang/huodong_recommend', $data);        
+    }
+
+    public function weidashang_pro_manage(){
+        set_time_limit(0);
+        if ($_POST) {
+            if (isset($_POST['top_sort']) && count($_POST['top_sort']) > 0) {
+                foreach ($_POST['top_sort'] as $id => $item) {
+                    $id = intval($id);
+                    $item = intval($item);
+                    $sql = "update md_product SET list_num='{$item}'  WHERE id ='{$id}';";
+                    $this->db->query($sql);
+                }
+            }
+            if (isset($_POST['preheat'])) {
+                $sql = "update md_product SET flag=REPLACE(flag,',homepage_going','')  WHERE id ='" . $_POST['preheat'] . "';";
+                $this->db->query($sql);
+                $sql = "update md_product SET flag=CONCAT(flag,',homepage_going')  WHERE id ='" . $_POST['preheat'] . "';";
+                $this->db->query($sql);
+            }          
+        }
+        if (isset($_GET['id'])) {
+            $sql = "update md_product SET flag='', list_num='0'  WHERE id ='" . $_GET['id'] . "';";
+            $this->db->query($sql);
+            redirect('weidashang/weidashang_pro_manage');
+        }
+      
+        $sql = "SELECT * FROM md_product WHERE if_show=1 AND pro_type=3 AND type_id=-1 AND flag LIKE '%homepage_going%' ORDER BY list_num DESC,id DESC LIMIT 20";
+        $data['projects'] = $this->db->query($sql)->result_array();
+        //print_r($data);exit('1');
+        $this->load->view('weidashang/weidashang_pro_manage', $data);        
+    }
+}

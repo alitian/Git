@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1, maximum-scale=1,minimal-ui,user-scalable=no"/>
+        <title><?php echo $wds_mes['name']; ?>-微打赏</title>
+        <meta name="keywords" content="<?php echo $pro_mess['pro_tag']; ?>，微打赏，摩点，摩点网，众筹，摩点众筹">
+        <meta name="description" content="<?php $des = mb_strimwidth($pro_mess['des'], 0, 100, '...');echo $des;?>">
+        <link rel="stylesheet" type="text/css" href="<?= static_url(); ?>weidashang/css/content.css?20160705">            
+    </head>
+    <body>
+        <!-- kv Start -->
+        <div class="container">
+            <!-- wap 排名 -->
+            <div id="canv">
+                <?php if(!empty($wds_mes['wds_topic_id'])){?>
+                    <p class="top-notice icon-right"><span>正在参加<i style="color: #00a0ff;">&nbsp;·&nbsp;</i></span><a href="javascript:;"><?php echo $wds_mes['wds_topic_name'];?></a><span class="pm">排名</span><?php echo $wds_mes['sort'];?></p>                
+                <?php }?>
+                <div class="area area-one clearfix">
+                    <div id="kvWrap" class="swiper-container pic-w fl">
+                        <div class="swiper-wrapper">
+                            <?php for ($i = 0; $i < count($wds_mes['pro_pic_arr']); $i++) { ?>
+                                <div class="swiper-slide"><img src="<?php echo $wds_mes['pro_pic_arr'][$i]; ?>"></div>                           
+                            <?php } ?>                            
+                        </div>
+                        <div class="swiper-button-prev"><</div>
+                        <div class="swiper-button-next">></div>
+                        <i class="icon-max" style="display:none"></i>
+                    </div>            
+                    <!-- 循环图片存放于textarea中 -->
+                    <textarea class="hide">
+                        <?php for ($i = 0; $i < count($wds_mes['pro_pic_arr']); $i++) { ?>
+                                    <div class="swiper-slide"><img src="<?php echo $wds_mes['pro_pic_arr'][$i]; ?>"></div>
+                        <?php } ?>
+                    </textarea>
+                    <div class="intro fl">
+                        <!-- PC 数据 -->
+                        <span class="photo index_zm">
+                            <a href="javascript:;">
+                                <img src="<?= cdn_url($wds_mes['userinfo']['icon'], 'x'); ?>" onerror="javascript:this.src='<?= static_url(); ?>img/default-photo-87.jpg';">
+                            </a>
+                            <span class="name_overf"><?php echo $wds_mes['userinfo']['nickname']; ?></span>
+                        </span>
+                        <ul class="pc-detail">
+                            <li>
+                                <b>￥<?php echo $wds_mes['all_amount']; ?></b>
+                                目标￥<?php echo $wds_mes['goal']; ?>
+                            </li>
+                            <li>
+                                <b><?php echo $wds_mes['pay_count']; ?>人</b>
+                                支持项目
+                            </li>
+                            <li>
+                                <b><?php
+                                    if (($wds_mes['duration'] - $wds_mes['has_started']) == 1) {
+                                        echo $wds_mes['remaining_hours'] == 0 ? "不足1小时" : $wds_mes['remaining_hours'] . '小时';
+                                    } else {
+                                        echo ($wds_mes['duration'] - $wds_mes['has_started']) > 0 ? ($wds_mes['duration'] - $wds_mes['has_started']) . "天" : '0天';
+                                    }
+                                    ?></b>
+                                <?php if ($wds_mes['duration'] - $wds_mes['has_started'] > 0) { ?>
+                                    即将结束
+                                <?php } else { ?>
+                                    已经结束
+                                <?php } ?>
+                            </li>
+                        </ul>
+                        <a href="javascript:;" class="btn btn-primary">立即支持</a>                                  
+                        <!-- wap 数据 -->
+                        <ul class="mobile-detail">
+                            <li>已筹￥<?php echo $wds_mes['all_amount']; ?></li>
+                            <li>目标￥<?php echo $wds_mes['goal']; ?></li>
+                            <li><?php echo $wds_mes['pay_count']; ?>人支持</li>
+                            <li><?php
+                                if (($wds_mes['duration'] - $wds_mes['has_started']) == 1) {
+                                    echo $wds_mes['remaining_hours'] == 0 ? "不足1小时" : "余" . $wds_mes['remaining_hours'] . '小时';
+                                } else {
+                                    echo ($wds_mes['duration'] - $wds_mes['has_started']) > 0 ? "余" . ($wds_mes['duration'] - $wds_mes['has_started']) . "天" : '余0天';
+                                }
+                                ?></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="area content">
+                <h1 class="area-t"><i></i><?php echo $wds_mes['name']; ?></h1>
+                <!-- pc 排名 -->
+                <div class="txt-con">
+                    <?php if(!empty($wds_mes['wds_topic_id'])){?>
+                        <p class="top-notice"><span>正在参加<i style="color: #00a0ff;">&nbsp;·&nbsp;</i></span><a href="javascript:;"><?php echo $wds_mes['wds_topic_name']; ?></a><span class="pm">排名</span><?php echo $wds_mes['sort']; ?></p>                    
+                    <?php }?>
+                        <div class="txt_phide">
+                        <?= html_entity_decode($wds_mes['content']); ?>
+                    </div>
+                    <textarea class="hide">
+                        <?php for ($i = 0; $i < count($wds_mes['pro_pic_arr']); $i++) { ?>
+                                <div class="swiper-slide">
+                                    <img src="<?php echo $wds_mes['pro_pic_arr'][$i]; ?>">                                                         
+                                </div>
+                        <?php } ?>
+                    </textarea>
+                    <p id="conToggle" class="toggle"><span class="before">详细介绍</span><span class="after">收起内容</span></p>     
+                    <div class="share-area" data-tag="share_1">
+                        <p>分享到：
+                            <a class="bds_tsina icon-weibo"  title="微博" data-cmd="tsina" ></a>
+                            <a class="bds_weixin icon-weixin"  title="微信" data-cmd="weixin"></a>
+                            <a class="bds_sqq icon-sqq"  title="QQ好友" data-cmd="sqq" ></a>
+                            <a class="bds_qzone icon-qqzone"  title="QQ空间" data-cmd="qzone"></a>
+                            <a class="bds_tieba icon-tieba"  title="贴吧" data-cmd="tieba" ></a>
+                            <a class="bds_copy icon-copy"  id="copyLinkBtn" href="javascript:void(0);" title="复制网址" ></a>
+                        </p>
+                    </div>                  
+                    <div class="zan-usr">
+                        <span class="pro_zan">还没有人赞过哦~ 快来支持一下！</span>
+                        <span class="zan icon-zan-before">0</span>
+
+                    </div>
+                    <p class="editor-w clearfix"><i class="icon-editor">评论</i></p>  
+                    <div class="msg-wrap">
+                        <p class="msg-t clearfix"><span class="fl">0条评论</span><i  class="icon-editor fr" to_userid="0" to_comid="0>">评论</i></p>
+                        <span class="pro_zan">还没有人评论，快来抢沙发吧～</span>
+                    </div>
+                </div>
+            </div>
+            <div class="bottom-fixed">
+                <a  href="javasript:;"><span class="fl icon-home"></span></a>
+                <span  class="fr icon-share"></span>       
+                <span  class="btn btn-primary">立即支持</span> 
+            </div>
+            <div id="zhezhao" class="zhezhao"></div>
+            <div id="shareLayer" class="share-layer" data-tag="share_1" style="display:none;">
+                <span id="closeShareLayer" class="icon-close"></span>
+                <a class="bds_tsina icon-weibo"  title="微博" data-cmd="tsina"><span>微博</span></a>
+                <a class="bds_qzone icon-qqzone"  title="QQ空间" data-cmd="qzone"><span>QQ空间</span></a>
+            </div>
+            <a class="re-top icon-up-row" href="#top" style="display:none;"></a>
+        </div>
+        <img class="lazy_img" style="display:none;" src="<?= static_url(); ?>img/loading.gif"/> 
+        <script src="<?= static_url(); ?>weidashang/js/require-jquery.js" data-main="<?= static_url(); ?>weidashang/js/content.js?20160523"></script>
+
+    </body>  
+</html>

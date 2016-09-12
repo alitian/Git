@@ -1,0 +1,80 @@
+<?php if(!empty($pro_stat_data)): ?>
+<table class="table table-hover table-condensed">
+<thead>
+    <tr>
+        <th>渠道</th>
+        <th>来源</th>
+        <th>PV</th>
+        <th>UV</th>
+        <th>订单提交量</th>
+        <th>订单支付量</th>
+        <th>收入</th>
+        <th>转化率</th>
+        <th>支持人数</th>
+        <th>首单支持用户（支持人数中的新用户）</th>
+    </tr>
+</thead>
+<tbody>
+    <?php $total_pv             = 0; ?>
+    <?php $total_uv             = 0; ?>
+    <?php $total_order          = 0; ?>
+    <?php $total_pay            = 0; ?>
+    <?php $total_money          = 0; ?>
+    <?php $total_backer         = 0; ?>
+    <?php $total_backer_new     = 0; ?>
+    <?php $total_backer_new_new = 0; ?>
+    <?php $app_order            = 0; ?>
+    <?php $app_pay              = 0; ?>
+    <?php $app_money            = 0; ?>
+    <?php $app_backer           = 0; ?>
+    <?php foreach ($pro_stat_data as $value): ?>
+    <tr>
+        <td><?=$value['mdsf']?></td>
+        <td><?=$value['mdsff']?></td>
+        <td><?=$value['pv']?></td>
+        <td><?=$value['uv']?></td>
+        <td><?=$value['cnt_order']?></td>
+        <td><?=$value['cnt_pay']?></td>
+        <td><?=$value['cnt_money']?></td>
+        <?php if( ! in_array($value['mdsff'], array('android', 'ios'))): ?>
+        <td><?=(intval($value['uv']) != 0) ? number_format($value['cnt_pay'] / $value['uv'] * 100, 2) : 0?>%</td>
+        <td><?=$value['cnt_backer']?></td>
+        <td><?=$value['cnt_backer_new']?> / <?=$value['cnt_backer_new_new']?></td>
+        <?php else: ?>
+        <td></td>
+        <td><?=$value['cnt_backer']?></td>
+        <td></td>
+        <?php endif;?>
+
+        <?php if( ! in_array($value['mdsff'], array('android', 'ios'))): ?>
+            <?php $total_pv             += $value['pv']; ?>
+            <?php $total_uv             += $value['uv']; ?>
+            <?php $total_order          += $value['cnt_order']; ?>
+            <?php $total_pay            += $value['cnt_pay']; ?>
+            <?php $total_money          += $value['cnt_money']; ?>
+            <?php $total_backer         += $value['cnt_backer']; ?>
+            <?php $total_backer_new     += $value['cnt_backer_new']; ?>
+            <?php $total_backer_new_new += $value['cnt_backer_new_new']; ?>
+        <?php else: ?>
+            <?php $app_order  += $value['cnt_order']; ?>
+            <?php $app_pay    += $value['cnt_pay']; ?>
+            <?php $app_money  += $value['cnt_money']; ?>
+            <?php $app_backer += $value['cnt_backer']; ?>
+        <?php endif; ?>
+    </tr>
+    <?php endforeach; ?>
+    <tr class="summary">
+        <td>总计：</td>
+        <td>统计环境<br />app<br />实际</td>
+        <td><?=$total_pv?></td>
+        <td><?=$total_uv?></td>
+        <td>[ <?=$total_order?> ]<br />[ <?=$app_order?> ]<br />[ <?=$real_stat_data['cnt_order']?> ]</td>
+        <td>[ <?=$total_pay?> ]<br />[ <?=$app_pay?> ]<br />[ <?=$real_stat_data['cnt_pay']?> ]</td>
+        <td>[ <?=$total_money?> ]<br />[ <?=$app_money?> ]<br />[ <?=$real_stat_data['cnt_money']?> ]</td>
+        <td><?=(intval($total_pv) != 0) ? number_format($total_pay / $total_pv * 100, 2) : 0?>%</td>
+        <td>[ <?=$total_backer?> / <?=$real_stat_data['log_total_backer']?> ]<br />[ <?=$app_backer?> ]<br />[ <?=$real_stat_data['cnt_backer']?> ]</td>
+        <td><?=$total_backer_new?> / <?=$total_backer_new_new?></td>
+    </tr>
+</tbody>
+</table>
+<?php endif; ?>

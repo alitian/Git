@@ -1,0 +1,144 @@
+<?php $this->load->view('ckad/header'); ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+
+<h2>用户路径</h2><br/>
+<div>
+    <form class="form-search" action="<?php echo site_url('statistics/user_path'); ?>">
+        <div class="input-append date form_datetime">
+            <input type="text" class="input-small" name='date' placeholder="日期" value="<?php if(isset($date)){ echo $date; } ?>">
+            <span class="add-on" style="margin-left:-5px;"><i class="icon-time"></i></span>
+        </div>
+        <button class="btn" type="submit">显示</button>
+        <?php 
+            if(isset($date)){
+        ?>
+        &nbsp;&nbsp;
+        <select name="page" id="select">
+            <option value="str">请选择来源域名</option>
+            <?php 
+            if(isset($key)){
+                foreach($key as $k => $v){
+                    echo "<option value=\"{$v}\">{$v}</option>";
+                }
+            }
+            ?>
+        </select>
+        <?php } ?>
+    </form>
+</div>
+<div id="str">
+    <?php echo "<h3>{$str}</h3>"; ?> 
+</div>
+<?php 
+if(isset($domain)){
+    $table = 0;
+    foreach($domain as $k1 => $v1){
+        $class = "table";
+        $id = "table".$table;
+        $table++;
+        echo "<div id=\"{$k1}\" width=\"1000px\" style=\"display:none;\">";
+        echo "<h3>{$k1}</h3>";
+        echo "<table class=\"table table-bordered\" id=\"{$id}\">
+                <tr>
+                    <th width=\"20%\">第一次访问域名(PV-UV)</th>
+                    <th width=\"20%\">第二次访问域名(PV-UV)</th>
+                    <th width=\"20%\">第三次访问域名(PV-UV)</th>
+                    <th width=\"20%\">第四次访问域名(PV-UV)</th>
+                    <th width=\"20%\">访问域名大于四个时<br/>跳出页域名(PV-UV)</th>
+                </tr>";
+        $a = 0;
+        foreach($v1 as $k2 => $v2){
+            $class1 = $id."-a".$a;
+            $a++;
+            if(count($v2) == 2){
+                $str = "";
+            }else{
+                $str = "<button class=\"button btn btn-mini\">+</button>";
+            }
+            echo "<tr date-td=\"{$id}\" id=\"{$class1}\"><th>{$k2}({$v2['pv']}-{$v2['uv']}){$str}</th><th></th><th></th><th></th><th></th></tr>";
+            unset($v2['pv']);
+            unset($v2['uv']);
+            $b = 0;
+            foreach($v2 as $k3 => $v3){
+                $class2 = $class1."-b".$b;
+                $b++;
+                if(count($v3) == 2){
+                    $str = "";
+                }else{
+                    $str = "<button class=\"button btn btn-mini\">+</button>";
+                }
+                echo "<tr date-td=\"{$class1}\" id=\"{$class2}\" style=\"display:none;\"><th></th><th>{$k3}({$v3['pv']}-{$v3['uv']}){$str}</th><th></th><th></th><th></th></tr>";
+                unset($v3['pv']);
+                unset($v3['uv']);
+                $c = 0;
+                foreach($v3 as $k4 => $v4){
+                    $class3 = $class2."-c".$c;
+                    $c++;
+                    if(count($v4) == 2){
+                        $str = "";
+                    }else{
+                        $str = "<button class=\"button btn btn-mini\">+</button>";
+                    }
+                    echo "<tr date-td=\"{$class2}\" id=\"{$class3}\" style=\"display:none;\"><th></th><th></th><th>{$k4}({$v4['pv']}-{$v4['uv']}){$str}</th><th></th><th></th></tr>";
+                    unset($v4['pv']);
+                    unset($v4['uv']);
+                    $d = 0;
+                    foreach($v4 as $k5 => $v5){
+                        $class4 = $class3."-d".$d;
+                        $d++;
+                        if(count($v5) == 2){
+                            $str = "";
+                        }else{
+                            $str = "<button class=\"button btn btn-mini\">+</button>";
+                        }
+                        echo "<tr date-td=\"{$class3}\" id=\"{$class4}\" style=\"display:none;\"><th></th><th></th><th></th><th>{$k5}({$v5['pv']}-{$v5['uv']}){$str}</th><th></th></tr>";
+                        unset($v5['pv']);
+                        unset($v5['uv']);
+                        $e = 0;
+                        foreach($v5 as $k6 => $v6){
+                            $class5 = $class4."-e".$e;
+                            $e++;
+                            echo "<tr date-td=\"{$class4}\" style=\"display:none;\"><th></th><th></th><th></th><th></th><th>{$k6}({$v6['pv']}-{$v6['uv']})</th></tr>";
+                        }
+                    }
+                }
+            }
+        }
+        echo "</table></div>";
+    }
+}
+?>
+<script type="text/javascript">
+    $(function(){
+        $('.form_datetime').datetimepicker({
+            language: 'zh-CN',
+            format: "yyyy-MM-dd",
+            pickTime: true
+        });
+        var k = 0;
+        var old_str = "str";
+        $('#select').change(function(){
+            str = $(this).val();
+            $("#"+old_str).hide();
+            $("#"+str).show();
+            old_str = str;
+        });
+        $(".button").click(function(){
+            str = $(this).parent().parent().attr("id");
+            text = $(this).text();
+            if(text === "+"){
+                $("tr[date-td = "+str+"]").show();
+                $(this).text("-");
+            }else{
+                $("tr[date-td *= "+str+"]").hide();
+                $("tr[date-td *= "+str+"]").hide().find("button").text("+");
+                $(this).text("+");
+            }
+        });
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>
+
+

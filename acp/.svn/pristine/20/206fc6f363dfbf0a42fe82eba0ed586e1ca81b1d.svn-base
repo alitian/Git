@@ -1,0 +1,29 @@
+<?php
+
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+/**
+ * 用户管理
+ */
+class user_ad extends Acp_Controller {
+
+    public function chart() {
+        $start_date = date("Y-m-d 00:00:00", strtotime("- 10day"));
+        $end_date = date("Y-m-d 00:00:00");
+        //WHERE ctime>='$start_date 00:00:00' AND ctime<='$start_date 23:59:59'
+        $sql = "SELECT count(1) c,DATE_FORMAT(ctime,'%Y-%m-%d') d FROM md_users  GROUP BY d ORDER BY d ASC";
+        $data['all'] = $result = $this->db->query($sql)->result_array();
+        $data['date'] = $data['count'] = array();
+        $i = 0;
+        foreach ($result as $item) {
+            $i++;
+            if ($i >= count($result) - 10) {
+                $data['date'][] = $item['d'];
+                $data['count'][] = $item['c'];
+            }
+        }
+        $this->load->view('user_ad/chart', $data);
+    }
+
+}

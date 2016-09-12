@@ -1,0 +1,26 @@
+<?php
+$logo = cdn_url($pro_info["logo"], 'm');
+?>
+<table class="dv-table" border="0" style="width:100%;">
+    <tr>
+        <td rowspan="3" style="width:60px">
+            <a target="_blank" href="http://www.modian.com/product/preview?product_id=<?php echo $pro_info['id']; ?>&user_id=<?php echo $pro_info['user_id']; ?>"><img src="<?php echo $logo ?>"  alt="<?php echo $pro_info['name']; ?>" style="width:80px;margin-right:20px" /></a>
+        </td>
+        <td class="dv-label">开始时间: </td>
+        <td><?=$pro_info['start_time']?></td>
+        <td class="dv-label">结束时间:</td>
+        <td><?=$pro_info['end_time']?></td>
+    </tr>
+    <tr>
+        <td class="dv-label">融资目标: </td>
+        <td><?=$pro_info['install_money'];?></td>
+        <td class="dv-label">融资总金额:</td>
+        <td><?=$pro_info['back_amount'];?></td>
+    </tr>
+    <tr>
+        <td class="dv-label">省份: </td>
+        <td><?=$pro_info['province'];?></td>
+        <td class="dv-label">城市: </td>
+        <td><?=$pro_info['city'];?></td>
+    </tr>
+</table>

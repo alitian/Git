@@ -1,0 +1,189 @@
+<?php $this->load->view('ckad/header') ?>
+<script type="text/javascript" src="<?= static_url(); ?>js/easyui/datagrid-detailview.js"></script>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<style type="text/css">
+    .dv-table td{
+        border:0;
+    }
+    .dv-label{
+        font-weight:bold;
+        color:#15428B;
+        width:100px;
+    }
+</style>
+<div id="p" class="easyui-panel" title="查询" style="height:220px;padding:10px;margin: 0;" data-options="collapsible:true">
+    <form method="POST" target="_blank" name='form1' id="form1" action="/pay_ad/export_orders">
+        <div class="span11">
+            <div class="row-fluid">
+                <div class="span3">项目所在地:<br />
+                    <select id="province" name="province"  class="singleslt" style="width:100px;" onchange="var province = $(this).toPinyin();"></select>
+                    <select id="city" name="city" class="singleslt" style="width:100px;" dataType="Require" msg="输入项目发起的地点" onchange="var city = $(this).toPinyin();"></select>
+                </div>
+                <div class="span3">项目经理:<br /><select id="md_plan" name="pro_managment">
+                        <option value="">全部</option>
+                    </select>
+                </div>
+                <div class="span3">内容审核状态:<br />
+                    <select id="content_check" name="content_check">
+                        <option value="">全部</option>
+                        <?php foreach ($status as $co => $stat): ?>
+                            <option value="<?= $co ?>"><?= $stat ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="span3">资质审核状态:<br />
+                    <select id="md_plan" name="criteria_check">
+                        <option value="">全部</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row-fluid">
+                <div class="span3">项目名称:<br /><input type="text" id="pro_name" name="pro_name" value="" /></div>
+                <div class="span3">项目发起者:<br /><input type="text" id="realname" name="realname" value="" /></div>
+                <div class="span3">发起人ID:<br /><input type="text" id="user_id" name="user_id" value="" /></div>
+                <div class="span3">联系电话:<br /><input type="text" id="tel" name="tel" value="" /></div>
+            </div>
+            <div class="row-fluid">
+                <div class="span3">项目类型:<br />
+                    <select id="md_type" name="md_type">
+                        <option value="">全部</option>
+                        <?php foreach ($types as $type): ?>
+                            <option value="<?= $type['id'] ?>"><?= $type['type_name'] ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="span3">具体类型:<br />
+                    <select id="md_plan" name="md_plan">
+                        <option value="">全部</option>
+                    </select>
+                </div>
+                <div class="span3">提交时间范围起:<br />
+                    <div id="datetimepicker1" class="input-append">
+                        <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="开始时间" id='send_start_time' name='pay_end_time' style="width:165px;"></input>
+                        <span class="add-on">
+                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                            </i>
+                        </span>
+                    </div>
+                </div>
+                <div class="span3">提交时间范围止:<br />
+                    <div id="datetimepicker2" class="input-append">
+                        <input data-format="yyyy-MM-dd hh:mm:ss" type="text" placeholder="截止时间" id='send_end_time' name='send_end_time' style="width:165px;"></input>
+                        <span class="add-on">
+                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                            </i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="span1" style="height:200px;text-align: center;vertical-align: middle;overflow:hidden;padding-top:30px;">
+            <button class="btn btn-large btn-primary" type="button" id="search" data-options="iconCls:'icon-search'">查询</button><br /><br />
+            <!--button class="btn btn-large" type="submit" id="search" data-options="iconCls:'icon-search'">导出Excel</button-->
+        </div>
+    </form>
+</div>
+<div id="pp" class="easyui-panel" title="视频二次下载" style="height:220px;padding:10px;margin: 0;" data-options="collapsible:true">
+	<div class="row-fluid">
+		<div class="input-prepend input-append">
+			<span class="add-on">二次下载URL:</span>
+			<input style="margin-left:20px;" type="text" name="vedio" id="vedio" value=""><input type="button" value="点击下载" id="download_vedio">
+		</div>
+	</div>				
+	
+</div>
+<table id="dg" style="margin: 0;height:auto;"
+       url="/project/ajax_project"
+       pagination="true" sortName="id" sortOrder="desc"
+       title="项目管理(注：点击视频下载若不能成功下载请将 新页面中URL复制到上方进行两次下载！)" pageSize=30 pagePosition="both" 
+       singleSelect="true" fitColumns="true">
+    <thead data-options="frozen:true">
+        <tr>
+            <th field="id" sortable="true">项目ID</th>
+        </tr>
+    </thead>
+    <thead>
+        <tr>
+            <th field="name">项目名称</th>
+            <th field="pro_tag">项目标签</th>
+            <th field="type_id">项目类别</th>
+            <th field="install_money" align="right">筹资目标</th>
+            <th field="nickname">发起人昵称</th>
+            <th field="user_id">发起人ID</th>
+            <th field="tel">联系电话</th>
+            <th field="bd">项目BD</th>
+            <th field="examine_time">提交时间</th>
+            <th field="bd">资质审核状态</th>
+            <th field="examine_modify_time">内容审核状态</th>
+            <th field="start_time">自动上线时间</th>
+            <th field="if_show" sortable="true">项目状态</th>
+            <th field="operation">操作</th>
+        </tr>
+    </thead>
+</table>
+<script type="text/javascript" charset="utf-8" src="<?= static_url(); ?>js/modian_city.js"></script>
+<script type="text/javascript">
+                        $(function() {
+                            $('#datetimepicker1,#datetimepicker2').datetimepicker({
+                                language: 'zh-CN',
+                                pickTime: true
+                            });
+                            $("#search").click(function() {
+                                $('#dg').datagrid('load', {
+                                    content_check: $("#content_check").val(),
+                                    pro_name: $("#pro_name").val(),
+                                    realname: $("#realname").val(),
+                                    user_id: $("#user_id").val(),
+                                    tel: $("#tel").val(),
+                                    province: $('#province').val(),
+                                    city: $('#city').val(),
+                                    md_type: $('#md_type').val(),
+                                    send_start_time: $('#send_start_time').val(),
+                                    send_end_time: $('#send_end_time').val()
+                                });
+                            })
+                            $("#province, #city").cascade({defaults: [null, null], prompts: ["省份", "地级市"]})
+                            $('#dg').datagrid({
+                                view: detailview,
+                                detailFormatter: function(index, row) {
+                                    return '<div class="ddv" style="padding:5px 0"></div>';
+                                },
+                                onExpandRow: function(index, row) {
+                                    var ddv = $(this).datagrid('getRowDetail', index).find('div.ddv');
+                                    ddv.panel({
+                                        height: 80,
+                                        border: false,
+                                        cache: false,
+                                        href: '/project/get_detail/' + row.id,
+                                        onLoad: function() {
+                                            $('#dg').datagrid('fixDetailRowHeight', index);
+                                        }
+                                    });
+                                    $('#dg').datagrid('fixDetailRowHeight', index);
+                                }
+                            });
+                        });
+</script>
+<script type="text/javascript">
+$("#download_vedio").click(){
+	var file_url = $("#vedio").val();
+	$.ajax({
+		type:"GET",
+		url:"/project/dl_file",
+		data: {
+			vedio:file_url,
+		},
+		dataType:'json',
+		success:function(data){
+			if(data.status == 1){
+				alert('下载完成');
+			}
+		}
+	});
+});
+
+</script>
+<?php
+$this->load->view('ckad/footer')?>

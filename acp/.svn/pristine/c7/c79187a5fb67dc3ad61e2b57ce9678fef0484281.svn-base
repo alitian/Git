@@ -1,0 +1,53 @@
+<div class="table-meta" style="padding: 7px 0px;">
+    <span class="badge badge-inverse"><?=$page['name']?></span>
+    <span class="badge badge-inverse">pv: <?=$page['pv']?></span>
+    <span class="badge badge-inverse">uv: <?=$page['uv']?></span>
+</div>
+
+<?php if(!empty($ref)): ?>
+<table class="table table-hover table-condensed">
+<thead>
+    <tr>
+        <th>参数</th>
+        <th>导出PV</th>
+        <th>占比</th>
+        <th>导出UV</th>
+        <th>占比</th>
+    </tr>
+</thead>
+<tbody>
+    <?php $total_pv = 0; ?>
+    <?php $total_uv = 0; ?>
+    <?php foreach ($ref as $ii => $value): ?>
+    <tr class="total" data-index="<?=$ii?>">
+        <td><?=$value['name']?></td>
+        <td><?=$value['pv']?></td>
+        <td><?=round($value['pv']/$page['pv'] * 100)?>%</td>
+        <td><?=$value['uv']?></td>
+        <td><?=round($value['uv']/$page['uv'] * 100)?>%</td>
+
+        <?php $total_pv += $value['pv']; ?>
+        <?php $total_uv += $value['uv']; ?>
+    </tr>
+
+    <?php foreach ($value['ref'] as $rr): ?>
+    <tr class="ref <?=$ii?> display-none">
+        <td><?=$rr['name']?></td>
+        <td><?=$rr['pv']?></td>
+        <td><?=round($rr['pv']/$page['pv'] * 100)?>%</td>
+        <td><?=$rr['uv']?></td>
+        <td><?=round($rr['uv']/$page['uv'] * 100)?>%</td>
+    </tr>
+    <?php endforeach; ?>
+
+    <?php endforeach; ?>
+    <tr class="summary">
+        <td>总计：</td>
+        <td><?=$total_pv?></td>
+        <td><?=round($total_pv/$page['pv'] * 100)?>%</td>
+        <td><?=$total_uv?></td>
+        <td><?=round($total_uv/$page['uv'] * 100)?>%</td>
+    </tr>
+</tbody>
+</table>
+<?php endif; ?>

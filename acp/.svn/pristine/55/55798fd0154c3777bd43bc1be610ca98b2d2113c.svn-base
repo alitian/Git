@@ -1,0 +1,39 @@
+<?php
+error_reporting ( 0 );
+index ();
+
+function index() {
+    
+    ini_set("max_execution_time", "0");
+    header("Content-Type:text/html;Charset=utf-8");
+    
+    $file1 = fopen("./token.txt","a+");
+    $tmp = tempnam("/tmp",'');//建立临时文件
+    $file2=fopen($tmp,'w');
+  	$i=0;
+	while(!feof($file1)){
+    	$line=fgets($file1);
+    	$i++;
+    	if($i==1){
+        	continue;
+    	}
+    	fputs($file2,$line);
+     
+	}
+	fclose($file1);
+	fclose($file2);
+	rename($tmp,'./token.txt');    
+    $url = 'http://'.$_SERVER['HTTP_HOST'].$_SERVER['PHP_SELF'].'?'.$_SERVER['QUERY_STRING'];
+    $url_exp = explode ('?' , $url);
+    $get_code = explode ("&",$url_exp[1]);
+    $code_source = explode ('=',$get_code[0]);
+    $code = $code_source[1];   
+
+	$file = fopen("./token.txt","a+");
+	if($file) { 
+		fwrite($file,$code);
+	} 
+    fclose($file);
+    echo ('授权令牌获取成功!');
+}
+?>

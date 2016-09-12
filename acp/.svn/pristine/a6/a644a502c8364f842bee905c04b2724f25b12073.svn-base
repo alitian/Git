@@ -1,0 +1,119 @@
+<?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+//error_reporting(E_ALL);
+require_once BASEPATH . 'libraries/md_memcache.php';
+
+class Md_huodong extends Acp_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->db->read_main = true;
+        $this->load->helper('url');
+        $this->load->helper('util');
+        $this->load->model('User_m');
+        $this->load->model('Huodong_m');
+        $this->load->library('md_common');
+        }
+        
+ 	/**
+	 * 活动后台
+	 * Enter description here ...
+	 */
+	public function index(){
+		$data = array();
+		$data['pro_name_arr'] = $this->Huodong_m->get_huodong_name();
+		$this->load->view('huodong/huodong', $data);
+		 
+	}
+
+	/**
+	 * search查询的ajax最终组合方法
+	 * Enter description here ...
+	 */
+	public function ajax_huodong(){
+		$res = array();
+		$result = array();
+		$res = $this->huodong_search(1);
+		 
+		$result = array('total' =>'',
+    			'rows' =>$res["search"],
+    			'footer' => '',
+		);
+		 
+		echo json_encode($result);
+	}
+
+	/**
+	 * 后台查询详细方法
+	 * Enter description here ...
+	 * @param unknown_type $mode
+	 */
+	public function huodong_search($mode=1){
+
+		$search_arr["pro_id"] = isset($_POST['pro_id']) ? $_POST['pro_id'] : '';
+		$search_arr["pro_name"] = isset($_POST['content_template']) ? intval($_POST['content_template']): '';
+		$search_arr["start_time"] = isset($_POST['start_time']) ? $_POST['start_time'] : '';
+		$search_arr["end_time"] = isset($_POST['end_time']) ? $_POST['end_time'] : '';
+		$search_arr["type"] = isset($_POST['create_type']) ? $_POST['create_type'] : '';
+		 
+		if($mode == 2){
+			$search_arr["page"] = "";
+			$search_arr["rows"] = "";
+		}else{
+			$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+			$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+		}
+		 
+		$search_arr["page"] = isset($_POST['page']) ? intval($_POST['page']) : '1';
+		$search_arr["rows"] = isset($_POST['rows']) ? intval($_POST['rows']) : '20';
+
+		$start = ($search_arr["page"] > 1)?($search_arr["page"] -1)*$search_arr["rows"]:0;
+		$end = ($search_arr["page"] > 1)?($search_arr["page"])*$search_arr["rows"]:$search_arr["rows"];
+		$result = $this->Huodong_m->pro_mes_serach($search_arr);
+		//print_r($result);exit;
+                $list_info = array();
+		if(!empty($result)){
+			foreach ($result as $key=>$val){
+				$res["id"] = $val["id"];
+                                switch($val["type"]){
+                                    case 1:
+                                        $res["pro_type"] = "抢红包";
+                                        break;
+                                }
+				$res["pro_name"] = $val["topic"];
+				$res["start_time"] = $val["ctime"];
+				if($val["ctime"] == "0000-00-00 00:00:00"){
+					$res["create_time"] ='';
+				}else{
+					$res["create_time"] =$val["ctime"];
+				}
+				$res["start_time"] =$val["effect_time"];
+				$res["end_time"] =$val["end_time"];
+				$res["op_user"] =$val["user_name"];
+				switch($val["type"]){
+					case 1;
+						$topic = "SELECT `id` FROM `md_redwallet_topic` WHERE `title` = '".$val["topic"]."'";
+						$topic_sql = $this->db->query($topic)->result_array();
+						
+					    $sql = "SELECT  COUNT(DISTINCT(`user_id`)) AS create_num FROM `md_redwallet` WHERE `topic_id` = '".$topic_sql[0]["id"]."' AND `if_show`=1 ";   	    	
+       					$create_sql = $this->db->query($sql)->result_array();				
+						$res["create_user"] = isset($create_sql[0]['create_num'])?$create_sql[0]['create_num']:'0';
+						
+					    $csql = "SELECT  COUNT(DISTINCT(`username`)) AS active_num FROM `md_redwallet_back` WHERE `topic` = '".$topic_sql[0]["id"]."' AND `if_show`=1 ";   	    	
+       					$active_sql = $this->db->query($csql)->result_array();				
+						$res["active_user"] = isset($active_sql[0]['active_num'])?$active_sql[0]['active_num']:'0';
+						
+						$res["work"] = '<a href="/redwallet/index/'.$val["id"].'" id="edit" class="edit">编辑查看</a>';
+						
+						break;
+				}
+				$list_info[] = $res;
+			}
+		}
+		$huodong_list_info = array();
+		$huodong_list_info["search"]= $list_info;
+		return $huodong_list_info;
+	}
+
+      
+
+}

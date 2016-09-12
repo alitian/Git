@@ -1,0 +1,467 @@
+<?php
+	defined('BASEPATH') OR exit('No direct script access allowed');
+	require_once APPPATH . 'core/MD_Controller.php';
+
+	/*
+	 *	bbs 中的任务计划
+	 */
+	class Bbs_cron extends Deamon_Controller
+	{
+		public $warning_mailer = array('huangjianquan@modian.com');
+		public function __construct()
+		{
+			parent::__construct();
+
+			$this->load->library("bbs_queue", array(TRUE));
+	        $this->load->model('bbs/bbs_m');
+	        $this->load->model('bbs/bbs_post_m');
+	        $this->load->model('bbs/bbs_tag_m');
+	        $this->load->model('bbs_cron_model');
+		}
+
+		// 查看队列某个位置的内容
+		public function view($pos)
+		{
+			$this->bbs_queue->set_queue_name('moxi');	
+			$data = $this->bbs_queue->view($pos);
+			echo '<pre>';
+			var_dump($data);
+			echo '</pre>';
+			exit;
+		}
+
+		// 查看队列某个位置的内容
+		public function status()
+		{
+			$this->bbs_queue->set_queue_name('moxi');	
+			$data = $this->bbs_queue->status();
+			echo '<pre>';
+			var_dump($data);
+			echo '</pre>';
+			exit;
+		}
+
+		/**
+		 *
+		 * 	使用队列
+		 *
+		 */
+		public function moxi_queue()
+		{
+			$this->bbs_queue->set_queue_name('moxi');	
+			while (TRUE)
+			{
+				$queue_data = $this->bbs_queue->get();
+				if (empty($queue_data)) {
+
+					// 改为1分钟执行一次！如果发现队列中无值，跳出循环(不合理！除非队列中有很多值，执行的很慢！会出现同时跑多个脚本，应该会有问题！)
+					// * * * * * /ROOT/bin/php /ROOT/www/application/acp/index.php bbs_cron moxi_queue
+					// sleep(1);
+					break;
+				} else {
+					list($type, $data) = each($queue_data);
+					switch ($type)
+					{
+						case 'add_post' :
+						case 'verify_post_successed' :
+							$post_tag_data = array();
+							$post_tag_data['post_id'] = $data['post_id'];
+							$post_tag_data['ctime'] = $data['ctime'];
+
+							/*
+							 	需要推送帖子的标签
+									1.审核通过的时候，我们建立所有的对应关系
+									2.新建帖子的时候，我们已经建立了用户的直接标签和帖子的对应关系，所以不必再包含
+									3.后台审核通过的帖子，所有标签的推送都放到队列中执行。
+							 */
+							$if_inc_self = ($type == 'verify_post_successed') ? TRUE : FALSE;
+							$tag_ids = $this->bbs_post_m->get_add_tag_ids($data['tagids'], $if_inc_self);
+							if( empty($tag_ids) ){
+								break;
+							}
+
+							$bool = $this->bbs_post_m->add_post_tag_batch($post_tag_data, $tag_ids);
+							
+							// 更新标签帖子数
+							foreach($tag_ids as $tag_id){
+								$this->bbs_tag_m->update_tag_post_num($tag_id);
+								$this->bbs_tag_m->update_tag_week_post($tag_id);
+							}
+							if(!$bool){
+								error_log(date("Y-m-d H:i:s").":add_post error {'post_id':".$data['post_id']."}\r\n",3,'/home/huangjianquan/bbs_cron.log');
+							}
+						break;
+
+						case 'del_post' :
+							$result = $this->bbs_post_m->del_post_tag_batch_by_post_id($data['post_id']);
+							if(!$result){
+								error_log(date("Y-m-d H:i:s").":del_post error {'post_id':".$data['post_id']."}\r\n",3,'/home/huangjianquan/bbs_cron.log');
+							}
+
+							// 删除帖子，所有tag的帖子数不减
+							break;
+						case 'add_post_tag' :
+							$post_tag_data = array();
+							$post_tag_data['post_id'] = $data['post_id'];
+							$post_tag_data['ctime'] = time(); 
+
+							// 需要推送帖子的标签
+							$tag_ids = $this->bbs_post_m->get_add_tag_ids($data['tag_id'], FALSE);
+
+							// 考虑批量添加，但后果是：会出现重复。我们得筛除已有的记录
+							$post_current_map_tag_ids = $this->bbs_post_m->get_tag_ids_by_post_id($data['post_id']);
+							$need_add_tag_ids = array_diff($tag_ids, $post_current_map_tag_ids);
+
+							if( empty($need_add_tag_ids) ){
+								break;
+							}
+
+							$result = $this->bbs_post_m->add_post_tag_batch($post_tag_data, $need_add_tag_ids);
+							
+							// 更新标签帖子数
+							foreach($need_add_tag_ids as $tag_id){
+								$this->bbs_tag_m->update_tag_post_num($tag_id);
+								$this->bbs_tag_m->update_tag_week_post($tag_id);
+							}
+							if(!$result){
+								error_log(date("Y-m-d H:i:s").":add_post_tag error {'post_id':".$data['post_id']."}\r\n",3,'/home/huangjianquan/bbs_cron.log');
+							}
+							break;
+
+						case 'del_post_tag' :
+							$tagids = $data['tagids'];
+
+							// 排除tagids中要删除的tag_id
+							$search_str = ',' . $data['tag_id'] . ',';
+							$tagids_str = ',' . $tagids . ',';
+							$new_tagids = trim(str_replace($search_str , ',', $tagids_str), ',');
+
+							// 获取当前的和帖子建立对应关系的所有 tag_id
+							$origin_tag_ids = $this->bbs_post_m->get_add_tag_ids($tagids);
+
+							// 获取删除当前tag后，剩余的应该存在的所有 tag_id
+							$remain_tag_ids = $this->bbs_post_m->get_add_tag_ids($new_tagids);
+							$need_del_tag_ids = array_diff($origin_tag_ids, $remain_tag_ids);
+
+							if( empty($need_del_tag_ids) ){
+								break;
+							}
+							$result = $this->bbs_post_m->del_post_tag_batch_by_tag_ids_and_post_id($need_del_tag_ids, $data['post_id']);
+
+							// 更新标签帖子数 -1
+							foreach($need_del_tag_ids as $need_del_tag_id)
+							{
+								$this->bbs_tag_m->update_tag_post_num($need_del_tag_id, -1);
+								$this->bbs_tag_m->update_tag_week_post($need_del_tag_id, -1);
+							}
+							if(!$result){
+								error_log(date("Y-m-d H:i:s").":del_post_tag error {'post_id':".$data['post_id']."}\r\n",3,'/home/huangjianquan/bbs_cron.log');
+							}
+							break;
+
+						case 'add_tag_relation' :
+							$ptag_id = $data['ptag_id'];
+							$ctag_id = $data['ctag_id'];
+							try{
+								$this->add_tag_relation($ptag_id, $ctag_id);
+							}catch(Exception $e){
+								$err = $e->getMessage();
+								error_log(var_export($err, true)."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+							}
+							break;
+
+						case 'del_tag_relation' :
+							$ptag_id = $data['ptag_id'];
+							$ctag_id = $data['ctag_id'];
+							try{
+								$this->del_parent_tag_posts($ptag_id, $ctag_id);
+							}catch(Exception $e){
+								$err = $e->getMessage();
+								error_log(var_export($err, true)."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+							}
+							break;
+						case 'save_image':
+							try{
+								$content = $data["content"];
+								$time 	 = $data["time"];
+								$uid     = $data["uid"];
+								$post_id = $data["post_id"];
+								$this->load->library('md_imagick');
+								error_log("Hello world1"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+								$reTag = "<img\b[^<>]*?\bsrc[\s\t\r\n]*=[\s\t\r\n]*[\"\"']?[\s\t\r\n]*(?<imgUrl>[^\s\t\r\n\"\"'<>]*)[^<>]*?/?[\s\t\r\n]*>";
+								$content = preg_replace_callback($reTag,function($matches){
+									$filter= array("modianinc");
+									$pattern = '/^(http:\/\/img.baidu.com)(\/hi\/\S+\/\S+)\.(gif)$/';
+									$check = explode(".",$matches[1]);
+									if(in_array($check[1],$filter)){  //过滤掉已上传的图片
+										return 'img src="'.$matches[1];
+									}elseif(preg_match($pattern,$matches[1])){  //过滤掉百度gif图
+										return 'img src="'.$matches[1];
+									} else{
+										$ch = curl_init ();
+										curl_setopt ( $ch, CURLOPT_CUSTOMREQUEST, 'GET' );
+										curl_setopt ( $ch, CURLOPT_SSL_VERIFYPEER, false );
+										curl_setopt ( $ch, CURLOPT_URL, $matches[1] );
+										ob_start ();
+										curl_exec ( $ch );
+										$return_content = ob_get_contents ();
+										ob_end_clean ();
+										curl_getinfo ( $ch, CURLINFO_HTTP_CODE );
+										$ext = time().".".array_pop($check);
+										$attachment_path_prefix = 'bbs_promotion/' . date('Y') . '/' . date('m') . '/' . date('d') . '/';
+										$db_path = 'uploads/' . $attachment_path_prefix.$ext;
+										$full_upload_path = _gc('uploads_path') . $attachment_path_prefix;
+										error_log("Hello world2"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+
+										if(!file_exists($full_upload_path)){
+											mkdir($full_upload_path, 0777, TRUE);
+										}
+
+										static $list_array;
+										$list_array[] = $db_path;
+										$_SESSION['outside_img'] = $list_array;
+										$full_upload_paths=$full_upload_path.$ext;
+//										$fp= @fopen($full_upload_paths,"a"); //将文件绑定到流
+//										fwrite($fp,$return_content); //写入文件
+										error_log("Hello world01"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+										file_put_contents($full_upload_paths,$return_content);
+										chgrp($full_upload_paths,'www');
+										chmod($full_upload_paths,664);
+										error_log(var_export($full_upload_paths,true)."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+										attachment_process($full_upload_paths);
+										error_log("Hello world4"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+//										$str = 'img src="'.add_suffix(cdn_url($db_path),$this->compress_marker);
+										$str = 'img src="'.cdn_url($db_path);
+										//var_dump($str);exit("OK");
+										return $str;
+									}
+								},htmlspecialchars_decode($content));
+								$update_data=array(
+									'content' => htmlspecialchars($content)               //还原
+								);
+								$res = $this->bbs_post_m->update_post_record($post_id,$update_data);
+								if(!$res){
+									error_log("update post content error"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+								}
+							}catch(Exception $e){
+								$err = $e->getMessage();
+								error_log(var_export($err, true)."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+							}
+							error_log("Hello world456"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+							if(!empty($_SESSION["outside_img"])){
+								foreach($_SESSION["outside_img"] as &$img_path){
+									$_insert_data["path"]=$img_path;
+									$insert_data["post_id"]  = $post_id;
+									$insert_data["ctime"]    = $time;
+									$insert_data["uid"]		 = $uid;
+									$insert_batch_data[]     = $insert_data;
+								}
+								unset($_SESSION["outside_img"]);
+								$status = $this->bbs_post_m->add_post_attachment_batch($insert_batch_data,$post_id);
+								if(!$status){
+									error_log("save attachment error"."\r\n", 3, "/home/huangjianquan/bbs_cron.log");
+								}
+							}
+							break;
+					}
+					$t2 = microtime();
+					$time = $t2-$t1;
+					error_log("all_time:".var_export($time,true)."\r\n",3,"/home/huangjianquan/bbs_cron.log");
+				}
+			}
+			$this->check_banned();
+			$this->check_stick();
+		}
+
+		// 建立新的标签对应关系
+		public function add_tag_relation($ptag_id, $ctag_id)
+		{
+			$ptag_id = (int) $ptag_id;
+			$ctag_id = (int) $ctag_id;
+
+			// 对应关系中ctag的所有post_id
+			$add_post_ids = $this->bbs_post_m->get_post_ids_by_tag_id($ctag_id);
+
+			// 只有当有帖子的时候，才需要建立帖子的对应关系
+			if($add_post_ids){
+
+				// 对应关系中ptag的所有父tag + 自身(包含自身的，直接使用get_add_tag_ids()方法就行)
+				$add_post_tag_ids = $this->bbs_post_m->get_add_tag_ids($ptag_id);
+
+				// 对应关系中ctag原本已存在的所有父tag
+				$ctag_parent_tag_ids = $this->bbs_post_m->get_all_parent_tag_id($ctag_id, TRUE);
+
+				// 排除后，得到需要添加的tag_ids(减少不必要的运算)
+				$need_add_post_tag_ids = array_diff($add_post_tag_ids, $ctag_parent_tag_ids);
+
+				// 给所有标签，都推送$add_post_ids，已存在，则不会建立(这里并未进行数据进一步筛选 - 估计很复杂，效率可能低)
+				foreach($need_add_post_tag_ids as $tag_id)
+				{
+					$post_tag_data = array();
+					$post_tag_data['tag_id'] = $tag_id;
+					$post_tag_data['ctime'] = time();
+
+					/**
+					 *	这里目前是有问题，因为批量插入未走丁丁的判断，会出现重复。我们考虑是否排重，还是再次循环
+					 * 	1.这里我使用了"排重"，感觉效率应该高点
+					 */
+					$tag_post_ids = $this->bbs_post_m->get_post_ids_by_tag_id($tag_id);
+					$need_add_post_ids = array_diff($add_post_ids, $tag_post_ids);
+
+					// 发现没有需要新增的帖子，跳出本次循环
+					if( empty($need_add_post_ids) ){
+						continue;
+					}
+					$this->bbs_post_m->add_tag_post_batch($post_tag_data, $need_add_post_ids);
+
+					// 给当前标签，增加帖子数(对于标签的操作，标签帖子数的增减，是需要计算的)
+//					$add_num = count($need_add_post_ids);
+					$this->bbs_tag_m->update_tag_post_num($tag_id);
+				}
+			}
+			$this->bbs_tag_m->add_tag_map_record($ctag_id, $ptag_id);
+			return true;
+		}
+
+		// 处理所有父标签
+		public function del_parent_tag_posts($ptag_id, $ctag_id)
+		{
+
+			// ptag + ptag 的所有父，这些都是会受到影响的父标签
+			$ptag_parent_ids_and_self = $this->bbs_post_m->get_add_tag_ids($ptag_id);
+
+			// 对应关系中ctag的所有post_id(可理解为：所有的父元素，最多删除的post_id数组)
+			$ctag_post_ids = $this->bbs_post_m->get_post_ids_by_tag_id($ctag_id);
+
+			foreach($ptag_parent_ids_and_self as $parent_id)
+			{
+				$child_ids_exclude_ctag_child = array_unique($this->bbs_post_m->get_all_child_tag_id_exclude_certain_branch($parent_id, $ptag_id, $ctag_id, true));
+
+				// 发现排除了 ptag <--> ctag 分支后，还有其他分支联结 ctag，不删除post_id
+				if(in_array($ctag_id, $child_ids_exclude_ctag_child)){
+					continue;
+				}else{
+
+					$source_post_ids = array();
+
+					// 将该父级tag_id也添加进来
+					array_push($child_ids_exclude_ctag_child, $parent_id);
+					foreach($child_ids_exclude_ctag_child as $source_tag_id)
+					{
+						$post_ids = $this->bbs_post_m->get_tag_direct_post($source_tag_id);
+						$source_post_ids = array_merge($source_post_ids, $post_ids);
+					}
+
+					// 得到最终要删除的post_id
+					$source_post_ids = array_unique($source_post_ids); 		// 排重下，diff应该会优化点
+							
+					$need_del_post_ids = array_diff($ctag_post_ids, $source_post_ids);
+						
+					$this->bbs_post_m->del_post_tag_batch_by_post_ids_and_tag_id($need_del_post_ids, $parent_id);
+
+					// 给当前标签，删除帖子数(对于标签的操作，标签帖子数的增减，是需要计算的)
+//					$del_num = count($need_del_post_ids);
+					$this->bbs_tag_m->update_tag_post_num($parent_id, -1);
+				}
+			}
+
+			$this->bbs_tag_m->del_tag_map_record($ctag_id, $ptag_id);
+		}
+
+		// 下面是处理子的，不过子标签不用删除，我们先保留！
+		public function del_child_tag_posts_and_branches($ctag_id)
+		{
+			$ctag_child_ids = array_unique($this->bbs_post_m->get_all_child_tag_id($ctag_id, true));
+			array_push($ctag_child_ids, $ctag_id);
+			$ctag_child_ids_and_self = $ctag_child_ids;
+			$this->del_tag_relation_recursion($ctag_id, $ctag_child_ids_and_self);
+		}
+
+		public function del_tag_relation_recursion($ctag_id, $ctag_child_ids_and_self)
+		{
+			$direct_child_tag_ids = $this->bbs_post_m->get_direct_child_tag_ids($ctag_id);
+			if($direct_child_tag_ids){
+				foreach($direct_child_tag_ids as $child_tag_id)
+				{
+					$direct_parent_tag_ids = $this->bbs_post_m->get_direct_parent_tag_ids($child_tag_id);
+						
+					$need_del = true;
+					foreach($direct_parent_tag_ids as $parent_tag_id)
+					{
+						if( ! in_array($parent_tag_id, $ctag_child_ids_and_self)){
+							$need_del = false; 		// 发现一个不在此数组里，说明要删除的子元素，有其他不可删除的分支
+							break;
+						}
+					}
+
+					// 删除tag_map的对应关系
+					$this->bbs_tag_m->del_tag_map_record($child_tag_id, $ctag_id);
+
+					// 只有当分支唯一 || 分支的父子关系仍在要删除的ctag_child_ids内，才进行标签的post_id的删除
+					if($need_del){
+
+						// 1.删除child_tag_id对应的post_id
+						$this->bbs_post_m->del_post_tag_batch_by_tag_id($child_tag_id);
+
+						// 2.开始进行递归处理子
+						$this->del_tag_relation_recursion($child_tag_id, $ctag_child_ids_and_self);
+					}
+				}
+			}
+			return;
+		}
+
+
+
+		// 定时检测用户禁言状态，发现禁言时间已到，更改数据
+		public function check_banned()
+		{
+			$banned_user_list = $this->bbs_cron_model->get_banned_user_list();	
+			$enable_uid_array = array();
+			if($banned_user_list){
+				foreach($banned_user_list as $user_info){
+					if($user_info['ban_e_time'] <= time()){
+						$enable_uid_array[] = $user_info['uid'];
+					}		
+				}
+			}
+
+			// 发现有复合条件的，解除禁言
+			if($enable_uid_array){
+				$this->bbs_cron_model->enable_users($enable_uid_array);
+				$this->bbs_cron_model->add_user_manager_log($enable_uid_array);
+			}
+
+			if($enable_uid_array){
+				$uids = join(',', $enable_uid_array);
+				error_log("自动取消置顶脚本，于" . date('Y-m-d H:i:s') . "执行完毕！取消置顶关系ID为：" . $uids."\r\n",3,'/home/huangjianquan/bbs_cron.log');
+
+			}
+		}
+
+		// 定时检查置顶帖子状态，发现已到置顶时间，取消置顶
+		public function check_stick()
+		{
+			$stick_post_tag_map_list = $this->bbs_cron_model->get_stick_post_tag_map_list();
+			$del_stick_id_array = array();
+			if($stick_post_tag_map_list){
+				foreach($stick_post_tag_map_list as $stick_row){
+					if($stick_row['stick_e_time'] <= time()){
+						$del_stick_id_array[] = $stick_row['id'];
+					}
+				}
+			}
+
+			// 发现有过期的，取消置顶状态
+			if($del_stick_id_array){
+				$this->bbs_cron_model->del_stick_map($del_stick_id_array);
+				$this->bbs_cron_model->add_post_manager_log($del_stick_id_array);
+			}
+			if($del_stick_id_array){
+				$mapids = join(',', $del_stick_id_array);
+				error_log("自动取消置顶脚本，于" . date('Y-m-d H:i:s') . "执行完毕！取消置顶关系ID为：" . $mapids."\r\n",3,'/home/huangjianquan/bbs_cron.log');
+
+			}
+		}
+
+	}

@@ -1,0 +1,169 @@
+<?php
+if (!defined('BASEPATH'))
+    exit('No direct script access allowed');
+
+class User_cron extends CI_Controller {
+		
+    public function __construct() {
+        parent::__construct();
+        $this->config->load('database', NULL, TRUE);
+        $this->load->helper('url');
+		$this->load->model('User_m');
+		$this->load->model ( 'Common' );
+		$this->load->model ( 'Weixin_msg_m' );
+		$this->load->library('md_common');
+                        
+    }
+    /**
+     * 初始化数据
+     * 批量同步用户属性脚本
+     * 
+     * 包含：
+     * 		用户注册时间
+     *          注册来源 
+     * 		用户最后登录时间
+     * 		用户标签
+     * 		用户是否绑定微信号
+     *          是否绑定手机号（登录用）
+     *          是否绑定邮箱 （登录用）
+     *          用户性别
+     * 		用户关注过的项目
+     *          用户关注总项目数    
+     * Enter description here ...
+     */
+    function sync_user_mess() {
+        //$date = date("Y-m-d H:i:s", time() - 3600 * 24); 
+        $date = "2014-01-01 00:00:00";
+        $rn = 1;
+        do {
+            $sel_id = (($rn - 1) * 10000);
+            $count_sql = "SELECT count(`id`) as count FROM `md_users` ";
+            $user_count = $this->db->query($count_sql)->row_array();
+            $run_num = ceil($user_count['count'] / 10000) + 1;
+            $user_sql = "SELECT * FROM `md_users` WHERE  `ctime`>='" . $date . "'  LIMIT {$sel_id} ,10000";
+            $all_user = $this->db->query($user_sql)->result_array();
+            $user_mess = array();
+            if (!empty($all_user)) {
+                for ($i = 0; $i < count($all_user); $i++) {
+                    $user_tag = '';
+                    if (!empty($all_user[$i]['tags']) && !empty($all_user[$i]['sys_tags'])) {
+                        $user_tag = $all_user[$i]['tags'] . ',' . $all_user[$i]['sys_tags'];
+                    } else {
+                        if (!empty($all_user[$i]['tags'])) {
+                            $user_tag = $all_user[$i]['tags'];
+                        } elseif (!empty($all_user[$i]['sys_tags'])) {
+                            $user_tag = $all_user[$i]['sys_tags'];
+                        }
+                    }
+                    $user_mess[$i]['user_tag'] = isset($user_tag) ? $user_tag : '';
+                    $if_bd = $this->Common->get_single_record('md_weixin_binding', array("user_id" => $all_user[$i]['id'], 'platform' => 'weixin'));
+                    if (!empty($if_bd)) {
+                        $user_mess[$i]['if_binding'] = '1';
+                    } else {
+                        $user_mess[$i]['if_binding'] = '0';
+                    }                 
+                    $favor_sql = "SELECT DISTINCT(`pro_id`) as favor_pro FROM `md_product_favors` WHERE `user_id`='" . $all_user[$i]['id'] . "'";
+                    $favor_pro = $this->db->query($favor_sql)->result_array();
+                    if (!empty($favor_pro)) {
+                        $new_favor = $favor_pro[0]['favor_pro'];
+                        for ($j = 1; $j <= count($favor_pro) - 1; $j++) {
+                            $new_favor = $new_favor . ";" . $favor_pro[$j]['favor_pro'];
+                        }
+                        $user_mess[$i]['favor_pro'] = $new_favor;
+                        $user_mess[$i]['favor_pro_count'] = count($favor_pro);
+                    } else {
+                        $user_mess[$i]['favor_pro'] = '';
+                        $user_mess[$i]['favor_pro_count'] = 0;
+                    }
+                    $user_mess[$i]['register_time'] = $all_user[$i]['ctime'];
+                    $user_mess[$i]['last_login'] = $all_user[$i]['last_login'];
+                    $user_mess[$i]['user_id'] = $all_user[$i]['id'];
+                    $user_mess[$i]['register_platform'] = isset($all_user[$i]['platform']) ? $all_user[$i]['platform'] : '';
+                    $user_mess[$i]['binding_mobel'] = isset($all_user[$i]['mobile']) ? $all_user[$i]['mobile'] : '';
+                    $user_mess[$i]['binding_email'] = isset($all_user[$i]['email']) ? $all_user[$i]['email'] : '';
+                    $user_mess[$i]['gender'] = isset($all_user[$i]['gender']) ? $all_user[$i]['gender'] : '';
+                    #判断对应user_id是否已经存在`md_user_status`   			
+                    $if_have = $this->Weixin_msg_m->if_have_user_status($user_mess[$i]['user_id']);
+                    if (!empty($if_have)) {
+                        $updata = $this->Weixin_msg_m->updata_user_status($user_mess[$i]);
+                    } else {
+                        $inner = $this->Weixin_msg_m->inner_user_status($user_mess[$i]);
+                    }
+                }
+            }
+            echo("用户id(".$sel_id.",10000)基本类属性处理完成");
+            $rn++;
+        } while ($rn <= $run_num);
+    }
+
+    /**
+     * 批量同步用户属性脚本
+     * 
+     * 包含：
+     *          
+     * 		用户支持过的项目
+     * 		用户支持总项目数
+     * 		用户支持总金额		
+     * 		用户平均支持金额
+     * Enter description here ...
+     */
+    function sync_user_pro_mess() {
+        //$date = date("Y-m-d H:i:s", time() - 3600 * 24); 
+        $date = "2014-01-01 00:00:00";
+        $rn = 1;
+        do {
+            $sel_id = (($rn - 1) * 10000);
+            $count_sql = "SELECT count(`id`) as count FROM `md_users` ";
+            $user_count = $this->db->query($count_sql)->row_array();
+            $run_num = ceil($user_count['count'] / 10000) + 1;
+            $user_sql = "SELECT * FROM `md_users` WHERE  `ctime`>='" . $date . "' LIMIT {$sel_id} ,10000";
+            $all_user = $this->db->query($user_sql)->result_array();
+            $user_mess = array();
+            if (!empty($all_user)) {
+                for ($i = 0; $i < count($all_user); $i++) {
+                    $sql = "SELECT DISTINCT(`pro_id`) as back_pro FROM `md_product_back` WHERE `user_id`='" . $all_user[$i]['id'] . "' AND `if_pay`=1 AND `ctime`>='" . $date . "'";
+                    //echo $sql;
+                    $back_pro = $this->db->query($sql)->result_array();
+                    //print_r($back_pro);echo "<br/>";
+                    if (!empty($back_pro)) {
+                        $new_back = $back_pro[0]['back_pro'];
+                        for ($m = 1; $m <= count($back_pro) - 1; $m++) {
+                            $new_back = $new_back . ";" . $back_pro[$m]['back_pro'];
+                        }
+                        $new_back_str = $new_back;
+                    }
+                    $user_mess[$i]['user_id'] = $all_user[$i]['id'];
+                    #判断对应user_id是否已经存在`md_user_status`   			
+                    $if_have = $this->Weixin_msg_m->if_have_user_status($user_mess[$i]['user_id']);
+                    if (!empty($if_have)) {
+                        if (empty($if_have[0]['back_pro'])) {
+                            $back_str = $new_back_str;
+                        } else {
+                            $back_str = $new_back_str . ";" . $if_have[0]['back_pro'];
+                        }
+                        $new_back_arr = explode(";", $back_str);
+                        $back_arr = array_unique($new_back_arr); //去重                                
+                        $user_mess[$i]['back_pro'] = implode(";", $back_arr);
+                        $user_mess[$i]['back_pro_count'] = count($back_arr);
+                        $amount_sql = "SELECT SUM(`amount`) as all_amount FROM `md_product_back` WHERE `user_id`='" . $all_user[$i]['id'] . "' AND `if_pay`=1 AND `ctime`>='" . $date . "'";
+                        $amount = $this->db->query($amount_sql)->row_array();
+                        $user_mess[$i]['all_back_amount'] = $amount['all_amount'] + $if_have[0]['all_back_amount'];
+                        $user_mess[$i]['aver_back_amount'] = round($user_mess[$i]['all_back_amount'] / $user_mess[$i]['back_pro_count'], 2);
+                        //print_r($user_mess[$i]);exit;
+                        $updata = $this->Weixin_msg_m->updata_user_status($user_mess[$i]);
+                    } else {
+                        $user_mess[$i]['back_pro'] = $new_back_str;
+                        $user_mess[$i]['back_pro_count'] = count($back_pro);
+                        $amount_sql = "SELECT SUM(`amount`) as all_amount FROM `md_product_back` WHERE `user_id`='" . $all_user[$i]['id'] . "' AND `if_pay`=1 AND `ctime`>='" . $date . "'";
+                        $amount = $this->db->query($amount_sql)->row_array();
+                        $user_mess[$i]['all_back_amount'] = isset($amount['all_amount']) ? $amount['all_amount'] : '0';
+                        $user_mess[$i]['aver_back_amount'] = round($user_mess[$i]['all_back_amount'] / $user_mess[$i]['back_pro_count'], 2);
+                        $inner = $this->Weixin_msg_m->inner_user_status($user_mess[$i]);
+                    }
+                }
+            }
+            echo("用户id(".$sel_id.",10000)数据类属性处理完成");
+            $rn++;
+        } while ($rn <= $run_num);
+    }
+}

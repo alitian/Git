@@ -1,0 +1,106 @@
+<?php $this->load->view('ckad/header'); ?>
+<style>
+    input[type='text'] {
+        width: 600px;
+    }
+</style>
+<div class="container">
+    <div>
+        <h1>分类管理</h1>
+    </div>
+    <hr>
+    <p></p>
+    <form id="pro_form" action="/md_subject/category_add" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label class="col-sm-2 control-label" for="pro_title">分类名&nbsp;</label>
+            <div class="col-sm-10">
+                <input class="form-control" type="text" id="pro_title" placeholder="请输入分类名,建议2-10个字符" name="catename_ch" value="<?=$category_info['catename_ch']?>" disabled>
+            </div>
+        </div>
+        <input type="hidden" name="id" value="<?=$category_info['id']?>">
+        <input type="hidden" name="new" value="1">
+        <input type="hidden" name="bg_pic" id="pro_img" value="<?= $category_info['bg_pic']?>">
+        <input type="hidden" name="icon" id="pro_icon" value="<?= $category_info['icon']?>">
+    </form>
+    <p></p>
+    <div class="form-group">
+        <label class="col-sm-2 control-label" for="img_preview">分类图标</label>
+        <?php if ($category_info['icon']): ?>
+            <div class="col-sm-10" style="text-align:center;width:600px">
+                <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px"></p>
+                <img style="vertical-align:middle;max-width:100%;" id="img_preview" src="<?= cdn_url($category_info['icon']) ?>">
+            </div>
+        <?php else:?>
+            <div class="col-sm-10" style="text-align:center;width:600px">
+                <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px">暂无图片</p>
+                <img style="vertical-align:middle;max-width:100%;display:none;" id="img_preview">
+            </div>
+        <?php endif ?>
+
+    </div>
+    <p style="height:20px;"></p>
+    <form id="up_form" action="md_subject/upload_bg_pic" method="post" enctype="multipart/form-data" target="winupload">
+        <div class="form-group">
+            <input type="hidden" name="type" value="1">
+            <!-- <h3>点击上传按钮上传图片</h3> -->
+        </div>
+        <p></p>
+        <input class="form-control" type="file" id="upfile" name="upfile">
+    </form>
+    <p></p>
+    <div class="form-group">
+        <label class="col-sm-2 control-label" for="img_preview">分类底图</label>
+        <?php if ($category_info['bg_pic']): ?>
+            <div class="col-sm-10" style="text-align:center;width:600px">
+                <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px"></p>
+                <img style="vertical-align:middle;max-width:100%;" id="bg_preview" src="<?= cdn_url($category_info['bg_pic']) ?>">
+            </div>
+        <?php else:?>
+            <div class="col-sm-10" style="text-align:center;width:600px">
+                <p id="default_text" style="padding-top:20px;height:50px;line-height:50px;margin:auto 0px">暂无图片</p>
+                <img style="vertical-align:middle;max-width:100%;display:none;" id="bg_preview">
+            </div>
+        <?php endif ?>
+
+    </div>
+    <form id="bg_form" action="md_subject/upload_bg_pic" method="post" enctype="multipart/form-data" target="winupload">
+        <div class="form-group">
+            <!-- <h3>点击上传按钮上传图片</h3> -->
+            <input type="hidden" name="type" value="2">
+        </div>
+        <p></p>
+        <input class="form-control" type="file" id="bg_pic" name="upfile">
+    </form>
+
+    <iframe src="" style="display:none" name="winupload"></iframe>
+    <button type="submit" class="btn btn-primary" id="add_pro">提交</button>
+    <input type="hidden" name="isupload" value="0">
+    <input type="hidden" name="check_upload" id="check_upload" value="0">
+</div>
+<script>
+    $('#upfile').change(function(){
+        $("input[name='isupload']").val(1);
+        $('#up_form').submit();
+    });
+    $("#bg_pic").change(function(){
+        $("input[name='isupload']").val(1);
+        $("#check_upload").val(0);
+        $('#bg_form').submit();
+    });
+    $('#add_pro').click(function(){
+        if( ! $.trim($('#pro_title').val())){
+            alert('推荐标题不能为空！');
+            return false;
+        }
+        if( ! $.trim($('#pro_img').val())){
+            alert('分类底图不能为空！');
+            return false;
+        }
+        if( ! $.trim($('#pro_icon').val())){
+            alert('分类图标！');
+            return false;
+        }
+        $('#pro_form').submit();
+    });
+</script>
+<?php $this->load->view('ckad/footer'); ?>

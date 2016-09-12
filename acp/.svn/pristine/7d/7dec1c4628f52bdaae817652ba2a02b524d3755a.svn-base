@@ -1,0 +1,103 @@
+<?php $this->load->view('ckad/header') ?>
+<link href='<?= static_url(); ?>css/bootstrap-datetimepicker.min.css' rel='stylesheet' />
+<link href='<?= static_url(); ?>css/blue/style.css' rel='stylesheet'>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.min.js" type="text/javascript"></script>
+<script src="<?= static_url(); ?>js/bootstrap-datetimepicker.zh-CN.js" type="text/javascript"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/bootstrap.min.js"></script>
+<script type="text/javascript" src="<?= static_url(); ?>js/jquery.tablesorter.min.js"></script>
+<style type="text/css">
+    td,tr{
+        white-space: nowrap;
+    }
+</style>
+<script type="text/javascript">
+    $(function() {
+        $("table").tablesorter({debug: true});
+        $('#datetimepicker1,#datetimepicker2').datetimepicker({
+            language: 'zh-CN'
+//            pickTime: false
+        });
+        $("#btn_export").click(function() {
+            $("#form1").attr('action', '/pay_ad/export/<?= $type ?>').submit().attr('action', '');
+        })
+    });
+</script>
+<div>
+    <ul class="breadcrumb">
+        <li>
+            <a href="#">首页</a> <span class="divider">/</span>
+        </li>
+        <li>
+            <a href="#">斗鱼充值信息</a>
+        </li>
+    </ul>
+</div>
+<div class="row-fluid sortable">
+    <div class="box span12">
+        <div class="box-header" >
+            <form method="GET" name='form1' id="form1" action="">
+                <div class="span4">
+                    <div id="datetimepicker1" class="input-append">
+                        <input data-format="yyyy-MM-dd 00:00:00" type="text" placeholder="开始时间" name='stime' value="<?= $startTime ?>"></input>
+                        <span class="add-on">
+                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                            </i>
+                        </span>
+                    </div>
+                    <div id="datetimepicker2" class="input-append">
+                        <input data-format="yyyy-MM-dd 23:59:59" type="text" placeholder="截至时间" name='etime' value="<?= $endTime ?>"></input>
+                        <span class="add-on">
+                            <i data-time-icon="icon-time" data-date-icon="icon-calendar">
+                            </i>
+                        </span>
+                    </div>
+                </div>
+                <div class='span4'>
+                    项目:
+                    <select name='pro_id'>
+                        <option value=''>斗鱼</option>
+                    </select><br />
+                    分期:
+                    <select name='level'>
+                        <option value=''>无期</option>
+                    </select>
+                </div>
+                <div class='span4 text-right'>
+                    订单号:<input type="text" name='orderId' value="<?= $orderNo ?>" placeholder="md_2014061122......" /><a href="/pay_ad/index/<?= $type ?>" class="btn pull-right">取消过滤</a><br />
+                    流水号:<input type="text" name='trans_no' value="<?= $transNo ?>" placeholder="2014061127......" /><input type="submit" value="开始过滤" class='btn btn-primary pull-right' />
+                </div>
+            </form>
+        </div>
+
+        <div>
+            <button class="btn btn-warning">共<?php echo count($res); ?>条</button>
+        </div>
+        <div class="box-content" style="overflow:scroll;height:600px;">
+            <table class="tablesorter table table-striped table-bordered bootstrap-datatable datatable">
+			    <thead>
+			        <tr>
+			            <?php foreach ($title as $k => $v): ?>
+			                <th style="padding: 20px;"><?= $v ?></th>
+			            <?php endforeach; ?>
+			        </tr>
+			    </thead>   
+			    <tbody>
+			        <?php foreach ($res['result'] as $item): ?>
+			            <tr>
+			                <?php foreach ($title as $k => $v): ?>
+			                    <td><?= str_replace("\n", "<br />", $item[$v]); ?></td>
+			                <?php endforeach; ?>
+			            </tr>
+			        <?php endforeach; ?>
+			    </tbody>
+			</table>
+            <div style="clear:both">
+            </div>				
+
+        </div>
+    </div><!--/span-->
+
+</div><!--/row-->
+
+<?php
+$this->load->view('ckad/footer')?>

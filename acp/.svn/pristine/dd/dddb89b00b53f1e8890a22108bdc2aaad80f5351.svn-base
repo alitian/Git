@@ -1,0 +1,43 @@
+    <div class="control-group">
+		<label class="control-label">项目ID：</label>
+		<div class="controls"><input type="text" name="product" id="product" value="" placeholder="项目ID" /> 提示:多个项目用英文逗号分隔</div>
+	</div>
+    <div class="control-group">
+		<label class="control-label">项目名称：</label>
+		<div class="controls"><input type="text" name="project_name" id="project_name" value="" placeholder="项目名称" readonly/></div>
+	</div>
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" name="single_all" id="single_all" value="" />全部用户：</label>
+		<div class="controls"><input type="text" name="single_user" id="single_user" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" name="single_favors" value="" />关注用户：</label>
+		<div class="controls"><input type="text" name="single_favors_user" id="single_favors_user" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+		<label class="control-label"><input type="checkbox" name="single_comments" value="" />评论用户：</label>
+		<div class="controls"><input type="text" name="single_comments_user" id="single_comments_user" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+	    <label class="control-label"><input type="radio" name="single_support" value="1" />支持过一次项目：</label>
+		<div class="controls"><input type="text" name="single_support_user_one" id="single_support_user_one" value="" placeholder="用户数" /></div>
+	</div>
+	<div class="control-group">
+	    <label class="control-label"><input type="radio" name="single_support" value="2" />支持过多次项目</label>
+	    <div class="controls"><input type="text" name="single_support_user_many" id="single_support_user_many" value="" /></div>
+	 </div>
+	   	
+	<div class="control-group">
+   		<label class="control-label">发送用户数总计：</label>
+   		<div class="controls"><input type="text" id="single_total" name="single_total" value=""/></div>
+   	</div>
+
+   	<div class="control-group">
+   		<div class="controls"><input class="btn btn-primary" type="button" id="single_confirm_btn" name="single_confirm_btn" value="确认选择"/></div>
+   	</div>
+   	
+   	<input type="hidden" name="single_user_hidden" id="single_user_hidden" value=""/>
+   	<input type="hidden" name="single_favors_user_hidden" id="single_favors_user_hidden" value=""/>
+   	<input type="hidden" name="single_comments_user_hidden" id="single_comments_user_hidden" value=""/>
+   	<input type="hidden" name="single_support_user_one_hidden" id="single_support_user_one_hidden" value=""/>
+   	<input type="hidden" name="single_support_user_many_hidden" id="single_support_user_many_hidden" value=""/>

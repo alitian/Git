@@ -1,0 +1,61 @@
+<?php if(!empty($pro_stat_data)): ?>
+<table class="table table-hover table-condensed">
+<thead>
+    <tr>
+        <th>渠道</th>
+        <th>来源</th>
+        <th>PV/UV</th>
+        <th>新用户</th>
+        <th>订单提交量</th>
+        <th>订单支付量</th>
+        <th>收入</th>
+        <th>转化率</th>
+        <th>支持人数</th>
+        <th>支持人数中的新用户</th>
+    </tr>
+</thead>
+<tbody>
+    <?php $total_pv         = 0; ?>
+    <?php $total_uv         = 0; ?>
+    <?php $total_order      = 0; ?>
+    <?php $total_pay        = 0; ?>
+    <?php $total_money      = 0; ?>
+    <?php $total_backer     = 0; ?>
+    <?php $total_backer_new = 0; ?>
+    <?php foreach ($pro_stat_data as $value): ?>
+    <tr>
+        <td><?=$value['mdsf']?></td>
+        <td><?=$value['mdsff']?></td>
+        <td><?=$value['pv']?>/<?=$value['uv']?></td>
+        <td>暂无</td>
+        <td><?=$value['cnt_order']?></td>
+        <td><?=$value['cnt_pay']?></td>
+        <td><?=$value['cnt_money']?></td>
+        <td><?=(intval($value['cnt_order']) != 0) ? number_format($value['cnt_pay'] / $value['cnt_order'] * 100, 2) : 0?>%</td>
+        <td><?=$value['cnt_backer']?></td>
+        <td><?=$value['cnt_backer_new']?></td>
+
+        <?php $total_pv         += $value['pv']; ?>
+        <?php $total_uv         += $value['uv']; ?>
+        <?php $total_order      += $value['cnt_order']; ?>
+        <?php $total_pay        += $value['cnt_pay']; ?>
+        <?php $total_money      += $value['cnt_money']; ?>
+        <?php $total_backer     += $value['cnt_backer']; ?>
+        <?php $total_backer_new += $value['cnt_backer_new']; ?>
+    </tr>
+    <?php endforeach; ?>
+    <tr class="summary">
+        <td></td>
+        <td>总计：</td>
+        <td><?=$total_pv?>/<?=$total_uv?></td>
+        <td>暂无</td>
+        <td><?=$total_order?></td>
+        <td><?=$total_pay?></td>
+        <td><?=$total_money?></td>
+        <td><?=(intval($total_order) != 0) ? number_format($total_pay / $total_order * 100, 2) : 0?>%</td>
+        <td><?=$total_backer?></td>
+        <td><?=$total_backer_new?></td>
+    </tr>
+</tbody>
+</table>
+<?php endif; ?>
